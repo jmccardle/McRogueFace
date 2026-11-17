@@ -47,6 +47,7 @@ struct ProfilingMetrics {
 
     // Grid-specific metrics
     int gridCellsRendered = 0;       // Number of grid cells drawn this frame
+    int gridChunksRepainted = 0;     // Layer chunk textures repainted this frame (#536)
     int entitiesRendered = 0;        // Number of entities drawn this frame
     int totalEntities = 0;           // Total entities in scene
 
@@ -72,6 +73,7 @@ struct ProfilingMetrics {
         int uiElements = 0;
         int visibleElements = 0;
         int gridCellsRendered = 0;
+        int gridChunksRepainted = 0;
         int entitiesRendered = 0;
         int totalEntities = 0;
         float gridRenderTime = 0.0f;
@@ -113,6 +115,7 @@ struct ProfilingMetrics {
         uiElements = 0;
         visibleElements = 0;
         gridCellsRendered = 0;
+        gridChunksRepainted = 0;
         entitiesRendered = 0;
         totalEntities = 0;
         gridRenderTime = 0.0f;
@@ -125,6 +128,7 @@ struct ProfilingMetrics {
         published.uiElements = uiElements;
         published.visibleElements = visibleElements;
         published.gridCellsRendered = gridCellsRendered;
+        published.gridChunksRepainted = gridChunksRepainted;
         published.entitiesRendered = entitiesRendered;
         published.totalEntities = totalEntities;
         published.gridRenderTime = gridRenderTime;

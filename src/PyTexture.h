@@ -47,6 +47,9 @@ public:
         const std::string& name = "<generated>");
     sf::Sprite sprite(int index, sf::Vector2f pos = sf::Vector2f(0, 0), sf::Vector2f s = sf::Vector2f(1.0, 1.0));
     int getSpriteCount() const { return sheet_width * sheet_height; }
+    int getSheetWidth() const { return sheet_width; }
+    // The backing texture, for drawing vertex arrays (#539). Texture coordinates are pixels.
+    const sf::Texture& sfTexture() const { return texture; }
 
     // Get the underlying sf::Texture for 3D rendering
     const sf::Texture* getSFMLTexture() const { return &texture; }

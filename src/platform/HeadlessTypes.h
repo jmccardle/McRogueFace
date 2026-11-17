@@ -294,14 +294,16 @@ inline const BlendMode BlendMode::Add{};
 inline const BlendMode BlendMode::Multiply{};
 inline const BlendMode BlendMode::None{};
 
-// Forward declare Shader for RenderStates
+// Forward declare Shader and Texture for RenderStates
 class Shader;
+class Texture;
 
 class RenderStates {
 public:
     RenderStates() = default;
     RenderStates(const Transform& transform) {}  // Implicit conversion from Transform
     RenderStates(const BlendMode& mode) {}
+    RenderStates(const Texture* texture) {}  // #539: textured vertex arrays
     RenderStates(const Shader* shader) {}  // Implicit conversion from Shader pointer
     static const RenderStates Default;
 };
