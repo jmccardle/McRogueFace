@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,ColorLayer,Entity,Grid,Scene] verified=0.3.5 status=ok
+# mcrf: objects=[Caption,Color,ColorLayer,Entity,Grid,Scene] verified=0.3.6-dev status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("demo")
@@ -35,12 +35,14 @@ enemy = mcrfpy.Entity(grid_pos=(13, 6), texture=mcrfpy.default_texture, sprite_i
 grid.entities.append(enemy)
 
 
+# region: move_enemy
 def move_enemy_toward_player(grid, enemy, player):
     """Move enemy one step toward the player."""
     dijkstra = grid.get_dijkstra_map(player.grid_pos)
     step = dijkstra.step_from(enemy.grid_pos)
     if step is not None:
         enemy.grid_pos = step
+# endregion
 
 
 # Visualize the distance field rooted at the player

@@ -1,4 +1,4 @@
-# mcrf: objects=[Entity,Grid,Scene] verified=0.3.5 status=ok
+# mcrf: objects=[Entity,Grid,Scene] verified=0.3.6-dev status=ok
 import mcrfpy
 import random
 
@@ -10,6 +10,7 @@ TILE_STAIRS_DOWN = 3
 TILE_STAIRS_UP = 4
 
 
+# region: room
 class Room:
     """Represents a rectangular room in the dungeon."""
 
@@ -43,6 +44,7 @@ class Room:
             self.y - padding < other.y + other.height + padding and
             self.y + self.height + padding > other.y - padding
         )
+# endregion
 
 
 class DungeonGenerator:
