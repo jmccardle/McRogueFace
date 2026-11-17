@@ -103,6 +103,24 @@ c = ((lim, 0), (lim, 0), (lim, 0), (lim, 0))
 ok("dig_bezier at the limit (constant)", lambda: hm.dig_bezier(c, 1.0, 1.0, 0.0, 0.0))
 ok("dig_bezier ordinary", lambda: hm.dig_bezier(((0, 0), (5, 1), (9, 9), (15, 15)), 2.0, 1.0, 1.0, 0.5))
 
+# ---- a re-split replaces the children (the root-only guards must cover the whole tree) ----
+# libtcod's split_once APPENDS sons to a node that has some, and split_recursive recurses into the
+# oldest son, whose geometry from an earlier split_once lies outside the root-only hull check.
+b = mcrfpy.BSP(pos=(0, 0), size=(10, 2))
+b.split_once(False, IMAX)                       # children at x = 0 and x = INT_MAX
+ok("split_recursive after split_once (previously 6 UBSan reports)",
+   lambda: b.split_recursive(depth=8, min_size=(10**6, 1), seed=1))
+b = mcrfpy.BSP(pos=(0, 0), size=(20, 20))
+b.split_once(False, 10)
+b.split_once(True, 5)                           # replaces, does not append
+if len(b) != 2:
+    fails.append(f"two split_once calls left {len(b)} leaves, want 2")
+b.split_recursive(depth=3, min_size=(2, 2), seed=1)
+fresh = mcrfpy.BSP(pos=(0, 0), size=(20, 20))
+fresh.split_recursive(depth=3, min_size=(2, 2), seed=1)
+if sorted((n.pos, n.size) for n in b.leaves()) != sorted((n.pos, n.size) for n in fresh.leaves()):
+    fails.append("split_recursive after split_once differs from a fresh split with the same seed")
+
 for f in fails:
     print("FAIL:", f)
 print("FAIL" if fails else "PASS")

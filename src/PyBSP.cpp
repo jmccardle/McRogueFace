@@ -236,7 +236,7 @@ int PyTraversal::from_arg(PyObject* arg, int* out_order) {
     }
 
     // Accept Traversal enum member
-    if (traversal_enum_class && PyObject_IsInstance(arg, traversal_enum_class)) {
+    if (traversal_enum_class && PyObject_TypeCheck(arg, (PyTypeObject*)traversal_enum_class)) {
         PyObject* value = PyObject_GetAttrString(arg, "value");
         if (!value) {
             return 0;
@@ -636,6 +636,12 @@ PyObject* PyBSP::split_once(PyBSPObject* self, PyObject* args, PyObject* kwds)
     // The tree structure changes, so any cached adjacency graph is now invalid
     self->generation++;
 
+    // A re-split replaces the children: libtcod's split_once APPENDS two more sons to a node that
+    // already has some (a four-son node whose left() / right() still answer with the OLD ones,
+    // geometry inconsistent with the new position), and split_recursive recurses into the oldest
+    // son. Remove them first, as clear() does, so the root-only checks above are the whole tree.
+    TCOD_bsp_remove_sons(self->root);
+
     TCOD_bsp_split_once(self->root, horizontal ? true : false, position);
 
     Py_INCREF(self);
@@ -726,6 +732,9 @@ PyObject* PyBSP::split_recursive(PyBSPObject* self, PyObject* args, PyObject* kw
 
     // Increment generation BEFORE splitting - invalidates existing nodes
     self->generation++;
+
+    // Replace any existing children (see split_once): the hull check above covers the root only.
+    TCOD_bsp_remove_sons(self->root);
 
     TCOD_bsp_split_recursive(self->root, rnd, depth, min_w, min_h, max_ratio, max_ratio);
 
