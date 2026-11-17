@@ -1,28 +1,30 @@
-"""McRogueFace - Multi-Layer Tiles (basic)
-
-Documentation: https://mcrogueface.github.io/cookbook/grid_multi_layer
-Repository: https://github.com/jmccardle/McRogueFace/blob/master/docs/cookbook/grid/grid_multi_layer_basic.py
-
-This code is extracted from the McRogueFace documentation and can be
-run directly with: ./mcrogueface path/to/this/file.py
-"""
-
+# mcrf: objects=[Color,ColorLayer,Grid,Scene,TileLayer,Timer] verified=0.3.6-dev status=ok
 import mcrfpy
 
-scene = mcrfpy.Scene("effects_demo")
-grid = mcrfpy.Grid(grid_size=(20, 15), pos=(10, 10), size=(640, 480),
-                   texture=mcrfpy.default_texture)
-scene.children.append(grid)
+scene = mcrfpy.Scene("layer-effects")
 mcrfpy.current_scene = scene
 
+grid = mcrfpy.Grid(
+    grid_size=(16, 12),
+    texture=mcrfpy.default_texture,
+    pos=(0, 0),
+    size=(1024, 768),
+    zoom=4.0
+)
+scene.children.append(grid)
 
+base = mcrfpy.TileLayer(z_index=0, name="base", texture=mcrfpy.default_texture)
+grid.add_layer(base)
+base.fill(48)
+
+
+# region: effects
 class EffectLayer:
     """Manage visual effects with color overlays."""
 
     def __init__(self, grid, z_index=2):
         self.grid = grid
-        self.layer = mcrfpy.ColorLayer(name="effects", z_index=z_index)
-        grid.add_layer(self.layer)
+        self.layer = grid.add_layer(mcrfpy.ColorLayer(z_index=z_index, name="effects"))
         self.effects = {}  # (x, y) -> effect_data
 
     def add_effect(self, x, y, effect_type, duration=None, **kwargs):
@@ -121,4 +123,5 @@ for x in range(8, 12):
 def game_update(timer, runtime):
     effects.update(0.016)  # 60 FPS
 
-effects_timer = mcrfpy.Timer("effects", game_update, 16)
+mcrfpy.Timer("effects", game_update, 16)
+# endregion
