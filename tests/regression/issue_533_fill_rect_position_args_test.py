@@ -42,20 +42,24 @@ for kind in ("TileLayer", "ColorLayer"):
         except (TypeError, ValueError):
             pass
 
-# Error messages name the argument that was bad.
+# Error messages name the argument that was bad, and the exception type is exact.
 for kind in ("TileLayer", "ColorLayer"):
     layer, val, _ = make(kind)
-    for name, call in (
-        ("size", lambda: layer.fill_rect((0, 0), mcrfpy.Vector(float("nan"), 1), val)),
-        ("size", lambda: layer.fill_rect((0, 0), "ab", val)),
-        ("size", lambda: layer.fill_rect([0, 0], [1], val)),
-        ("pos", lambda: layer.fill_rect(mcrfpy.Vector(float("inf"), 0), (1, 1), val)),
-        ("pos", lambda: layer.fill_rect(None, (1, 1), val)),
+    for name, exc, call in (
+        ("size", ValueError, lambda: layer.fill_rect((0, 0), mcrfpy.Vector(float("nan"), 1), val)),
+        ("size", TypeError, lambda: layer.fill_rect((0, 0), "ab", val)),
+        ("size", TypeError, lambda: layer.fill_rect([0, 0], [1], val)),
+        ("size", OverflowError, lambda: layer.fill_rect((0, 0), mcrfpy.Vector(1e30, 1), val)),
+        ("size", OverflowError, lambda: layer.fill_rect((0, 0), (2**70, 1), val)),
+        ("pos", ValueError, lambda: layer.fill_rect(mcrfpy.Vector(float("inf"), 0), (1, 1), val)),
+        ("pos", TypeError, lambda: layer.fill_rect(None, (1, 1), val)),
+        ("pos", OverflowError, lambda: layer.fill_rect((2**31, 0), (1, 1), val)),
     ):
         try:
             call()
             fails.append(f"{kind}: bad {name} did not raise")
-        except (TypeError, ValueError, OverflowError) as e:
+        except Exception as e:
+            check(type(e) is exc, f"{kind}: bad {name} raised {type(e).__name__}, want {exc.__name__}")
             check(str(e).startswith(name + ":"), f"{kind}: error for bad {name} is {e!r}")
 
 for f in fails:

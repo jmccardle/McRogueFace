@@ -294,8 +294,9 @@ void ColorLayer::fillRect(int x, int y, int width, int height, const sf::Color& 
     // Clamp to valid bounds
     int x1 = std::max(0, x);
     int y1 = std::max(0, y);
-    int x2 = std::min(grid_x, x + width);
-    int y2 = std::min(grid_y, y + height);
+    // 64-bit: x + width overflows int for a width near INT_MAX.
+    int x2 = static_cast<int>(std::min<long long>(grid_x, static_cast<long long>(x) + width));
+    int y2 = static_cast<int>(std::min<long long>(grid_y, static_cast<long long>(y) + height));
 
     // Fill the rectangle
     for (int fy = y1; fy < y2; ++fy) {
@@ -559,8 +560,9 @@ void TileLayer::fillRect(int x, int y, int width, int height, int tile_index) {
     // Clamp to valid bounds
     int x1 = std::max(0, x);
     int y1 = std::max(0, y);
-    int x2 = std::min(grid_x, x + width);
-    int y2 = std::min(grid_y, y + height);
+    // 64-bit: x + width overflows int for a width near INT_MAX.
+    int x2 = static_cast<int>(std::min<long long>(grid_x, static_cast<long long>(x) + width));
+    int y2 = static_cast<int>(std::min<long long>(grid_y, static_cast<long long>(y) + height));
 
     // Fill the rectangle
     for (int fy = y1; fy < y2; ++fy) {
@@ -1245,7 +1247,9 @@ static bool ParseRectArg(PyObject* obj, const char* name, int* a, int* b) {
         PyErr_Format((PyObject*)Py_TYPE(exc), "%s: %U", name, msg);
         Py_DECREF(msg);
     } else {
-        PyErr_SetRaisedException(exc);  // str() itself failed: that error is the report
+        // str(exc) failed (an exception that cannot print itself): report the helper's own
+        // exception unprefixed; the error str() raised is discarded.
+        PyErr_SetRaisedException(exc);
         return false;
     }
     Py_DECREF(exc);
