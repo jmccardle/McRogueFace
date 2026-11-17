@@ -25,7 +25,7 @@ def test_colorlayer_docs():
         "z_index",
         "RGBA",
         "at(x, y)",
-        "set(x, y",
+        "set(pos",
         "fill(",
         "add_layer",
         "Example",
@@ -61,7 +61,7 @@ def test_tilelayer_docs():
         "z_index",
         "texture",
         "at(x, y)",
-        "set(x, y",
+        "set(pos",
         "fill(",
         "-1",  # Special value for no tile
         "sprite",
