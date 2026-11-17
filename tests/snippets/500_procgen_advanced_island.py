@@ -1,10 +1,10 @@
+# mcrf: objects=[Caption,Color,ColorLayer,Grid,HeightMap,NoiseSource,Scene] verified=0.3.6-dev status=ok
 """Advanced: Island Terrain Generation
 
 Combines: Noise (base terrain) + Voronoi (biomes) + Hills + Erosion + Bezier (rivers)
 Creates a tropical island with varied biomes and water features.
 """
 import mcrfpy
-from mcrfpy import automation
 
 GRID_WIDTH, GRID_HEIGHT = 64, 48
 CELL_SIZE = 16
@@ -127,7 +127,8 @@ grid = mcrfpy.Grid(
     layers={}
 )
 grid.fill_color = mcrfpy.Color(0, 0, 0)
-color_layer = grid.add_layer("color", z_index=-1)
+color_layer = mcrfpy.ColorLayer(z_index=-1, name="color")
+grid.add_layer(color_layer)
 scene.children.append(grid)
 
 scene.activate()
@@ -135,6 +136,3 @@ scene.activate()
 # Run the demo
 run_demo(0)
 
-# Take screenshot
-automation.screenshot("procgen_31_advanced_island.png")
-print("Screenshot saved: procgen_31_advanced_island.png")

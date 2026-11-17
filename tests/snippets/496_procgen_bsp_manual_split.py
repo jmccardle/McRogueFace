@@ -1,10 +1,10 @@
+# mcrf: objects=[BSP,Caption,Color,ColorLayer,Grid,Scene] verified=0.3.6-dev status=ok
 """BSP Manual Split Demo
 
 Demonstrates: split_once for controlled layouts
 Shows handcrafted room placement with manual BSP control.
 """
 import mcrfpy
-from mcrfpy import automation
 
 GRID_WIDTH, GRID_HEIGHT = 64, 48
 CELL_SIZE = 16
@@ -137,7 +137,8 @@ grid = mcrfpy.Grid(
     layers={}
 )
 grid.fill_color = mcrfpy.Color(0, 0, 0)
-color_layer = grid.add_layer("color", z_index=-1)
+color_layer = mcrfpy.ColorLayer(z_index=-1, name="color")
+grid.add_layer(color_layer)
 scene.children.append(grid)
 
 scene.activate()
@@ -145,6 +146,3 @@ scene.activate()
 # Run the demo
 run_demo(0)
 
-# Take screenshot
-automation.screenshot("procgen_14_bsp_manual_split.png")
-print("Screenshot saved: procgen_14_bsp_manual_split.png")
