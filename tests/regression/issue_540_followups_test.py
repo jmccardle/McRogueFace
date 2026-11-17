@@ -4,7 +4,9 @@
    __getitem__ keeps its type, args and (SystemExit) code.
 2. HeightMap size= goes through the helper: 2**32+3 is not (3), 2**70 is not "must be positive".
 3. A TypeError raised INSIDE a user's __len__ propagates with its own message; IndexError from
-   __getitem__ propagates. A type with no length slot is simply not a position.
+   __getitem__ propagates. (A type with no length slot being "not a position" is not observable apart from the old
+   behaviour, which also ended in the helper's TypeError, so it has no check here; see
+   issue_540_sequence_errors_test.py for the plain TypeError guard.)
 4. The helper's OverflowError / ValueError name the argument, and no path leaks CPython's raw
    "Python int too large to convert to C long".
 5. add_bsp / multiply_bsp: offset and region arithmetic cannot overflow int and paint cells of a
@@ -93,7 +95,7 @@ for label, fn in rects.items():
         if e is not None and e.code != 9:
             fails.append(f"{label} {argname}: SystemExit code {e.code!r}, want 9")
 
-# ---- 3. TypeError inside __len__; IndexError from __getitem__; no length slot ----
+# ---- 3. TypeError inside __len__; IndexError from __getitem__ ----
 class LenTypeError:
     def __len__(self): raise TypeError("my own len message")
     def __getitem__(self, i): return 0
@@ -104,10 +106,6 @@ class GetIndexError:
     def __getitem__(self, i): raise IndexError("my own index message")
 
 
-class NoLen:
-    def __getitem__(self, i): return 0
-
-
 for label, fn in {
     "TileLayer.set": lambda p: tile.set(p, 1),
     "fill_rect pos": lambda p: tile.fill_rect(p, (1, 1), 1),
@@ -115,9 +113,6 @@ for label, fn in {
 }.items():
     expect(f"{label} __len__ TypeError keeps message", lambda: fn(LenTypeError()), TypeError, "my own len message")
     expect(f"{label} __getitem__ IndexError", lambda: fn(GetIndexError()), IndexError, "my own index message")
-    e = expect(f"{label} no length slot", lambda: fn(NoLen()), TypeError)
-    if e is not None and "no len" in str(e):
-        fails.append(f"{label} no length slot: leaked len() error {e}")
 
 # ---- 2. HeightMap size= ----
 hm = mcrfpy.HeightMap((8, 8))
