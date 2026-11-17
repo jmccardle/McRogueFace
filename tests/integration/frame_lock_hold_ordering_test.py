@@ -134,7 +134,6 @@ def helper():
     while not stop.is_set():
         if in_block.wait(0.05):
             in_block.clear()
-            time.sleep(0.005)   # gives a (mutated) non-parking step() room to return early
             let_go.set()
 
 

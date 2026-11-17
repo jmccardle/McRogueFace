@@ -19,6 +19,28 @@ the instant it releases, 8 threads, 64 threads). Because the main thread decides
 frame happens, machine speed cannot change any count here. The wall clock appears only
 as a hang detector (HANG_SECONDS): a deadlock fails with "deadlock/hang", it is never
 a performance bound.
+
+A second case, mid_window_arrival, pins the other half of the rule: a thread that finishes a
+block and calls lock() AGAIN while another holder of the SAME window is still inside (A
+blocked on an Event, keeping the window open) must wait for the next window ('lock_waiting'
+== 1, admissions +2, windows +1), not be admitted by this one. It waits on counters, never
+on a sleep.
+
+What each case catches (measured by restoring older admission rules in scratch builds):
+
+  * mid_window_arrival is deterministic against any rule that admits a late arrival while a
+    window is open. With master's rule (`safe_window && !closing`) and a 5 ms pause before
+    closeWindow() (the starved-main condition) it fails 5/5 ("admissions +3 (want 2)"); the
+    pre-#410 rule (the window is never marked closing) wedges the run, which the hang
+    detector or runner reports, 5/5. It PASSES against master's rule on an idle machine:
+    there the main thread has set `closing` in closeWindow() before any holder runs Python,
+    so B is deferred by that rule too. Only the starved-main gap separates the rules, and a
+    Python test cannot hold that gap open.
+  * The W-worker rounds are the probabilistic detector for the unmodified master rule on an
+    idle machine (the W=64 case failed 2 of 5 runs against it); with the gap widened they
+    fail 5/5.
+  * So the 5 ms-gap engine mutant is the only DETERMINISTIC proof for master's exact rule;
+    that mutant and the cases above are kept together.
 """
 import sys
 import threading
