@@ -388,6 +388,7 @@ McRogueFace supports WebGL deployment via Emscripten with an SDL2+OpenGL ES 2 ba
 
 ```bash
 source ~/emsdk/emsdk_env.sh  # Activate Emscripten SDK
+tools/build_deps_wasm.sh      # Once per clone (after make deps): wasm CPython, libtcod, deps/stb
 make wasm                     # Full game web build
 make playground               # REPL-focused web build
 make serve                    # Serve at http://localhost:8080

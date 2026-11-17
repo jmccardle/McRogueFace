@@ -1,0 +1,187 @@
+name: Package
+
+# Builds the engine's release packages from a clean checkout -- the same steps
+# tools/release.sh runs on a dev machine (step 5), minus versioning, tagging
+# and publishing. Each package is unpacked and run by tools/smoke_package.py,
+# then attached to the run as an artifact.
+#
+# A clean checkout is the point: a dev-machine package ships whatever sits in
+# that machine's gitignored assets/ (#527) and links its distro's codec
+# library versions (#525). These packages contain only what git tracks.
+#
+# Windows is not built here yet: `make windows` needs MinGW builds of SFML and
+# libtcod in __lib_windows/, which nothing in the repo produces.
+#
+# .gitea/workflows/package.yaml is this file with the Forgejo runner's label;
+# keep the two in step. Steps run as root in the Forgejo runner's container (no
+# sudo) and as a sudoer on GitHub's VMs, hence $SUDO.
+
+on:
+  push:
+    branches: ['ci/**']
+    tags: ['[0-9]+.[0-9]+.[0-9]+']
+  workflow_dispatch:
+
+env:
+  ALSOFT_DRIVERS: "null"
+  APT_PACKAGES: >-
+    build-essential cmake git rsync xvfb pandoc
+    zlib1g-dev libx11-dev libxrandr-dev libxcursor-dev libxi-dev
+    libfreetype-dev libudev-dev libvorbis-dev libflac-dev libogg-dev
+    libgl-dev libopenal-dev libzstd-dev uuid-dev
+    libssl-dev libffi-dev libsqlite3-dev libbz2-dev liblzma-dev
+    libreadline-dev libncurses-dev libgdbm-dev
+  # CPython 3.15's Platforms/emscripten/config.toml pins this version.
+  EMSDK_VERSION: "4.0.19"
+
+jobs:
+  linux:
+    # Pinned: the package must run on the documented floor (Debian 13 / Ubuntu 24.04,
+    # glibc 2.39). ubuntu-latest moved to 26.04, whose builds need GLIBC_2.43.
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          SUDO=$(command -v sudo || true)
+          $SUDO apt-get update
+          $SUDO apt-get install -y $APT_PACKAGES
+
+      - name: Dependency cache key
+        id: deps-key
+        run: echo "key=$(git ls-tree HEAD modules/ | cat - tools/build_deps.sh tools/build_python.sh /etc/os-release | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache built dependencies
+        uses: actions/cache@v4
+        with:
+          path: __lib
+          key: deps-release-${{ steps.deps-key.outputs.key }}
+
+      - name: Build dependencies
+        run: make deps
+
+      - name: Build (Release)
+        run: make linux
+
+      - name: Generate the docs the package bundles
+        run: xvfb-run -a -s "-noreset" make docs
+
+      - name: Package
+        run: make package-linux
+
+      - name: Smoke-test the package
+        # The SFML build needs an X display to create a Grid, even with --headless.
+        # smoke_package.py also runs the package in clean debian:13 and
+        # ubuntu:24.04 containers (#525), which needs podman or docker on the runner.
+        run: xvfb-run -a -s "-noreset" python3 tools/smoke_package.py --version "$(tools/version.sh)" dist/McRogueFace-*-Linux.tar.gz
+
+      - name: Report what the package links against (#525)
+        if: always()
+        run: |
+          set -x
+          cat /etc/os-release | head -3
+          tar -tzf dist/McRogueFace-*-Linux.tar.gz | grep -E '/lib/[^/]+$' || true
+          readelf -d build/lib/libsfml-audio.so.* | grep NEEDED || true
+          readelf -d build/lib/Python/lib.linux-x86_64-*/_ssl.*.so | grep NEEDED || true
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: McRogueFace-Linux
+          path: dist/McRogueFace-*-Linux.tar.gz
+          if-no-files-found: error
+
+  web:
+    # Pinned: the package must run on the documented floor (Debian 13 / Ubuntu 24.04,
+    # glibc 2.39). ubuntu-latest moved to 26.04, whose builds need GLIBC_2.43.
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          SUDO=$(command -v sudo || true)
+          $SUDO apt-get update
+          $SUDO apt-get install -y $APT_PACKAGES
+
+      - name: Dependency cache keys
+        id: deps-key
+        run: |
+          echo "key=$(git ls-tree HEAD modules/ | cat - tools/build_deps.sh tools/build_python.sh /etc/os-release | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+          echo "wasm=$(git ls-tree HEAD modules/cpython modules/libtcod-headless | cat - tools/build_deps_wasm.sh tools/build_python_wasm.sh /etc/os-release | sha256sum | cut -c1-16)-$EMSDK_VERSION" >> "$GITHUB_OUTPUT"
+
+      # Restore and save are separate steps so that a build which gets this far
+      # is cached even when a later step fails.
+      - name: Restore built dependencies
+        id: deps-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: __lib
+          key: deps-release-${{ steps.deps-key.outputs.key }}
+
+      - name: Build dependencies
+        run: make deps
+
+      - name: Save built dependencies
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: __lib
+          key: deps-release-${{ steps.deps-key.outputs.key }}
+
+      # package-web runs the Linux build's interpreter to assemble the zip.
+      - name: Build the Linux engine
+        run: make linux
+
+      - name: Install emsdk ${{ env.EMSDK_VERSION }}
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$HOME/emsdk"
+          "$HOME/emsdk/emsdk" install "$EMSDK_VERSION"
+          "$HOME/emsdk/emsdk" activate "$EMSDK_VERSION"
+
+      - name: Restore the Emscripten dependency builds
+        id: wasm-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            modules/cpython/cross-build
+            modules/libtcod-headless/build-emscripten
+            ~/.cache/emscripten
+          key: wasm-deps-${{ steps.deps-key.outputs.wasm }}
+
+      - name: Build the Emscripten dependencies (CPython, libtcod, stb)
+        run: |
+          source "$HOME/emsdk/emsdk_env.sh"
+          tools/build_deps_wasm.sh
+
+      - name: Save the Emscripten dependency builds
+        if: steps.wasm-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            modules/cpython/cross-build
+            modules/libtcod-headless/build-emscripten
+            ~/.cache/emscripten
+          key: wasm-deps-${{ steps.deps-key.outputs.wasm }}
+
+      - name: Package
+        run: |
+          source "$HOME/emsdk/emsdk_env.sh"
+          make package-web
+
+      - name: Smoke-test the package (headless Chromium)
+        run: |
+          make test-wasm-setup
+          $(command -v sudo || true) .venv-wasmtest/bin/python -m playwright install-deps chromium-headless-shell
+          python3 tools/smoke_package.py --version "$(tools/version.sh)" dist/McRogueFace-*-WASM.zip
+
+      - name: Upload package
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: McRogueFace-WASM
+          path: dist/McRogueFace-*-WASM.zip
+          if-no-files-found: warn
