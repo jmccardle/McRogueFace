@@ -1,4 +1,5 @@
-# mcrf: objects=[Entity,Grid,Scene] verified=0.3.5 status=ok
+# mcrf: objects=[Entity,Grid,Scene] verified=0.3.6-dev status=ok
+# region: generate
 import mcrfpy
 import random
 
@@ -54,8 +55,10 @@ def smooth_caves(grid):
             elif wall_count <= 3:
                 cell.walkable = True
                 cell.tilesprite = 0
+# endregion
 
 
+# region: largest
 def find_largest_cave(grid):
     """Find the largest connected walkable region."""
     width, height = int(grid.grid_size[0]), int(grid.grid_size[1])
@@ -106,8 +109,10 @@ def find_largest_cave(grid):
                 cell.tilesprite = 1
 
     return largest
+# endregion
 
 
+# region: features
 def find_cave_features(grid, spawn_point):
     """Find dead ends, wide areas, and chokepoints."""
     width, height = int(grid.grid_size[0]), int(grid.grid_size[1])
@@ -141,6 +146,7 @@ def find_cave_features(grid, spawn_point):
         'wide_areas': wide_areas,    # Good for boss arenas
         'chokepoints': chokepoints   # Good for traps, doors
     }
+# endregion
 
 
 # Setup

@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,InputState,MouseButton,Scene] verified=0.3.5 status=ok
+# mcrf: objects=[Caption,Color,Frame,InputState,MouseButton,Scene] verified=0.3.6-dev status=ok
 # Draggable Window pattern - a frame that can be dragged by its title bar.
 import mcrfpy
 
@@ -12,6 +12,7 @@ root.outline = 2
 ui.append(root)
 
 
+# region: window
 class DraggableWindow:
     def __init__(self, parent, pos, size, title):
         self.dragging = False
@@ -62,5 +63,6 @@ window = DraggableWindow(root, (20, 20), (250, 300), "Inventory")
 # Add content to window.frame.children at y >= window.content_y
 item_list = mcrfpy.Caption(text="Items here...", pos=(10, window.content_y + 10))
 window.frame.children.append(item_list)
+# endregion
 
 mcrfpy.current_scene = scene

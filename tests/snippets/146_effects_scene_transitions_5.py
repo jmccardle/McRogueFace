@@ -1,4 +1,4 @@
-# mcrf: objects=[Color,Easing,Frame,Scene,Timer] verified=0.3.5 status=ok
+# mcrf: objects=[Color,Easing,Frame,Scene,Timer] verified=0.3.6-dev status=ok
 import mcrfpy
 
 
@@ -54,7 +54,8 @@ class TransitionManager:
         half = duration / 2
 
         overlay = mcrfpy.Frame(pos=(0, 0), size=(self.width, self.height))
-        overlay.fill_color = mcrfpy.Color(color[0], color[1], color[2], 0)
+        overlay.fill_color = mcrfpy.Color(color[0], color[1], color[2], 255)
+        overlay.opacity = 0.0
         overlay.z_index = 9999
         self.current_scene.children.append(overlay)
 
@@ -83,7 +84,8 @@ class TransitionManager:
         quarter = duration / 4
 
         overlay = mcrfpy.Frame(pos=(0, 0), size=(self.width, self.height))
-        overlay.fill_color = mcrfpy.Color(color[0], color[1], color[2], 0)
+        overlay.fill_color = mcrfpy.Color(color[0], color[1], color[2], 255)
+        overlay.opacity = 0.0
         overlay.z_index = 9999
         self.current_scene.children.append(overlay)
 

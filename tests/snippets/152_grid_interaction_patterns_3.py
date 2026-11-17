@@ -1,4 +1,4 @@
-# mcrf: objects=[Color,ColorLayer,Entity,Grid,InputState,MouseButton,Scene,TileLayer] verified=0.3.5 status=ok
+# mcrf: objects=[Color,ColorLayer,Entity,Grid,InputState,MouseButton,Scene,TileLayer] verified=0.3.6-dev status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("game")
@@ -27,6 +27,7 @@ mcrfpy.current_scene = scene
 def show_cell_info(x, y, point):
     print(f"Cell ({x}, {y}): walkable={point.walkable}")
 
+# region: click
 def on_cell_click(cell_pos, button, action):
     x, y = int(cell_pos.x), int(cell_pos.y)
     point = grid.at(x, y)
@@ -37,7 +38,8 @@ def on_cell_click(cell_pos, button, action):
             player.grid_y = y
 
     elif button == mcrfpy.MouseButton.RIGHT and action == mcrfpy.InputState.PRESSED:
-        # Inspect cell
+        # Inspect cell (define show_cell_info to update your own UI, e.g. the
+        # Tile Inspector Panel pattern below)
         show_cell_info(x, y, point)
 
     elif button == mcrfpy.MouseButton.MIDDLE and action == mcrfpy.InputState.PRESSED:
@@ -45,3 +47,4 @@ def on_cell_click(cell_pos, button, action):
         point.walkable = not point.walkable
 
 grid.on_cell_click = on_cell_click
+# endregion
