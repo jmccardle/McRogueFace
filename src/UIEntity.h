@@ -60,7 +60,8 @@ class GridData;
 
 // helper methods with no namespace requirement
 PyObject* sfVector2f_to_PyObject(sf::Vector2f vector);
-sf::Vector2f PyObject_to_sfVector2f(PyObject* obj);
+// Callers detect failure with PyErr_Occurred(); `what` names the argument in errors.
+sf::Vector2f PyObject_to_sfVector2f(PyObject* obj, const char* what = "value");
 
 class UIEntity : public std::enable_shared_from_this<UIEntity>
 {

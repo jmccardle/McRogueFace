@@ -330,7 +330,7 @@ bool UIGridPathfinding::ExtractPosition(PyObject* obj, int* x, int* y,
                                         GridData* expected_grid,
                                         const char* arg_name) {
     // Check if it's an Entity
-    if (PyObject_IsInstance(obj, (PyObject*)&mcrfpydef::PyUIEntityType)) {
+    if (PyObject_TypeCheck(obj, &mcrfpydef::PyUIEntityType)) {
         auto* entity = (PyUIEntityObject*)obj;
         if (!entity->data) {
             PyErr_Format(PyExc_RuntimeError,
@@ -347,46 +347,15 @@ bool UIGridPathfinding::ExtractPosition(PyObject* obj, int* x, int* y,
                 "%s: Entity belongs to a different grid", arg_name);
             return false;
         }
-        *x = static_cast<int>(entity->data->position.x);
-        *y = static_cast<int>(entity->data->position.y);
+        // The entity's logical cell (grid_pos), not its draw position (see UIEntity::path_to)
+        *x = entity->data->cell_position.x;
+        *y = entity->data->cell_position.y;
         return true;
     }
 
-    // Check if it's a Vector
-    if (PyObject_IsInstance(obj, (PyObject*)&mcrfpydef::PyVectorType)) {
-        auto* vec = (PyVectorObject*)obj;
-        *x = static_cast<int>(vec->data.x);
-        *y = static_cast<int>(vec->data.y);
-        return true;
-    }
-
-    // Try tuple/list
-    if (PySequence_Check(obj) && PySequence_Size(obj) == 2) {
-        PyObject* x_obj = PySequence_GetItem(obj, 0);
-        PyObject* y_obj = PySequence_GetItem(obj, 1);
-
-        bool ok = false;
-        if (x_obj && y_obj && PyNumber_Check(x_obj) && PyNumber_Check(y_obj)) {
-            PyObject* x_long = PyNumber_Long(x_obj);
-            PyObject* y_long = PyNumber_Long(y_obj);
-            if (x_long && y_long) {
-                *x = PyLong_AsLong(x_long);
-                *y = PyLong_AsLong(y_long);
-                ok = !PyErr_Occurred();
-            }
-            Py_XDECREF(x_long);
-            Py_XDECREF(y_long);
-        }
-
-        Py_XDECREF(x_obj);
-        Py_XDECREF(y_obj);
-
-        if (ok) return true;
-    }
-
-    PyErr_Format(PyExc_TypeError,
-        "%s: expected Vector, Entity, or (x, y) tuple", arg_name);
-    return false;
+    // A Vector, tuple, list or other 2-sequence: the integer position helper (floored,
+    // range-checked, held references; its TypeError names the argument).
+    return PyPosition_FromObjectInt(obj, x, y, arg_name);
 }
 
 //=============================================================================
@@ -930,14 +899,22 @@ PyObject* UIGridPathfinding::Grid_find_path(PyGridDataObject* self, PyObject* ar
                                    "heuristic", "weight", NULL};
     PyObject* start_obj = NULL;
     PyObject* end_obj = NULL;
-    float diagonal_cost = 1.41f;
+    double diagonal_cost = 1.41;
     const char* collide_label = NULL;
     PyObject* heuristic_obj = NULL;
     float heuristic_weight = 1.0f;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|fzOf", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|dzOf", const_cast<char**>(kwlist),
                                      &start_obj, &end_obj, &diagonal_cost, &collide_label,
                                      &heuristic_obj, &heuristic_weight)) {
+        return NULL;
+    }
+
+    // diagonal_cost reaches (int)(diagonal_cost * 100 + 0.1) (and libtcod's own cost maths):
+    // finite, and small enough that the product fits an int (#540 item 7)
+    if (!mcrf::require_finite(diagonal_cost, "diagonal_cost")) return NULL;
+    if (std::fabs(diagonal_cost) > 1.0e6) {
+        PyErr_SetString(PyExc_OverflowError, "diagonal_cost must be within +/-1e6");
         return NULL;
     }
 
@@ -1039,7 +1016,7 @@ static bool collectRoots(PyObject* root_obj, GridData* grid,
     if (out_mask) *out_mask = nullptr;
 
     // DiscreteMap mask path
-    if (PyObject_IsInstance(root_obj, (PyObject*)&mcrfpydef::PyDiscreteMapType)) {
+    if (PyObject_TypeCheck(root_obj, &mcrfpydef::PyDiscreteMapType)) {
         auto* dmap = (PyDiscreteMapObject*)root_obj;
         if (!dmap->data) {
             PyErr_SetString(PyExc_RuntimeError, "DiscreteMap is invalid");
@@ -1116,14 +1093,22 @@ PyObject* UIGridPathfinding::Grid_get_dijkstra_map(PyGridDataObject* self, PyObj
                                    "heuristic", NULL};
     PyObject* root_obj = NULL;
     PyObject* roots_obj = NULL;
-    float diagonal_cost = 1.41f;
+    double diagonal_cost = 1.41;
     const char* collide_label = NULL;
     PyObject* radius_obj = NULL;
     PyObject* heuristic_obj = NULL;  // NULL = not passed (OCTILE); Py_None = no estimate
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OfzOOO", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OdzOOO", const_cast<char**>(kwlist),
                                      &root_obj, &diagonal_cost, &collide_label, &roots_obj,
                                      &radius_obj, &heuristic_obj)) {
+        return NULL;
+    }
+
+    // diagonal_cost reaches (int)(diagonal_cost * 100 + 0.1) (and libtcod's own cost maths):
+    // finite, and small enough that the product fits an int (#540 item 7)
+    if (!mcrf::require_finite(diagonal_cost, "diagonal_cost")) return NULL;
+    if (std::fabs(diagonal_cost) > 1.0e6) {
+        PyErr_SetString(PyExc_OverflowError, "diagonal_cost must be within +/-1e6");
         return NULL;
     }
 
@@ -1200,7 +1185,7 @@ PyObject* UIGridPathfinding::Grid_get_dijkstra_map(PyGridDataObject* self, PyObj
     // returned only while it still describes the grid, and the cache bounds itself).
     const bool cacheable = !mask_obj && roots.size() == 1;
     const auto key = cacheable
-        ? std::make_tuple(roots[0].x, roots[0].y, label_str, diagonal_cost, radius, heuristic)
+        ? std::make_tuple(roots[0].x, roots[0].y, label_str, static_cast<float>(diagonal_cost), radius, heuristic)
         : std::make_tuple(0, 0, std::string(), 0.0f, 0, 0);
     std::vector<sf::Vector2i> blocked = labelledCells(grid, label_str);
     if (cacheable) {

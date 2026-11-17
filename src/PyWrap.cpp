@@ -3,7 +3,9 @@
 #include <atomic>
 #include <climits>
 #include <cmath>
+#include <cfloat>
 #include "PyVector.h"
+#include "PyPositionHelper.h"
 #include "UIDrawable.h"
 #include "UIEntity.h"
 #include "PyGridData.h"
@@ -95,42 +97,54 @@ void PyIdentityPin::release()
     if (python_alive()) Py_DECREF(tmp);
 }
 
-static bool number_pair(PyObject* seq, sf::Vector2f& out)
+bool require_finite(double value, const char* what)
 {
-    if (!(PyTuple_Check(seq) || PyList_Check(seq)) || PySequence_Fast_GET_SIZE(seq) != 2) {
+    if (!std::isfinite(value)) {
+        PyErr_Format(PyExc_ValueError, "%s must be finite (got %s)", what,
+                     std::isnan(value) ? "nan" : (value > 0 ? "inf" : "-inf"));
         return false;
     }
-    PyObject* x = PySequence_Fast_GET_ITEM(seq, 0);
-    PyObject* y = PySequence_Fast_GET_ITEM(seq, 1);
-    if (!(PyFloat_Check(x) || PyLong_Check(x)) || !(PyFloat_Check(y) || PyLong_Check(y))) {
+    if (std::fabs(value) > static_cast<double>(FLT_MAX)) {
+        PyErr_Format(PyExc_OverflowError, "%s is out of range for a float", what);
         return false;
     }
-    double fx = PyFloat_AsDouble(x), fy = PyFloat_AsDouble(y);
-    if (PyErr_Occurred()) {
-        PyErr_Clear();  // e.g. an int too large for a double: let Vector() report it
+    return true;
+}
+
+void raise_got(PyObject* exc, const char* msg, double value)
+{
+    char buf[256];
+    snprintf(buf, sizeof buf, "%s (got %g)", msg, value);
+    PyErr_SetString(exc, buf);
+}
+
+bool to_float(PyObject* value, float& out, const char* what, bool check_finite)
+{
+    // Anything real-valued: float, int, bool, numpy scalars, Decimal-like (__float__ / __index__).
+    if (!PyNumber_Check(value) && !PyIndex_Check(value)) {
+        PyErr_Format(PyExc_TypeError, "%s must be a number (int or float)", what);
         return false;
     }
-    out = sf::Vector2f((float)fx, (float)fy);
+    double d = PyFloat_AsDouble(value);
+    if (d == -1.0 && PyErr_Occurred()) return false;
+    if (check_finite && !require_finite(d, what)) return false;
+    if (std::isfinite(d) && std::fabs(d) > static_cast<double>(FLT_MAX)) {
+        PyErr_Format(PyExc_OverflowError, "%s is out of range for a float", what);
+        return false;
+    }
+    out = static_cast<float>(d);
     return true;
 }
 
 bool to_vector2f(PyObject* arg, sf::Vector2f& out, const char* what)
 {
-    if (PyObject_TypeCheck(arg, &mcrfpydef::PyVectorType)) {
-        out = ((PyVectorObject*)arg)->data;
-        return true;
-    }
-    if (number_pair(arg, out)) return true;
-    // Anything else Vector() accepts, with Vector()'s own validation.
-    PyVectorObject* vec = PyVector::from_arg(arg);
-    if (!vec) {
-        if (!PyErr_Occurred() || PyErr_ExceptionMatches(PyExc_TypeError)) {
-            PyErr_Format(PyExc_TypeError, "%s must be a Vector or a (x, y) pair", what);
-        }
-        return false;
-    }
-    out = vec->data;
-    Py_DECREF(vec);
+    // Exactly a Vector (by type) or a 2-sequence of real numbers, through the position helper:
+    // new references to both items before any conversion (#543), nan/inf is ValueError and a
+    // value beyond float range OverflowError (#540 item 12), anything else a TypeError naming
+    // the argument. No fallback through Vector()'s own parser.
+    float x, y;
+    if (!PyPositionHelper::FromObject(arg, &x, &y, what)) return false;
+    out = sf::Vector2f(x, y);
     return true;
 }
 
@@ -166,42 +180,33 @@ bool to_int(PyObject* value, int& out, const char* what)
     return false;
 }
 
-static bool integral_to_cell(double value, int& out, const char* what)
-{
-    if (!std::isfinite(value) || std::floor(value) != value) {
-        PyErr_Format(PyExc_ValueError, "%s must be a whole number of cells, got %R",
-                     what, mcrf::PyRef(PyFloat_FromDouble(value)).get());
-        return false;
-    }
-    return to_int(value, out, what);
-}
-
 bool to_cell(PyObject* value, int& out, const char* what)
 {
-    if (PyFloat_Check(value)) {
-        double d = PyFloat_AsDouble(value);
-        if (d == -1.0 && PyErr_Occurred()) return false;
-        return integral_to_cell(d, out, what);
-    }
-    if (PyLong_Check(value)) return to_int(value, out, what);
-    PyErr_Format(PyExc_TypeError, "%s must be an int (or a whole-number float), not %.200s",
-                 what, Py_TYPE(value)->tp_name);
-    return false;
+    return PyPositionHelper::IntFromObject(value, &out, what);
 }
 
 bool to_cell_pos(PyObject* value, sf::Vector2i& out, const char* what)
 {
-    if (PyObject_TypeCheck(value, &mcrfpydef::PyVectorType)) {
-        const sf::Vector2f& v = ((PyVectorObject*)value)->data;
-        return integral_to_cell(v.x, out.x, what) && integral_to_cell(v.y, out.y, what);
+    int x, y;
+    if (!PyPositionHelper::FromObjectInt(value, &x, &y, what)) return false;
+    out = sf::Vector2i(x, y);
+    return true;
+}
+
+bool float_to_cell(double value, int& out, const char* what)
+{
+    if (!std::isfinite(value)) {
+        PyErr_Format(PyExc_ValueError, "%s must be finite (got %s)", what,
+                     std::isnan(value) ? "nan" : (value > 0 ? "inf" : "-inf"));
+        return false;
     }
-    if ((PyTuple_Check(value) || PyList_Check(value)) && PySequence_Fast_GET_SIZE(value) == 2) {
-        PyObject** items = PySequence_Fast_ITEMS(value);
-        return to_cell(items[0], out.x, what) && to_cell(items[1], out.y, what);
+    const double f = std::floor(value);
+    if (!(f >= static_cast<double>(INT_MIN) && f <= static_cast<double>(INT_MAX))) {
+        PyErr_Format(PyExc_OverflowError, "%s is out of range for a C int", what);
+        return false;
     }
-    PyErr_Format(PyExc_TypeError, "%s must be a Vector or an (x, y) pair of ints, not %.200s",
-                 what, Py_TYPE(value)->tp_name);
-    return false;
+    out = static_cast<int>(f);
+    return true;
 }
 
 void print_callback_error(const char* what)

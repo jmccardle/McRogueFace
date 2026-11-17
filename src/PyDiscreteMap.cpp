@@ -100,7 +100,7 @@ static PyDiscreteMapObject* CreateNewDiscreteMap(int width, int height) {
 // ============================================================================
 static PyDiscreteMapObject* validateOtherDiscreteMapType(PyObject* other_obj, const char* method_name) {
     // Check if other is a DiscreteMap
-    int is_dmap = PyObject_IsInstance(other_obj, (PyObject*)&mcrfpydef::PyDiscreteMapType);
+    int is_dmap = PyObject_TypeCheck(other_obj, &mcrfpydef::PyDiscreteMapType);
 
     if (is_dmap < 0) {
         return nullptr;  // Error during check
@@ -179,7 +179,7 @@ PyMethodDef PyDiscreteMap::methods[] = {
          MCRF_SIG("(x, y) or (pos)", "int | Enum"),
          MCRF_DESC("Get the value at integer coordinates."),
          MCRF_ARGS_START
-         MCRF_ARG("x, y", "Position as two ints, tuple, list, or Vector")
+         MCRF_ARG("x, y", "Cell as two numbers, tuple, list, or Vector (fractions are floored)")
          MCRF_RETURNS("int or enum member if enum_type is set")
          MCRF_RAISES("IndexError", "Position is out of bounds")
      )},
@@ -435,18 +435,9 @@ int PyDiscreteMap::init(PyDiscreteMapObject* self, PyObject* args, PyObject* kwd
         return -1;
     }
 
-    // Parse size tuple
-    if (!PyTuple_Check(size_obj) || PyTuple_Size(size_obj) != 2) {
-        PyErr_SetString(PyExc_TypeError, "size must be a tuple of (width, height)");
-        return -1;
-    }
-
-    int width = (int)PyLong_AsLong(PyTuple_GetItem(size_obj, 0));
-    int height = (int)PyLong_AsLong(PyTuple_GetItem(size_obj, 1));
-
-    if (PyErr_Occurred()) {
-        return -1;
-    }
+    // Parse size: the integer position helper (range-checked; floats floor), #540
+    int width, height;
+    if (!PyPosition_FromObjectInt(size_obj, &width, &height, "size")) return -1;
 
     if (width <= 0 || height <= 0) {
         PyErr_SetString(PyExc_ValueError, "width and height must be positive integers");
@@ -803,7 +794,7 @@ PyObject* PyDiscreteMap::add(PyDiscreteMapObject* self, PyObject* args, PyObject
     } else {
         PyErr_Clear();  // Clear the parseIntValue error
 
-        if (!PyObject_IsInstance(other_obj, (PyObject*)&mcrfpydef::PyDiscreteMapType)) {
+        if (!PyObject_TypeCheck(other_obj, &mcrfpydef::PyDiscreteMapType)) {
             PyErr_Format(PyExc_TypeError, "add() requires a DiscreteMap or an int, not %.100s",
                          Py_TYPE(other_obj)->tp_name);
             return nullptr;
@@ -860,7 +851,7 @@ PyObject* PyDiscreteMap::subtract(PyDiscreteMapObject* self, PyObject* args, PyO
     } else {
         PyErr_Clear();
 
-        if (!PyObject_IsInstance(other_obj, (PyObject*)&mcrfpydef::PyDiscreteMapType)) {
+        if (!PyObject_TypeCheck(other_obj, &mcrfpydef::PyDiscreteMapType)) {
             PyErr_Format(PyExc_TypeError, "subtract() requires a DiscreteMap or an int, not %.100s",
                          Py_TYPE(other_obj)->tp_name);
             return nullptr;
@@ -1526,7 +1517,7 @@ PyObject* PyDiscreteMap::from_heightmap(PyTypeObject* type, PyObject* args, PyOb
     }
 
     // Validate HeightMap
-    int is_hmap = PyObject_IsInstance(hmap_obj, (PyObject*)&mcrfpydef::PyHeightMapType);
+    int is_hmap = PyObject_TypeCheck(hmap_obj, &mcrfpydef::PyHeightMapType);
 
     if (is_hmap < 0) {
         return nullptr;
@@ -1557,6 +1548,8 @@ PyObject* PyDiscreteMap::from_heightmap(PyTypeObject* type, PyObject* args, PyOb
     Py_ssize_t n_mappings = PyList_Size(mapping_obj);
     for (Py_ssize_t i = 0; i < n_mappings; i++) {
         PyObject* item = PyList_GetItem(mapping_obj, i);
+        if (!item) return nullptr;  // the list shrank under us (IndexError is set)
+        mcrf::PyRef item_hold = mcrf::hold(item);  // user code in the conversions below may mutate the list (#543)
 
         if (!PyTuple_Check(item) || PyTuple_Size(item) != 2) {
             PyErr_SetString(PyExc_TypeError, "each mapping must be a ((min, max), value) tuple");
@@ -1667,11 +1660,16 @@ PyObject* PyDiscreteMap::to_heightmap(PyDiscreteMapObject* self, PyObject* args,
             value_map[i] = static_cast<float>(i);
         }
 
-        // Override with mapping values
-        PyObject* key;
-        PyObject* value;
-        Py_ssize_t pos = 0;
-        while (PyDict_Next(mapping_obj, &pos, &key, &value)) {
+        // Override with mapping values. Snapshot the dict first (owned references): a key's
+        // value property or __index__ can mutate the dict, and PyDict_Next across user code is a
+        // use-after-free.
+        mcrf::PyRef items(PyDict_Items(mapping_obj));
+        if (!items) return nullptr;
+        const Py_ssize_t n_items = PyList_GET_SIZE(items.get());
+        for (Py_ssize_t i = 0; i < n_items; i++) {
+            PyObject* pair = PyList_GET_ITEM(items.get(), i);  // our own list
+            PyObject* key = PyTuple_GET_ITEM(pair, 0);
+            PyObject* value = PyTuple_GET_ITEM(pair, 1);
             int k;
             if (!parseIntValue(key, &k)) {
                 return nullptr;
@@ -1682,12 +1680,7 @@ PyObject* PyDiscreteMap::to_heightmap(PyDiscreteMapObject* self, PyObject* args,
             }
 
             float v;
-            if (PyFloat_Check(value)) v = (float)PyFloat_AsDouble(value);
-            else if (PyLong_Check(value)) v = (float)PyLong_AsLong(value);
-            else {
-                PyErr_SetString(PyExc_TypeError, "mapping values must be numeric");
-                return nullptr;
-            }
+            if (!mcrf::to_float(value, v, "mapping value")) return nullptr;
 
             value_map[k] = v;
         }

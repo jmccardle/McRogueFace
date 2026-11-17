@@ -367,7 +367,7 @@ int Billboard::init(PyObject* self, PyObject* args, PyObject* kwds) {
     // Handle texture
     if (textureObj && textureObj != Py_None) {
         PyTypeObject* textureType = &mcrfpydef::PyTextureType;
-        if (PyObject_IsInstance(textureObj, (PyObject*)textureType)) {
+        if (PyObject_TypeCheck(textureObj, (PyTypeObject*)textureType)) {
             PyTextureObject* texPy = (PyTextureObject*)textureObj;
             if (texPy->data) {
                 selfObj->data->setTexture(texPy->data);
@@ -458,7 +458,7 @@ int Billboard::set_texture(PyObject* self, PyObject* value, void* closure) {
         return 0;
     }
     PyTypeObject* textureType = &mcrfpydef::PyTextureType;
-    if (PyObject_IsInstance(value, (PyObject*)textureType)) {
+    if (PyObject_TypeCheck(value, (PyTypeObject*)textureType)) {
         PyTextureObject* texPy = (PyTextureObject*)value;
         if (texPy->data) {
             obj->data->setTexture(texPy->data);

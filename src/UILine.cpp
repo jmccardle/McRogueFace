@@ -367,14 +367,7 @@ PyObject* UILine::get_thickness(PyUILineObject* self, void* closure) {
 
 int UILine::set_thickness(PyUILineObject* self, PyObject* value, void* closure) {
     float thickness;
-    if (PyFloat_Check(value)) {
-        thickness = PyFloat_AsDouble(value);
-    } else if (PyLong_Check(value)) {
-        thickness = PyLong_AsLong(value);
-    } else {
-        PyErr_SetString(PyExc_TypeError, "thickness must be a number");
-        return -1;
-    }
+    if (!mcrf::to_float(value, thickness, "thickness")) return -1;
 
     if (thickness < 0.0f) {
         PyErr_SetString(PyExc_ValueError, "thickness must be non-negative");
@@ -457,17 +450,17 @@ int UILine::init(PyUILineObject* self, PyObject* args, PyObject* kwds) {
     // Arguments
     PyObject* start_obj = nullptr;
     PyObject* end_obj = nullptr;
-    float thickness = 1.0f;
+    double thickness = 1.0f;
     PyObject* color_obj = nullptr;
     PyObject* click_handler = nullptr;
     int visible = 1;
-    float opacity = 1.0f;
+    double opacity = 1.0f;
     int z_index = 0;
     const char* name = nullptr;
     PyObject* align_obj = nullptr;  // Alignment enum or None
-    float margin = 0.0f;
-    float horiz_margin = -1.0f;
-    float vert_margin = -1.0f;
+    double margin = 0.0f;
+    double horiz_margin = -1.0f;
+    double vert_margin = -1.0f;
     PyObject* parent_obj = nullptr;  // Auto-attach parent (Frame, Scene, or Grid)
 
     static const char* kwlist[] = {
@@ -478,11 +471,18 @@ int UILine::init(PyUILineObject* self, PyObject* args, PyObject* kwds) {
         nullptr
     };
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOfOOifizOfffO", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOdOOidizOdddO", const_cast<char**>(kwlist),
                                      &start_obj, &end_obj, &thickness, &color_obj,
                                      &click_handler, &visible, &opacity, &z_index, &name,
                                      &align_obj, &margin, &horiz_margin, &vert_margin,
                                      &parent_obj)) {
+        return -1;
+    }
+
+    // #540 item 12: nan / inf are errors for every float argument (start / end are checked below)
+    if (!mcrf::require_finite(thickness, "thickness") || !mcrf::require_finite(opacity, "opacity") ||
+        !mcrf::require_finite(margin, "margin") || !mcrf::require_finite(horiz_margin, "horiz_margin") ||
+        !mcrf::require_finite(vert_margin, "vert_margin")) {
         return -1;
     }
 
@@ -509,7 +509,7 @@ int UILine::init(PyUILineObject* self, PyObject* args, PyObject* kwds) {
     // Create the line
     self->data = std::make_shared<UILine>(start, end, thickness, color);
     self->data->visible = visible;
-    self->data->opacity = opacity;
+    self->data->assignOpacity(opacity);  // the setter's clamp, not a raw store (#540)
     self->data->z_index = z_index;
 
     if (name) {

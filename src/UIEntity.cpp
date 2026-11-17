@@ -277,9 +277,9 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     int sprite_index = 0;
     PyObject* grid_obj = nullptr;
     int visible = 1;
-    float opacity = 1.0f;
+    double opacity = 1.0f;
     const char* name = nullptr;
-    float x = 0.0f, y = 0.0f;
+    double x = 0.0f, y = 0.0f;
     PyObject* sprite_offset_obj = nullptr;
     PyObject* labels_obj = nullptr;
 
@@ -292,35 +292,28 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     };
 
     // Parse arguments with | for optional positional args
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOiOifzffOO", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOiOidzddOO", const_cast<char**>(kwlist),
                                      &grid_pos_obj, &texture, &sprite_index,  // Positional
                                      &grid_obj, &visible, &opacity, &name, &x, &y, &sprite_offset_obj, &labels_obj)) {
         return -1;
     }
     
-    // Handle grid position argument (can be tuple or use x/y keywords)
+    // grid_pos: the checked converter (#540 item 12); without it the x / y keywords are used.
     if (grid_pos_obj) {
-        if (PyTuple_Check(grid_pos_obj) && PyTuple_Size(grid_pos_obj) == 2) {
-            PyObject* x_val = PyTuple_GetItem(grid_pos_obj, 0);
-            PyObject* y_val = PyTuple_GetItem(grid_pos_obj, 1);
-            if ((PyFloat_Check(x_val) || PyLong_Check(x_val)) &&
-                (PyFloat_Check(y_val) || PyLong_Check(y_val))) {
-                x = PyFloat_Check(x_val) ? PyFloat_AsDouble(x_val) : PyLong_AsLong(x_val);
-                y = PyFloat_Check(y_val) ? PyFloat_AsDouble(y_val) : PyLong_AsLong(y_val);
-            } else {
-                PyErr_SetString(PyExc_TypeError, "grid_pos tuple must contain numbers");
-                return -1;
-            }
-        } else {
-            PyErr_SetString(PyExc_TypeError, "grid_pos must be a tuple (x, y)");
-            return -1;
-        }
+        sf::Vector2f v;
+        if (!mcrf::to_vector2f(grid_pos_obj, v, "grid_pos")) return -1;
+        x = v.x;
+        y = v.y;
+    }
+    if (!mcrf::require_finite(x, "x") || !mcrf::require_finite(y, "y") ||
+        !mcrf::require_finite(opacity, "opacity")) {
+        return -1;
     }
 
     // Handle texture argument
     std::shared_ptr<PyTexture> texture_ptr = nullptr;
     if (texture && texture != Py_None) {
-        if (!PyObject_IsInstance(texture, (PyObject*)&mcrfpydef::PyTextureType)) {
+        if (!PyObject_TypeCheck(texture, &mcrfpydef::PyTextureType)) {
             PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance or None");
             return -1;
         }
@@ -331,8 +324,8 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     // when drawn -- so creating an entity needs no display.
     
     // Handle grid argument - accept both internal _GridData and GridView (unified Grid)
-    if (grid_obj && !PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyGridDataType) &&
-        !PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
+    if (grid_obj && !PyObject_TypeCheck(grid_obj, &mcrfpydef::PyGridDataType) &&
+        !PyObject_TypeCheck(grid_obj, &mcrfpydef::PyUIGridViewType)) {
         PyErr_SetString(PyExc_TypeError, "grid must be a mcrfpy.Grid instance");
         return -1;
     }
@@ -367,11 +360,19 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     // Set position using grid coordinates
     self->data->position = sf::Vector2f(x, y);
     // #295: Initialize cell_position from grid coordinates
-    self->data->cell_position = sf::Vector2i(static_cast<int>(x), static_cast<int>(y));
+    {
+        // floored and range-checked (#540 item 3): x = 3e9 or -0.5 are not silently cast
+        sf::Vector2i cell;
+        if (!mcrf::float_to_cell(x, cell.x, "grid_pos x") || !mcrf::float_to_cell(y, cell.y, "grid_pos y")) return -1;
+        self->data->cell_position = cell;
+        // The constructor behaves like the grid_pos setter: the entity sits ON its cell (draw_pos
+        // snaps), it does not keep the fractional position it was given.
+        self->data->position = sf::Vector2f(static_cast<float>(cell.x), static_cast<float>(cell.y));
+    }
 
     // Handle sprite_offset argument (optional tuple, default (0,0))
     if (sprite_offset_obj && sprite_offset_obj != Py_None) {
-        sf::Vector2f offset = PyObject_to_sfVector2f(sprite_offset_obj);
+        sf::Vector2f offset = PyObject_to_sfVector2f(sprite_offset_obj, "sprite_offset");
         if (PyErr_Occurred()) {
             return -1;
         }
@@ -380,7 +381,7 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
 
     // Set other properties (delegate to sprite)
     self->data->sprite.visible = visible;
-    self->data->sprite.opacity = opacity;
+    self->data->assignOpacity(opacity);  // the setter's clamp, not a raw store (#540)
     if (name) {
         self->data->sprite.name = std::string(name);
     }
@@ -410,7 +411,7 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     // Handle grid attachment
     if (grid_obj) {
         std::shared_ptr<GridData> grid_ptr;
-        if (PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
+        if (PyObject_TypeCheck(grid_obj, &mcrfpydef::PyUIGridViewType)) {
             // #252: GridView (unified Grid) - share its grid data directly (#313)
             PyUIGridViewObject* pyview = (PyUIGridViewObject*)grid_obj;
             grid_ptr = pyview->data->grid_data;
@@ -450,25 +451,20 @@ PyObject* sfVector2i_to_PyObject(sf::Vector2i vec) {
 
 // #414: callers detect failure with PyErr_Occurred(); the conversion itself must not
 // leak (PyVector::from_arg returns a new reference), so it goes through to_vector2f.
-sf::Vector2f PyObject_to_sfVector2f(PyObject* obj) {
+sf::Vector2f PyObject_to_sfVector2f(PyObject* obj, const char* what) {
     sf::Vector2f out(0, 0);
-    mcrf::to_vector2f(obj, out, "value");
+    mcrf::to_vector2f(obj, out, what);
     return out;
-}
-
-sf::Vector2i PyObject_to_sfVector2i(PyObject* obj) {
-    sf::Vector2f out(0, 0);
-    mcrf::to_vector2f(obj, out, "value");
-    return sf::Vector2i(static_cast<int>(out.x), static_cast<int>(out.y));
 }
 
 PyObject* UIEntity::get_position(PyUIEntityObject* self, void* closure) {
     if (reinterpret_cast<intptr_t>(closure) == 0) {
         return sfVector2f_to_PyObject(self->data->position);
     } else {
-        // Return integer-cast position for grid coordinates
-        sf::Vector2i int_pos(static_cast<int>(self->data->position.x), 
-                             static_cast<int>(self->data->position.y));
+        // Integer grid coordinates: the position floored (range-checked, never a raw cast)
+        sf::Vector2i int_pos;
+        if (!mcrf::float_to_cell(self->data->position.x, int_pos.x, "grid_x") ||
+            !mcrf::float_to_cell(self->data->position.y, int_pos.y, "grid_y")) return nullptr;
         return sfVector2i_to_PyObject(int_pos);
     }
 }
@@ -476,16 +472,14 @@ PyObject* UIEntity::get_position(PyUIEntityObject* self, void* closure) {
 int UIEntity::set_position(PyUIEntityObject* self, PyObject* value, void* closure) {
     sf::Vector2f tiles;
     if (reinterpret_cast<intptr_t>(closure) == 0) {
-        tiles = PyObject_to_sfVector2f(value);
+        tiles = PyObject_to_sfVector2f(value, "pos");
         if (PyErr_Occurred()) {
             return -1;  // Error already set by PyObject_to_sfVector2f
         }
     } else {
-        // For integer position, convert to float and set position
-        sf::Vector2i vec = PyObject_to_sfVector2i(value);
-        if (PyErr_Occurred()) {
-            return -1;  // Error already set by PyObject_to_sfVector2i
-        }
+        // Integer position: the cell, floored like every integer position (#540 item 3)
+        sf::Vector2i vec;
+        if (!mcrf::to_cell_pos(value, vec, "grid_pos")) return -1;
         tiles = sf::Vector2f(static_cast<float>(vec.x), static_cast<float>(vec.y));
     }
     self->data->assignDrawPos(tiles);  // #423: shared with animation
@@ -524,7 +518,7 @@ int UIEntity::set_perspective_map(PyUIEntityObject* self, PyObject* value, void*
         return 0;
     }
 
-    if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyDiscreteMapType)) {
+    if (!PyObject_TypeCheck(value, &mcrfpydef::PyDiscreteMapType)) {
         PyErr_SetString(PyExc_TypeError,
             "perspective_map must be a DiscreteMap or None");
         return -1;
@@ -602,7 +596,7 @@ int UIEntity::set_texture(PyUIEntityObject* self, PyObject* value, void* closure
         if (self->data->getGrid()) self->data->getGrid()->markDirty();
         return 0;
     }
-    int is_texture = PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyTextureType);
+    int is_texture = PyObject_TypeCheck(value, &mcrfpydef::PyTextureType);
     if (is_texture == -1) return -1;  // isinstance itself raised
     if (!is_texture) {
         PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance or None");
@@ -639,7 +633,7 @@ int UIEntity::set_pixel_pos(PyUIEntityObject* self, PyObject* value, void* closu
         return -1;
     }
 
-    sf::Vector2f pixel_vec = PyObject_to_sfVector2f(value);
+    sf::Vector2f pixel_vec = PyObject_to_sfVector2f(value, "pos");
     if (PyErr_Occurred()) {
         return -1;
     }
@@ -670,14 +664,7 @@ int UIEntity::set_pixel_member(PyUIEntityObject* self, PyObject* value, void* cl
     }
 
     float val;
-    if (PyFloat_Check(value)) {
-        val = PyFloat_AsDouble(value);
-    } else if (PyLong_Check(value)) {
-        val = PyLong_AsLong(value);
-    } else {
-        PyErr_SetString(PyExc_TypeError, "Position must be a number (int or float)");
-        return -1;
-    }
+    if (!mcrf::to_float(value, val, reinterpret_cast<intptr_t>(closure) == 0 ? "draw_pos x" : "draw_pos y")) return -1;
 
     sf::Vector2f tiles = self->data->position;
     if (reinterpret_cast<intptr_t>(closure) == 0) // x
@@ -726,7 +713,7 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
 
     // #252: Accept both internal _GridData and GridView (unified Grid)
     std::shared_ptr<GridData> new_grid;
-    if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
+    if (PyObject_TypeCheck(value, &mcrfpydef::PyUIGridViewType)) {
         PyUIGridViewObject* pyview = (PyUIGridViewObject*)value;
         if (pyview->data->grid_data) {
             new_grid = pyview->data->grid_data;  // #313: share data directly
@@ -734,7 +721,7 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
             PyErr_SetString(PyExc_ValueError, "Grid has no data");
             return -1;
         }
-    } else if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyGridDataType)) {
+    } else if (PyObject_TypeCheck(value, &mcrfpydef::PyGridDataType)) {
         new_grid = ((PyGridDataObject*)value)->data;
     } else {
         PyErr_SetString(PyExc_TypeError, "grid must be a Grid or None");
@@ -760,7 +747,7 @@ PyObject* UIEntity::get_sprite_offset(PyUIEntityObject* self, void* closure) {
 }
 
 int UIEntity::set_sprite_offset(PyUIEntityObject* self, PyObject* value, void* closure) {
-    sf::Vector2f vec = PyObject_to_sfVector2f(value);
+    sf::Vector2f vec = PyObject_to_sfVector2f(value, "sprite_offset");
     if (PyErr_Occurred()) return -1;
     self->data->assignSpriteOffset(vec);
     return 0;
@@ -777,14 +764,7 @@ PyObject* UIEntity::get_sprite_offset_member(PyUIEntityObject* self, void* closu
 
 int UIEntity::set_sprite_offset_member(PyUIEntityObject* self, PyObject* value, void* closure) {
     float val;
-    if (PyFloat_Check(value))
-        val = PyFloat_AsDouble(value);
-    else if (PyLong_Check(value))
-        val = PyLong_AsLong(value);
-    else {
-        PyErr_SetString(PyExc_TypeError, "sprite_offset component must be a number");
-        return -1;
-    }
+    if (!mcrf::to_float(value, val, reinterpret_cast<intptr_t>(closure) == 0 ? "sprite_offset_x" : "sprite_offset_y")) return -1;
     sf::Vector2f offset = self->data->sprite_offset;
     if (reinterpret_cast<intptr_t>(closure) == 0)
         offset.x = val;
@@ -802,7 +782,7 @@ PyObject* UIEntity::get_tile_size(PyUIEntityObject* self, void* closure) {
 }
 
 int UIEntity::set_tile_size(PyUIEntityObject* self, PyObject* value, void* closure) {
-    sf::Vector2f vec = PyObject_to_sfVector2f(value);
+    sf::Vector2f vec = PyObject_to_sfVector2f(value, "tile_size");
     if (PyErr_Occurred()) return -1;
     int tw, th;
     if (!mcrf::to_int(vec.x, tw, "tile_size") || !mcrf::to_int(vec.y, th, "tile_size")) return -1;
@@ -977,8 +957,11 @@ PyObject* UIEntity::path_to(PyUIEntityObject* self, PyObject* args, PyObject* kw
     }
 
     // Get current position
-    int current_x = static_cast<int>(self->data->position.x);
-    int current_y = static_cast<int>(self->data->position.y);
+    // From the entity's logical CELL (grid_pos), as documented -- not its draw position, which
+    // can sit between cells while it animates (git history: pathfinding predates the cell /
+    // draw split (#295, #431) and simply used the only position there was).
+    const int current_x = self->data->cell_position.x;
+    const int current_y = self->data->cell_position.y;
 
     // Validate target position
     auto grid = self->data->getGrid();
@@ -1376,8 +1359,8 @@ PyObject* UIEntity::get_move_speed(PyUIEntityObject* self, void* closure) {
 }
 
 int UIEntity::set_move_speed(PyUIEntityObject* self, PyObject* value, void* closure) {
-    double val = PyFloat_AsDouble(value);
-    if (val == -1.0 && PyErr_Occurred()) return -1;
+    float val = 0.0f;
+    if (!mcrf::to_float(value, val, "move_speed")) return -1;
     self->data->move_speed = static_cast<float>(val);
     return 0;
 }
@@ -1440,16 +1423,11 @@ PyObject* UIEntity::py_set_behavior(PyUIEntityObject* self, PyObject* args, PyOb
         }
         PyObject* item;
         while ((item = PyIter_Next(iter)) != NULL) {
-            if (!PyTuple_Check(item) || PyTuple_Size(item) != 2) {
-                Py_DECREF(item);
-                Py_DECREF(iter);
-                PyErr_SetString(PyExc_TypeError, "Each waypoint must be a (x, y) tuple");
-                return NULL;
-            }
-            int wx = PyLong_AsLong(PyTuple_GetItem(item, 0));
-            int wy = PyLong_AsLong(PyTuple_GetItem(item, 1));
+            // A cell: the integer position helper (floor, range-checked; held references)
+            int wx, wy;
+            const bool parsed = PyPosition_FromObjectInt(item, &wx, &wy, "waypoint");
             Py_DECREF(item);
-            if (PyErr_Occurred()) { Py_DECREF(iter); return NULL; }
+            if (!parsed) { Py_DECREF(iter); return NULL; }
             behavior.waypoints.push_back({wx, wy});
         }
         Py_DECREF(iter);
@@ -1465,16 +1443,10 @@ PyObject* UIEntity::py_set_behavior(PyUIEntityObject* self, PyObject* args, PyOb
         }
         PyObject* item;
         while ((item = PyIter_Next(iter)) != NULL) {
-            if (!PyTuple_Check(item) || PyTuple_Size(item) != 2) {
-                Py_DECREF(item);
-                Py_DECREF(iter);
-                PyErr_SetString(PyExc_TypeError, "Each path step must be a (x, y) tuple");
-                return NULL;
-            }
-            int px = PyLong_AsLong(PyTuple_GetItem(item, 0));
-            int py_val = PyLong_AsLong(PyTuple_GetItem(item, 1));
+            int px, py_val;
+            const bool parsed = PyPosition_FromObjectInt(item, &px, &py_val, "path step");
             Py_DECREF(item);
-            if (PyErr_Occurred()) { Py_DECREF(iter); return NULL; }
+            if (!parsed) { Py_DECREF(iter); return NULL; }
             behavior.current_path.push_back({px, py_val});
         }
         Py_DECREF(iter);
@@ -1488,14 +1460,14 @@ PyObject* UIEntity::py_set_behavior(PyUIEntityObject* self, PyObject* args, PyOb
 
     // Parse pathfinder (#315): DijkstraMap, AStarPath, or (x, y) target tuple.
     if (pathfinder_obj && pathfinder_obj != Py_None) {
-        if (PyObject_IsInstance(pathfinder_obj, (PyObject*)&mcrfpydef::PyDijkstraMapType)) {
+        if (PyObject_TypeCheck(pathfinder_obj, &mcrfpydef::PyDijkstraMapType)) {
             auto* dmap = (PyDijkstraMapObject*)pathfinder_obj;
             if (!dmap->data) {
                 PyErr_SetString(PyExc_RuntimeError, "pathfinder: DijkstraMap is invalid");
                 return NULL;
             }
             behavior.path_provider = std::make_unique<DijkstraProvider>(dmap->data);
-        } else if (PyObject_IsInstance(pathfinder_obj, (PyObject*)&mcrfpydef::PyAStarPathType)) {
+        } else if (PyObject_TypeCheck(pathfinder_obj, &mcrfpydef::PyAStarPathType)) {
             auto* apath = (PyAStarPathObject*)pathfinder_obj;
             // Copy remaining steps - the provider owns its own iteration state.
             std::vector<sf::Vector2i> steps(
@@ -1503,11 +1475,9 @@ PyObject* UIEntity::py_set_behavior(PyUIEntityObject* self, PyObject* args, PyOb
                 apath->path.end());
             behavior.path_provider = std::make_unique<AStarProvider>(std::move(steps));
         } else if (PyTuple_Check(pathfinder_obj) && PyTuple_Size(pathfinder_obj) == 2) {
-            long tx = PyLong_AsLong(PyTuple_GetItem(pathfinder_obj, 0));
-            long ty = PyLong_AsLong(PyTuple_GetItem(pathfinder_obj, 1));
-            if (PyErr_Occurred()) return NULL;
-            behavior.path_provider = std::make_unique<TargetProvider>(
-                sf::Vector2i(static_cast<int>(tx), static_cast<int>(ty)));
+            int tx, ty;
+            if (!PyPosition_FromObjectInt(pathfinder_obj, &tx, &ty, "pathfinder")) return NULL;
+            behavior.path_provider = std::make_unique<TargetProvider>(sf::Vector2i(tx, ty));
         } else {
             PyErr_SetString(PyExc_TypeError,
                 "pathfinder must be a DijkstraMap, AStarPath, or (x, y) tuple");
@@ -1689,11 +1659,11 @@ PyGetSetDef UIEntity::getsetters[] = {
     // argument); cell_pos/cell_x/cell_y are documented aliases. Both share the
     // same getter/setter and remain fully interchangeable.
     {"grid_pos", (getter)UIEntity::get_cell_pos, (setter)UIEntity::set_cell_pos,
-     MCRF_PROPERTY(grid_pos, "Integer logical cell position (Vector). Canonical cell-position property matching the 'grid_pos' constructor argument. Determines which cell this entity occupies for collision, pathfinding, GridPoint.entities and entities_in_radius. Setting it teleports: draw_pos snaps to the new cell (as grid.step() does); for smooth movement animate draw_pos. Accepts a Vector or (x, y) of ints or whole-number floats; a fractional value raises ValueError."), NULL},
+     MCRF_PROPERTY(grid_pos, "Integer logical cell position (Vector). Canonical cell-position property matching the 'grid_pos' constructor argument. Determines which cell this entity occupies for collision, pathfinding, GridPoint.entities and entities_in_radius. Setting it teleports: draw_pos snaps to the new cell (as grid.step() does); for smooth movement animate draw_pos. Accepts a Vector or a 2-sequence of numbers; fractional values are floored (2.7 -> 2, -0.5 -> -1); nan/inf raises ValueError, a value outside int range OverflowError."), NULL},
     {"grid_x", (getter)UIEntity::get_cell_member, (setter)UIEntity::set_cell_member,
-     MCRF_PROPERTY(grid_x, "Integer X cell coordinate (int). Canonical; matches grid_pos. Setting it teleports (draw_pos snaps to the cell). Accepts an int or a whole-number float (5.0); a fractional float raises ValueError."), (void*)0},
+     MCRF_PROPERTY(grid_x, "Integer X cell coordinate (int). Canonical; matches grid_pos. Setting it teleports (draw_pos snaps to the cell). Accepts an int or a float, which is floored (5.7 -> 5); nan/inf raises ValueError, a value outside int range OverflowError."), (void*)0},
     {"grid_y", (getter)UIEntity::get_cell_member, (setter)UIEntity::set_cell_member,
-     MCRF_PROPERTY(grid_y, "Integer Y cell coordinate (int). Canonical; matches grid_pos. Setting it teleports (draw_pos snaps to the cell). Accepts an int or a whole-number float (5.0); a fractional float raises ValueError."), (void*)1},
+     MCRF_PROPERTY(grid_y, "Integer Y cell coordinate (int). Canonical; matches grid_pos. Setting it teleports (draw_pos snaps to the cell). Accepts an int or a float, which is floored (5.7 -> 5); nan/inf raises ValueError, a value outside int range OverflowError."), (void*)1},
     {"cell_pos", (getter)UIEntity::get_cell_pos, (setter)UIEntity::set_cell_pos,
      MCRF_PROPERTY(cell_pos, "Integer logical cell position (Vector). Alias for grid_pos (the canonical name)."), NULL},
     {"cell_x", (getter)UIEntity::get_cell_member, (setter)UIEntity::set_cell_member,

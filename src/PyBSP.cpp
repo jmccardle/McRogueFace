@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <algorithm>  // #210: For std::min, std::max
+#include <climits>
 
 // Static storage for Traversal enum
 PyObject* PyTraversal::traversal_enum_class = nullptr;
@@ -235,7 +236,7 @@ int PyTraversal::from_arg(PyObject* arg, int* out_order) {
     }
 
     // Accept Traversal enum member
-    if (traversal_enum_class && PyObject_IsInstance(arg, traversal_enum_class)) {
+    if (traversal_enum_class && PyObject_TypeCheck(arg, (PyTypeObject*)traversal_enum_class)) {
         PyObject* value = PyObject_GetAttrString(arg, "value");
         if (!value) {
             return 0;
@@ -334,7 +335,8 @@ PyMethodDef PyBSP::methods[] = {
          MCRF_SIG("(horizontal: bool, position: int)", "BSP"),
          MCRF_DESC("Split the root node once at the specified position. "
                    "horizontal=True creates a horizontal divider, producing top/bottom rooms. "
-                   "horizontal=False creates a vertical divider, producing left/right rooms."),
+                   "horizontal=False creates a vertical divider, producing left/right rooms. "
+                   "A re-split replaces any existing children, and invalidates existing BSPNode references."),
          MCRF_ARGS_START
          MCRF_ARG("horizontal", "True for horizontal divider (top/bottom), False for vertical (left/right)")
          MCRF_ARG("position", "Split coordinate (y for horizontal, x for vertical)")
@@ -343,7 +345,7 @@ PyMethodDef PyBSP::methods[] = {
     {"split_recursive", (PyCFunction)PyBSP::split_recursive, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(BSP, split_recursive,
          MCRF_SIG("(depth: int, min_size: tuple[int, int], max_ratio: float = 1.5, seed: int | None = None)", "BSP"),
-         MCRF_DESC("Recursively split to the specified depth. "
+         MCRF_DESC("Recursively split to the specified depth, replacing any existing children. "
                    "WARNING: Invalidates all existing BSPNode references from this tree."),
          MCRF_ARGS_START
          MCRF_ARG("depth", "Maximum recursion depth (1-16). Creates up to 2^depth leaves.")
@@ -460,6 +462,14 @@ int PyBSP::init(PyBSPObject* self, PyObject* args, PyObject* kwds)
         return -1;
     }
 
+    // libtcod's BSP computes x + w and y + h in int (bsp_c.c: new_intern, contains, resize):
+    // the far edges must fit (#540 E). The near edges are the ints just parsed.
+    if ((long long)x + w > INT_MAX || (long long)y + h > INT_MAX) {
+        PyErr_Format(PyExc_ValueError,
+            "pos + size must fit in a C int (pos=(%d, %d), size=(%d, %d))", x, y, w, h);
+        return -1;
+    }
+
     // Clean up any existing BSP
     if (self->root) {
         TCOD_bsp_delete(self->root);
@@ -483,7 +493,10 @@ int PyBSP::init(PyBSPObject* self, PyObject* args, PyObject* kwds)
     self->orig_y = y;
     self->orig_w = w;
     self->orig_h = h;
-    self->generation = 0;
+    // Never reset the counter: a re-run __init__ frees the old tree (TCOD_bsp_delete above), and
+    // BSPNodes from it must read as stale. A counter that went back to 0 made them valid again,
+    // pointing at freed memory.
+    self->generation++;
 
     return 0;
 }
@@ -608,9 +621,30 @@ PyObject* PyBSP::split_once(PyBSPObject* self, PyObject* args, PyObject* kwds)
         return nullptr;
     }
 
+    // libtcod's new_intern computes position - x (left child), x + w - position (right child)
+    // and the y forms in int (bsp_c.c:66-74): both must fit (#540 E).
+    {
+        const long long lo = horizontal ? self->root->y : self->root->x;
+        const long long extent = horizontal ? self->root->h : self->root->w;
+        const long long first = (long long)position - lo;
+        const long long second = lo + extent - position;
+        if (first < INT_MIN || first > INT_MAX || second < INT_MIN || second > INT_MAX) {
+            PyErr_Format(PyExc_ValueError,
+                "position %d is too far from the BSP's %s edge: the child sizes must fit in a C int",
+                position, horizontal ? "y" : "x");
+            return nullptr;
+        }
+    }
+
     // Increment generation to invalidate adjacency cache and stale BSPNode references
     // The tree structure changes, so any cached adjacency graph is now invalid
     self->generation++;
+
+    // A re-split replaces the children: libtcod's split_once APPENDS two more sons to a node that
+    // already has some (a four-son node whose left() / right() still answer with the OLD ones,
+    // geometry inconsistent with the new position), and split_recursive recurses into the oldest
+    // son. Remove them first, as clear() does, so the root-only checks above are the whole tree.
+    TCOD_bsp_remove_sons(self->root);
 
     TCOD_bsp_split_once(self->root, horizontal ? true : false, position);
 
@@ -660,6 +694,32 @@ PyObject* PyBSP::split_recursive(PyBSPObject* self, PyObject* args, PyObject* kw
         return nullptr;
     }
 
+    // libtcod's split_recursive (bsp_c.c:163-176) computes 2*min, x + min and x + w - min in int
+    // and draws the split position from [x + w - min, x + min] (reversed when min > w / 2;
+    // TCOD_random_get_i then computes max - min + 1). So a split edge lies within `min` of the
+    // hull of its parent's edges, and after `depth` levels every edge is inside
+    //   [x - (depth + 1) * min, x + w + (depth + 1) * min]
+    // (one extra level for the x + min probe). That hull must fit in int and be narrower than
+    // INT_MAX, per axis with that axis's min size. Real invariant, no magic bound (#540 E).
+    {
+        const long long levels = (long long)depth + 1;
+        struct Axis { const char* name; long long lo, extent, min; };
+        const Axis axes[2] = {{"x", self->root->x, self->root->w, min_w},
+                              {"y", self->root->y, self->root->h, min_h}};
+        for (const Axis& a : axes) {
+            const long long pad = levels * a.min;
+            const long long hull_lo = a.lo - pad;
+            const long long hull_hi = a.lo + a.extent + pad;
+            if (hull_lo < INT_MIN || hull_hi > INT_MAX || hull_hi - hull_lo > INT_MAX - 1) {
+                PyErr_Format(PyExc_ValueError,
+                    "min_size is too large for this BSP: (depth + 1) * min_size on the %s axis "
+                    "would overflow a C int (depth=%d, min_size=%d)",
+                    a.name, depth, (int)a.min);
+                return nullptr;
+            }
+        }
+    }
+
     // Create random generator if seed provided
     TCOD_Random* rnd = nullptr;
     if (seed_obj != nullptr && seed_obj != Py_None) {
@@ -676,6 +736,9 @@ PyObject* PyBSP::split_recursive(PyBSPObject* self, PyObject* args, PyObject* kw
 
     // Increment generation BEFORE splitting - invalidates existing nodes
     self->generation++;
+
+    // Replace any existing children (see split_once): the hull check above covers the root only.
+    TCOD_bsp_remove_sons(self->root);
 
     TCOD_bsp_split_recursive(self->root, rnd, depth, min_w, min_h, max_ratio, max_ratio);
 
@@ -1086,7 +1149,7 @@ bool PyBSPNode::checkValid(PyBSPNodeObject* self)
     PyBSPObject* bsp = (PyBSPObject*)self->bsp_owner;
     if (self->generation != bsp->generation) {
         PyErr_SetString(PyExc_RuntimeError,
-            "BSPNode is stale: parent BSP was modified (clear() or split_recursive() called). "
+            "BSPNode is stale: parent BSP was modified (clear(), split_once(), split_recursive() or __init__ called). "
             "Re-fetch nodes from the BSP object.");
         return false;
     }
@@ -1401,7 +1464,7 @@ PyObject* PyBSPIter::next(PyBSPIterObject* self)
         PyBSPObject* bsp = (PyBSPObject*)self->bsp_owner;
         if (self->generation != bsp->generation) {
             PyErr_SetString(PyExc_RuntimeError,
-                "BSP tree was modified during iteration (clear() or split_recursive() called)");
+                "BSP tree was modified during iteration (clear(), split_once() or split_recursive() called)");
             return NULL;
         }
     }

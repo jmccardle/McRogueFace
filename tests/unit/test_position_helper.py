@@ -133,14 +133,15 @@ def test_grid_at_position_parsing():
     except Exception as e:
         errors.append(f"Test 11 FAIL: grid.at(3.0, 4.0) raised {type(e).__name__}: {e}")
 
-    # Test 12: Non-integer float should raise TypeError
+    # Test 12: fractional floats are floored (#540 item 3, decided): (3.5, 4.5) -> cell (3, 4)
     try:
-        grid.at(3.5, 4.5)
-        errors.append("Test 12 FAIL: grid.at(3.5, 4.5) should have raised TypeError")
-    except TypeError:
-        print("Test 12 PASS: grid.at(3.5, 4.5) raises TypeError for non-integer floats")
+        point12 = grid.at(3.5, 4.5)
+        if tuple(point12.grid_pos) == (3, 4):
+            print("Test 12 PASS: grid.at(3.5, 4.5) floors to cell (3, 4)")
+        else:
+            errors.append(f"Test 12 FAIL: grid.at(3.5, 4.5) gave {point12.grid_pos}, want (3, 4)")
     except Exception as e:
-        errors.append(f"Test 12 FAIL: grid.at(3.5, 4.5) raised {type(e).__name__} instead of TypeError: {e}")
+        errors.append(f"Test 12 FAIL: grid.at(3.5, 4.5) raised {type(e).__name__}: {e}")
 
     # Summary
     print()

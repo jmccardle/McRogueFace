@@ -81,7 +81,7 @@ PyObject* PyPerspective::create_enum_class(PyObject* module) {
 }
 
 int PyPerspective::from_arg(PyObject* arg, uint8_t* out_value) {
-    if (perspective_enum_class && PyObject_IsInstance(arg, perspective_enum_class)) {
+    if (perspective_enum_class && PyObject_TypeCheck(arg, (PyTypeObject*)perspective_enum_class)) {
         PyObject* value = PyObject_GetAttrString(arg, "value");
         if (!value) return 0;
         long val = PyLong_AsLong(value);

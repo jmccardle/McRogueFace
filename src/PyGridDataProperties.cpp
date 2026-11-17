@@ -53,7 +53,7 @@ int PyGridData::assign_texture(const std::shared_ptr<GridData>& grid, PyObject* 
         grid->setTexture(nullptr);   // the cell size keeps its value (#453)
         return 0;
     }
-    int is_texture = PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyTextureType);
+    int is_texture = PyObject_TypeCheck(value, &mcrfpydef::PyTextureType);
     if (is_texture < 0) return -1;
     if (!is_texture || !((PyTextureObject*)value)->data) {
         PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture or None");

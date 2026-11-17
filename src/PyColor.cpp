@@ -417,7 +417,7 @@ PyObject* PyColor::lerp(PyColorObject* self, PyObject* args)
     }
 
     // Validate other color
-    if (!PyObject_IsInstance(other_obj, (PyObject*)&mcrfpydef::PyColorType)) {
+    if (!PyObject_TypeCheck(other_obj, &mcrfpydef::PyColorType)) {
         PyErr_SetString(PyExc_TypeError, "First argument must be a Color");
         return NULL;
     }
@@ -455,14 +455,14 @@ PyObject* PyColor::richcompare(PyObject* left, PyObject* right, int op)
     // Extract RGBA from left operand
     sf::Color left_c, right_c;
 
-    if (PyObject_IsInstance(left, (PyObject*)&mcrfpydef::PyColorType)) {
+    if (PyObject_TypeCheck(left, &mcrfpydef::PyColorType)) {
         left_c = ((PyColorObject*)left)->data;
     } else {
         Py_RETURN_NOTIMPLEMENTED;
     }
 
     // Extract RGBA from right operand - accept Color, tuple, or list
-    if (PyObject_IsInstance(right, (PyObject*)&mcrfpydef::PyColorType)) {
+    if (PyObject_TypeCheck(right, &mcrfpydef::PyColorType)) {
         right_c = ((PyColorObject*)right)->data;
     } else if (PyTuple_Check(right) || PyList_Check(right)) {
         Py_ssize_t size = PySequence_Size(right);

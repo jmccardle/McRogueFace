@@ -118,24 +118,20 @@ def test_integral_floats_accepted():
     assert (e.grid_x, e.grid_y) == (11, 12)
 
 
-def test_non_integral_floats_raise_value_error():
+def test_non_integral_floats_are_floored_and_non_finite_raise():
+    # #540 decision B: a fractional cell is floored like every other integer position (it used to
+    # raise "whole number of cells"); nan / inf are still ValueError and nothing moves.
     grid = make_grid()
     e = mcrfpy.Entity(grid_pos=(3, 4), grid=grid)
-    for name in ("grid_x", "grid_y", "cell_x", "cell_y"):
-        try:
-            setattr(e, name, 5.5)
-        except ValueError:
-            pass
-        else:
-            raise AssertionError(f"{name} = 5.5 should raise ValueError")
+    e.grid_x = 5.5
+    e.cell_y = 6.9
+    assert (e.grid_x, e.grid_y) == (5, 6), (e.grid_x, e.grid_y)
     for name in ("grid_pos", "cell_pos"):
-        for value in ((5.5, 1), (1, 2.25), mcrfpy.Vector(0.5, 1)):
-            try:
-                setattr(e, name, value)
-            except ValueError:
-                pass
-            else:
-                raise AssertionError(f"{name} = {value!r} should raise ValueError")
+        for value, want in (((5.5, 1), (5, 1)), ((1, 2.25), (1, 2)), (mcrfpy.Vector(0.5, 1), (0, 1)),
+                            (mcrfpy.Vector(-0.5, 1), (-1, 1))):
+            setattr(e, name, value)
+            assert (e.grid_x, e.grid_y) == want, (name, value, (e.grid_x, e.grid_y))
+    e.grid_pos = (3, 4)
     for name in ("grid_x", "grid_pos"):
         bad = float("nan") if name == "grid_x" else (float("inf"), 0)
         try:

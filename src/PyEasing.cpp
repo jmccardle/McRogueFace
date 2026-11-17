@@ -162,7 +162,7 @@ int PyEasing::from_arg(PyObject* arg, EasingFunction* out_func, bool* was_none) 
     }
 
     // Accept Easing enum member (check if it's an instance of our enum)
-    if (easing_enum_class && PyObject_IsInstance(arg, easing_enum_class)) {
+    if (easing_enum_class && PyObject_TypeCheck(arg, (PyTypeObject*)easing_enum_class)) {
         // IntEnum members have a 'value' attribute
         PyObject* value = PyObject_GetAttrString(arg, "value");
         if (!value) {

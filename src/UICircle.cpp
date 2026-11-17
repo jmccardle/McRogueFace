@@ -283,11 +283,9 @@ PyObject* UICircle::get_radius(PyUICircleObject* self, void* closure) {
 }
 
 int UICircle::set_radius(PyUICircleObject* self, PyObject* value, void* closure) {
-    if (!PyNumber_Check(value)) {
-        PyErr_SetString(PyExc_TypeError, "radius must be a number");
-        return -1;
-    }
-    self->data->setRadius(static_cast<float>(PyFloat_AsDouble(value)));
+    float v_ = 0.0f;
+    if (!mcrf::to_float(value, v_, "radius")) return -1;
+    self->data->setRadius(v_);
     self->data->markDirty(); // #291: visual change
     return 0;
 }
@@ -342,11 +340,9 @@ PyObject* UICircle::get_outline(PyUICircleObject* self, void* closure) {
 }
 
 int UICircle::set_outline(PyUICircleObject* self, PyObject* value, void* closure) {
-    if (!PyNumber_Check(value)) {
-        PyErr_SetString(PyExc_TypeError, "outline must be a number");
-        return -1;
-    }
-    self->data->setOutline(static_cast<float>(PyFloat_AsDouble(value)));
+    float v_ = 0.0f;
+    if (!mcrf::to_float(value, v_, "outline")) return -1;
+    self->data->setOutline(v_);
     self->data->markDirty(); // #291: visual change
     return 0;
 }
@@ -417,29 +413,36 @@ int UICircle::init(PyUICircleObject* self, PyObject* args, PyObject* kwds) {
         "parent", NULL
     };
 
-    float radius = 10.0f;
+    double radius = 10.0f;
     PyObject* center_obj = NULL;
     PyObject* fill_color_obj = NULL;
     PyObject* outline_color_obj = NULL;
-    float outline = 0.0f;
+    double outline = 0.0f;
 
     // Common UIDrawable kwargs
     PyObject* click_obj = NULL;
     int visible = 1;
-    float opacity_val = 1.0f;
+    double opacity_val = 1.0f;
     int z_index = 0;
     const char* name = NULL;
     PyObject* align_obj = NULL;  // Alignment enum or None
-    float margin = 0.0f;
-    float horiz_margin = -1.0f;
-    float vert_margin = -1.0f;
+    double margin = 0.0f;
+    double horiz_margin = -1.0f;
+    double vert_margin = -1.0f;
     PyObject* parent_obj = NULL;  // Auto-attach parent (Frame, Scene, or Grid)
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OfOOfOpfisOfffO", (char**)kwlist,
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OdOOdOpdisOdddO", (char**)kwlist,
             &center_obj, &radius, &fill_color_obj, &outline_color_obj, &outline,
             &click_obj, &visible, &opacity_val, &z_index, &name,
             &align_obj, &margin, &horiz_margin, &vert_margin,
             &parent_obj)) {
+        return -1;
+    }
+
+    // #540 item 12: nan / inf are errors for every float argument (center is checked below)
+    if (!mcrf::require_finite(radius, "radius") || !mcrf::require_finite(outline, "outline") ||
+        !mcrf::require_finite(opacity_val, "opacity") || !mcrf::require_finite(margin, "margin") ||
+        !mcrf::require_finite(horiz_margin, "horiz_margin") || !mcrf::require_finite(vert_margin, "vert_margin")) {
         return -1;
     }
 
@@ -480,7 +483,7 @@ int UICircle::init(PyUICircleObject* self, PyObject* args, PyObject* kwds) {
     }
 
     self->data->visible = (visible != 0);
-    self->data->opacity = opacity_val;
+    self->data->assignOpacity(opacity_val);  // the setter's clamp (#540)
     self->data->z_index = z_index;
 
     if (name) {

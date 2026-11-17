@@ -1366,11 +1366,9 @@ static PyObject* Viewport3D_get_x(PyViewport3DObject* self, void* closure) {
 }
 
 static int Viewport3D_set_x(PyViewport3DObject* self, PyObject* value, void* closure) {
-    if (!PyNumber_Check(value)) {
-        PyErr_SetString(PyExc_TypeError, "x must be a number");
-        return -1;
-    }
-    self->data->assignPosition({static_cast<float>(PyFloat_AsDouble(value)), self->data->position.y});
+    float v_ = 0.0f;
+    if (!mcrf::to_float(value, v_, "x")) return -1;
+    self->data->assignPosition({v_, self->data->position.y});
     return 0;
 }
 
@@ -1379,11 +1377,9 @@ static PyObject* Viewport3D_get_y(PyViewport3DObject* self, void* closure) {
 }
 
 static int Viewport3D_set_y(PyViewport3DObject* self, PyObject* value, void* closure) {
-    if (!PyNumber_Check(value)) {
-        PyErr_SetString(PyExc_TypeError, "y must be a number");
-        return -1;
-    }
-    self->data->assignPosition({self->data->position.x, static_cast<float>(PyFloat_AsDouble(value))});
+    float v_ = 0.0f;
+    if (!mcrf::to_float(value, v_, "y")) return -1;
+    self->data->assignPosition({self->data->position.x, v_});
     return 0;
 }
 
@@ -1393,11 +1389,9 @@ static PyObject* Viewport3D_get_w(PyViewport3DObject* self, void* closure) {
 }
 
 static int Viewport3D_set_w(PyViewport3DObject* self, PyObject* value, void* closure) {
-    if (!PyNumber_Check(value)) {
-        PyErr_SetString(PyExc_TypeError, "w must be a number");
-        return -1;
-    }
-    self->data->assignSize({static_cast<float>(PyFloat_AsDouble(value)), self->data->getHeight()});
+    float v_ = 0.0f;
+    if (!mcrf::to_float(value, v_, "w")) return -1;
+    self->data->assignSize({v_, self->data->getHeight()});
     return 0;
 }
 
@@ -1406,11 +1400,9 @@ static PyObject* Viewport3D_get_h(PyViewport3DObject* self, void* closure) {
 }
 
 static int Viewport3D_set_h(PyViewport3DObject* self, PyObject* value, void* closure) {
-    if (!PyNumber_Check(value)) {
-        PyErr_SetString(PyExc_TypeError, "h must be a number");
-        return -1;
-    }
-    self->data->assignSize({self->data->getWidth(), static_cast<float>(PyFloat_AsDouble(value))});
+    float v_ = 0.0f;
+    if (!mcrf::to_float(value, v_, "h")) return -1;
+    self->data->assignSize({self->data->getWidth(), v_});
     return 0;
 }
 
@@ -1749,15 +1741,9 @@ int Viewport3D::init(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
 
     // Size
     if (size_obj && size_obj != Py_None) {
-        float w, h;
-        if (PyTuple_Check(size_obj) && PyTuple_Size(size_obj) == 2) {
-            w = static_cast<float>(PyFloat_AsDouble(PyTuple_GetItem(size_obj, 0)));
-            h = static_cast<float>(PyFloat_AsDouble(PyTuple_GetItem(size_obj, 1)));
-            self->data->setSize(w, h);
-        } else {
-            PyErr_SetString(PyExc_TypeError, "size must be a tuple (width, height)");
-            return -1;
-        }
+        sf::Vector2f sz;
+        if (!mcrf::to_vector2f(size_obj, sz, "size")) return -1;  // checked converter (#540)
+        self->data->setSize(sz.x, sz.y);
     }
 
     // Render resolution
@@ -1920,7 +1906,7 @@ static PyObject* Viewport3D_build_terrain(PyViewport3DObject* self, PyObject* ar
     }
 
     // Check if heightmap_obj is a PyHeightMapObject
-    if (!PyObject_IsInstance(heightmap_obj, (PyObject*)&mcrfpydef::PyHeightMapType)) {
+    if (!PyObject_TypeCheck(heightmap_obj, &mcrfpydef::PyHeightMapType)) {
         PyErr_SetString(PyExc_TypeError, "heightmap must be a HeightMap object");
         return NULL;
     }
@@ -1960,9 +1946,9 @@ static PyObject* Viewport3D_apply_terrain_colors(PyViewport3DObject* self, PyObj
     // Validate all three are HeightMap objects
     PyObject* heightmap_type = (PyObject*)&mcrfpydef::PyHeightMapType;
 
-    if (!PyObject_IsInstance(r_obj, heightmap_type) ||
-        !PyObject_IsInstance(g_obj, heightmap_type) ||
-        !PyObject_IsInstance(b_obj, heightmap_type)) {
+    if (!PyObject_TypeCheck(r_obj, (PyTypeObject*)heightmap_type) ||
+        !PyObject_TypeCheck(g_obj, (PyTypeObject*)heightmap_type) ||
+        !PyObject_TypeCheck(b_obj, (PyTypeObject*)heightmap_type)) {
         PyErr_SetString(PyExc_TypeError, "r_map, g_map, and b_map must all be HeightMap objects");
         return NULL;
     }
@@ -2047,7 +2033,7 @@ static PyObject* Viewport3D_apply_heightmap(PyViewport3DObject* self, PyObject* 
     }
 
     // Validate HeightMap type
-    if (!PyObject_IsInstance(hm_obj, (PyObject*)&mcrfpydef::PyHeightMapType)) {
+    if (!PyObject_TypeCheck(hm_obj, &mcrfpydef::PyHeightMapType)) {
         PyErr_SetString(PyExc_TypeError, "heightmap must be a HeightMap object");
         return NULL;
     }
@@ -2075,7 +2061,7 @@ static PyObject* Viewport3D_apply_threshold(PyViewport3DObject* self, PyObject* 
     }
 
     // Validate HeightMap type
-    if (!PyObject_IsInstance(hm_obj, (PyObject*)&mcrfpydef::PyHeightMapType)) {
+    if (!PyObject_TypeCheck(hm_obj, &mcrfpydef::PyHeightMapType)) {
         PyErr_SetString(PyExc_TypeError, "heightmap must be a HeightMap object");
         return NULL;
     }
@@ -2216,7 +2202,7 @@ static PyObject* Viewport3D_add_mesh(PyViewport3DObject* self, PyObject* args, P
     }
 
     // Validate model
-    if (!PyObject_IsInstance(modelObj, (PyObject*)&mcrfpydef::PyModel3DType)) {
+    if (!PyObject_TypeCheck(modelObj, &mcrfpydef::PyModel3DType)) {
         PyErr_SetString(PyExc_TypeError, "model must be a Model3D object");
         return NULL;
     }
@@ -2327,7 +2313,7 @@ static PyObject* Viewport3D_add_billboard(PyViewport3DObject* self, PyObject* ar
     }
 
     // Check if it's a Billboard object
-    if (!PyObject_IsInstance(billboardObj, (PyObject*)&mcrfpydef::PyBillboardType)) {
+    if (!PyObject_TypeCheck(billboardObj, &mcrfpydef::PyBillboardType)) {
         PyErr_SetString(PyExc_TypeError, "Expected a Billboard object");
         return NULL;
     }
@@ -2349,7 +2335,7 @@ static PyObject* Viewport3D_remove_billboard(PyViewport3DObject* self, PyObject*
         return NULL;
     }
 
-    if (!PyObject_IsInstance(billboardObj, (PyObject*)&mcrfpydef::PyBillboardType)) {
+    if (!PyObject_TypeCheck(billboardObj, &mcrfpydef::PyBillboardType)) {
         PyErr_SetString(PyExc_TypeError, "Expected a Billboard object");
         return NULL;
     }
@@ -2425,7 +2411,7 @@ static PyObject* Viewport3D_follow(PyViewport3DObject* self, PyObject* args, PyO
     }
 
     // Check if it's an Entity3D object
-    if (!PyObject_IsInstance(entityObj, (PyObject*)&mcrfpydef::PyEntity3DType)) {
+    if (!PyObject_TypeCheck(entityObj, &mcrfpydef::PyEntity3DType)) {
         PyErr_SetString(PyExc_TypeError, "Expected an Entity3D object");
         return NULL;
     }
@@ -2462,7 +2448,7 @@ static PyObject* Viewport3D_add_voxel_layer(PyViewport3DObject* self, PyObject* 
         return NULL;
     }
 
-    if (!PyObject_IsInstance(voxel_grid_obj, (PyObject*)voxelGridType)) {
+    if (!PyObject_TypeCheck(voxel_grid_obj, (PyTypeObject*)voxelGridType)) {
         Py_DECREF(voxelGridType);
         PyErr_SetString(PyExc_TypeError, "voxel_grid must be a VoxelGrid object");
         return NULL;
@@ -2494,7 +2480,7 @@ static PyObject* Viewport3D_remove_voxel_layer(PyViewport3DObject* self, PyObjec
         return NULL;
     }
 
-    if (!PyObject_IsInstance(voxel_grid_obj, (PyObject*)voxelGridType)) {
+    if (!PyObject_TypeCheck(voxel_grid_obj, (PyTypeObject*)voxelGridType)) {
         Py_DECREF(voxelGridType);
         PyErr_SetString(PyExc_TypeError, "voxel_grid must be a VoxelGrid object");
         return NULL;
@@ -2537,7 +2523,7 @@ static PyObject* Viewport3D_project_voxel_to_nav(PyViewport3DObject* self, PyObj
         return NULL;
     }
 
-    if (!PyObject_IsInstance(voxel_grid_obj, (PyObject*)voxelGridType)) {
+    if (!PyObject_TypeCheck(voxel_grid_obj, (PyTypeObject*)voxelGridType)) {
         Py_DECREF(voxelGridType);
         PyErr_SetString(PyExc_TypeError, "voxel_grid must be a VoxelGrid object");
         return NULL;
@@ -2591,7 +2577,7 @@ static PyObject* Viewport3D_clear_voxel_nav_region(PyViewport3DObject* self, PyO
         return NULL;
     }
 
-    if (!PyObject_IsInstance(voxel_grid_obj, (PyObject*)voxelGridType)) {
+    if (!PyObject_TypeCheck(voxel_grid_obj, (PyTypeObject*)voxelGridType)) {
         Py_DECREF(voxelGridType);
         PyErr_SetString(PyExc_TypeError, "voxel_grid must be a VoxelGrid object");
         return NULL;

@@ -339,22 +339,10 @@ static int PySceneClass_set_pos(PySceneObject* self, PyObject* value, void* clos
         return -1;
     }
 
-    // Accept tuple or Vector
-    float x, y;
-    if (PyTuple_Check(value) && PyTuple_Size(value) == 2) {
-        x = PyFloat_AsDouble(PyTuple_GetItem(value, 0));
-        y = PyFloat_AsDouble(PyTuple_GetItem(value, 1));
-    } else if (PyObject_HasAttrString(value, "x") && PyObject_HasAttrString(value, "y")) {
-        PyObject* xobj = PyObject_GetAttrString(value, "x");
-        PyObject* yobj = PyObject_GetAttrString(value, "y");
-        x = PyFloat_AsDouble(xobj);
-        y = PyFloat_AsDouble(yobj);
-        Py_DECREF(xobj);
-        Py_DECREF(yobj);
-    } else {
-        PyErr_SetString(PyExc_TypeError, "pos must be a tuple (x, y) or Vector");
-        return -1;
-    }
+    // The checked converter: a Vector or a 2-sequence of numbers; nan/inf is ValueError (#540)
+    sf::Vector2f v;
+    if (!mcrf::to_vector2f(value, v, "pos")) return -1;
+    float x = v.x, y = v.y;
 
     self->scene->position = sf::Vector2f(x, y);
     return 0;
@@ -405,15 +393,9 @@ static int PySceneClass_set_opacity(PySceneObject* self, PyObject* value, void* 
         return -1;
     }
 
-    double opacity;
-    if (PyFloat_Check(value)) {
-        opacity = PyFloat_AsDouble(value);
-    } else if (PyLong_Check(value)) {
-        opacity = PyLong_AsDouble(value);
-    } else {
-        PyErr_SetString(PyExc_TypeError, "opacity must be a number");
-        return -1;
-    }
+    float opacity_f = 0.0f;
+    if (!mcrf::to_float(value, opacity_f, "opacity")) return -1;
+    double opacity = opacity_f;
 
     // Clamp to valid range
     if (opacity < 0.0) opacity = 0.0;
@@ -845,7 +827,7 @@ int McRFPy_API::api_set_current_scene(PyObject* value)
         scene_name = PyUnicode_AsUTF8(value);
     } else {
         // Check if value is a Scene or Scene subclass
-        if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PySceneType)) {
+        if (PyObject_TypeCheck(value, &mcrfpydef::PySceneType)) {
             PySceneObject* scene_obj = (PySceneObject*)value;
             scene_name = scene_obj->name.c_str();
         } else {

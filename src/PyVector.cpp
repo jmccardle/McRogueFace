@@ -173,6 +173,24 @@ PyObject* PyVector::repr(PyObject* obj)
 }
 
 
+// A Vector component: a float or int (bool, IntEnum), as a float. TypeError for anything else,
+// OverflowError for an int too large for a double. Never leaves an error pending on success.
+static bool vector_component(PyObject* v, float* out)
+{
+    // One rule for "a real number" (the same as the position helper): int / bool, float, and
+    // anything with __index__ or __float__ (numpy ints and float32, Fraction, Decimal).
+    // str / bytes / None are not numbers.
+    if (!PyFloat_Check(v) && !PyLong_Check(v) && !PyIndex_Check(v) && !PyNumber_Check(v)) {
+        PyErr_Format(PyExc_TypeError, "Vector components must be numbers, not %.200s",
+                     Py_TYPE(v)->tp_name);
+        return false;
+    }
+    const double d = PyFloat_Check(v) ? PyFloat_AS_DOUBLE(v) : PyFloat_AsDouble(v);
+    if (d == -1.0 && PyErr_Occurred()) return false;
+    *out = static_cast<float>(d);
+    return true;
+}
+
 int PyVector::init(PyVectorObject* self, PyObject* args, PyObject* kwds)
 {
     using namespace mcrfpydef;
@@ -197,20 +215,19 @@ int PyVector::init(PyVectorObject* self, PyObject* args, PyObject* kwds)
             PyErr_SetString(PyExc_TypeError, "Invalid tuple length: mcrfpy.Vector requires a 2-tuple");
             return -1;
         }
-        x = PyFloat_AsDouble(PyTuple_GetItem(leader, 0));
-        y = PyFloat_AsDouble(PyTuple_GetItem(leader, 1));
+        if (!vector_component(PyTuple_GET_ITEM(leader, 0), &x) ||
+            !vector_component(PyTuple_GET_ITEM(leader, 1), &y)) return -1;
 
         self->data = sf::Vector2f(x, y);
         return 0;
     }
     // else - 
-    else if (!PyFloat_Check(leader) && !(PyLong_Check(leader)))
+    else if (!PyFloat_Check(leader) && !PyLong_Check(leader) && !PyIndex_Check(leader) && !PyNumber_Check(leader))
     {
         PyErr_SetString(PyExc_TypeError, "mcrfpy.Vector requires a 2-tuple or two numeric values");
         return -1;
     }
-    if (PyFloat_Check(leader)) x = PyFloat_AsDouble(leader);
-    else x = PyLong_AsDouble(leader);
+    if (!vector_component(leader, &x)) return -1;
     self->data = sf::Vector2f(x, y);
     return 0;
 }
@@ -237,14 +254,7 @@ int PyVector::set_member(PyObject* obj, PyObject* value, void* closure)
     PyVectorObject* self = (PyVectorObject*)obj;
     float val;
     
-    if (PyFloat_Check(value)) {
-        val = PyFloat_AsDouble(value);
-    } else if (PyLong_Check(value)) {
-        val = PyLong_AsDouble(value);
-    } else {
-        PyErr_SetString(PyExc_TypeError, "Vector members must be numeric");
-        return -1;
-    }
+    if (!vector_component(value, &val)) return -1;
     
     if (reinterpret_cast<intptr_t>(closure) == 0) {
         // x
@@ -256,48 +266,6 @@ int PyVector::set_member(PyObject* obj, PyObject* value, void* closure)
     return 0;
 }
 
-PyVectorObject* PyVector::from_arg(PyObject* args)
-{
-    PyTypeObject* type = &mcrfpydef::PyVectorType;
-
-    // Check if args is already a Vector instance
-    if (PyObject_IsInstance(args, (PyObject*)type)) {
-        Py_INCREF(args);  // Return new reference so caller can safely DECREF
-        return (PyVectorObject*)args;
-    }
-
-    // Create new Vector object
-    PyObject* obj = type->tp_alloc(type, 0);
-    if (!obj) {
-        return NULL;
-    }
-
-    // Handle different input types
-    if (PyTuple_Check(args)) {
-        // It's already a tuple, pass it directly to init
-        int err = init((PyVectorObject*)obj, args, NULL);
-        if (err) {
-            Py_DECREF(obj);
-            return NULL;
-        }
-    } else {
-        // Wrap single argument in a tuple for init
-        PyObject* tuple = PyTuple_Pack(1, args);
-        if (!tuple) {
-            Py_DECREF(obj);
-            return NULL;
-        }
-        int err = init((PyVectorObject*)obj, tuple, NULL);
-        Py_DECREF(tuple);
-        if (err) {
-            Py_DECREF(obj);
-            return NULL;
-        }
-    }
-
-    return (PyVectorObject*)obj;
-}
-
 // Arithmetic operations
 PyObject* PyVector::add(PyObject* left, PyObject* right)
 {
@@ -307,7 +275,7 @@ PyObject* PyVector::add(PyObject* left, PyObject* right)
     PyVectorObject* vec1 = nullptr;
     PyVectorObject* vec2 = nullptr;
     
-    if (PyObject_IsInstance(left, (PyObject*)type) && PyObject_IsInstance(right, (PyObject*)type)) {
+    if (PyObject_TypeCheck(left, (PyTypeObject*)type) && PyObject_TypeCheck(right, (PyTypeObject*)type)) {
         vec1 = (PyVectorObject*)left;
         vec2 = (PyVectorObject*)right;
     } else {
@@ -329,7 +297,7 @@ PyObject* PyVector::subtract(PyObject* left, PyObject* right)
     PyVectorObject* vec1 = nullptr;
     PyVectorObject* vec2 = nullptr;
     
-    if (PyObject_IsInstance(left, (PyObject*)type) && PyObject_IsInstance(right, (PyObject*)type)) {
+    if (PyObject_TypeCheck(left, (PyTypeObject*)type) && PyObject_TypeCheck(right, (PyTypeObject*)type)) {
         vec1 = (PyVectorObject*)left;
         vec2 = (PyVectorObject*)right;
     } else {
@@ -352,12 +320,12 @@ PyObject* PyVector::multiply(PyObject* left, PyObject* right)
     double scalar = 0.0;
     
     // Check for Vector * scalar
-    if (PyObject_IsInstance(left, (PyObject*)type) && (PyFloat_Check(right) || PyLong_Check(right))) {
+    if (PyObject_TypeCheck(left, (PyTypeObject*)type) && (PyFloat_Check(right) || PyLong_Check(right))) {
         vec = (PyVectorObject*)left;
         scalar = PyFloat_AsDouble(right);
     }
     // Check for scalar * Vector
-    else if ((PyFloat_Check(left) || PyLong_Check(left)) && PyObject_IsInstance(right, (PyObject*)type)) {
+    else if ((PyFloat_Check(left) || PyLong_Check(left)) && PyObject_TypeCheck(right, (PyTypeObject*)type)) {
         scalar = PyFloat_AsDouble(left);
         vec = (PyVectorObject*)right;
     }
@@ -378,7 +346,7 @@ PyObject* PyVector::divide(PyObject* left, PyObject* right)
     auto type = &mcrfpydef::PyVectorType;
     
     // Only support Vector / scalar
-    if (!PyObject_IsInstance(left, (PyObject*)type) || (!PyFloat_Check(right) && !PyLong_Check(right))) {
+    if (!PyObject_TypeCheck(left, (PyTypeObject*)type) || (!PyFloat_Check(right) && !PyLong_Check(right))) {
         Py_INCREF(Py_NotImplemented);
         return Py_NotImplemented;
     }
@@ -429,7 +397,7 @@ PyObject* PyVector::richcompare(PyObject* left, PyObject* right, int op)
     float left_x, left_y, right_x, right_y;
 
     // Extract left operand values
-    if (PyObject_IsInstance(left, (PyObject*)type)) {
+    if (PyObject_TypeCheck(left, (PyTypeObject*)type)) {
         PyVectorObject* vec = (PyVectorObject*)left;
         left_x = vec->data.x;
         left_y = vec->data.y;
@@ -450,7 +418,7 @@ PyObject* PyVector::richcompare(PyObject* left, PyObject* right, int op)
     }
 
     // Extract right operand values
-    if (PyObject_IsInstance(right, (PyObject*)type)) {
+    if (PyObject_TypeCheck(right, (PyTypeObject*)type)) {
         PyVectorObject* vec = (PyVectorObject*)right;
         right_x = vec->data.x;
         right_y = vec->data.y;
@@ -524,7 +492,7 @@ PyObject* PyVector::normalize(PyVectorObject* self, PyObject* Py_UNUSED(ignored)
 
 PyObject* PyVector::dot(PyVectorObject* self, PyObject* other)
 {
-    if (!PyObject_IsInstance(other, (PyObject*)&mcrfpydef::PyVectorType)) {
+    if (!PyObject_TypeCheck(other, &mcrfpydef::PyVectorType)) {
         PyErr_SetString(PyExc_TypeError, "Argument must be a Vector");
         return NULL;
     }
@@ -537,7 +505,7 @@ PyObject* PyVector::dot(PyVectorObject* self, PyObject* other)
 
 PyObject* PyVector::distance_to(PyVectorObject* self, PyObject* other)
 {
-    if (!PyObject_IsInstance(other, (PyObject*)&mcrfpydef::PyVectorType)) {
+    if (!PyObject_TypeCheck(other, &mcrfpydef::PyVectorType)) {
         PyErr_SetString(PyExc_TypeError, "Argument must be a Vector");
         return NULL;
     }

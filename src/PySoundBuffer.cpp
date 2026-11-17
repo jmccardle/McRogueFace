@@ -616,7 +616,7 @@ PyObject* PySoundBuffer::concat(PyObject* cls, PyObject* args, PyObject* kwds) {
     std::vector<std::shared_ptr<SoundBufferData>> buffers;
     for (Py_ssize_t i = 0; i < count; i++) {
         PyObject* item = PySequence_GetItem(bufList, i);
-        if (!item || !PyObject_IsInstance(item, (PyObject*)&mcrfpydef::PySoundBufferType)) {
+        if (!item || !PyObject_TypeCheck(item, &mcrfpydef::PySoundBufferType)) {
             Py_XDECREF(item);
             PyErr_SetString(PyExc_TypeError, "All items must be SoundBuffer objects");
             return NULL;
@@ -700,7 +700,7 @@ PyObject* PySoundBuffer::mix(PyObject* cls, PyObject* args, PyObject* kwds) {
     std::vector<std::shared_ptr<SoundBufferData>> buffers;
     for (Py_ssize_t i = 0; i < count; i++) {
         PyObject* item = PySequence_GetItem(bufList, i);
-        if (!item || !PyObject_IsInstance(item, (PyObject*)&mcrfpydef::PySoundBufferType)) {
+        if (!item || !PyObject_TypeCheck(item, &mcrfpydef::PySoundBufferType)) {
             Py_XDECREF(item);
             PyErr_SetString(PyExc_TypeError, "All items must be SoundBuffer objects");
             return NULL;

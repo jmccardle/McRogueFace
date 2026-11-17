@@ -158,7 +158,7 @@ int PyAlignment::from_arg(PyObject* arg, AlignmentType* out_align, bool* was_non
     }
 
     // Accept Alignment enum member (check if it's an instance of our enum)
-    if (alignment_enum_class && PyObject_IsInstance(arg, alignment_enum_class)) {
+    if (alignment_enum_class && PyObject_TypeCheck(arg, (PyTypeObject*)alignment_enum_class)) {
         // IntEnum members have a 'value' attribute
         PyObject* value = PyObject_GetAttrString(arg, "value");
         if (!value) {

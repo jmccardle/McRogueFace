@@ -301,19 +301,8 @@ int UISprite::set_float_member(PyUISpriteObject* self, PyObject* value, void* cl
 {
     float val;
     auto member_ptr = reinterpret_cast<intptr_t>(closure);
-    if (PyFloat_Check(value))
-    {
-        val = PyFloat_AsDouble(value);
-    }
-    else if (PyLong_Check(value))
-    {
-        val = PyLong_AsLong(value);
-    }
-    else
-    {
-        PyErr_SetString(PyExc_TypeError, "Value must be a number (int or float)");
-        return -1;
-    }
+    static const char* const member_names[] = {"x", "y", "scale", "scale_x", "scale_y"};
+    if (!mcrf::to_float(value, val, (member_ptr >= 0 && member_ptr < 5) ? member_names[member_ptr] : "value")) return -1;
     if (member_ptr == 0) { //x
         self->data->setPosition(sf::Vector2f(val, self->data->getPosition().y));
         self->data->markCompositeDirty(); // #291: position change
@@ -390,7 +379,7 @@ PyObject* UISprite::get_texture(PyUISpriteObject* self, void* closure)
 int UISprite::set_texture(PyUISpriteObject* self, PyObject* value, void* closure)
 {
     // Check if value is a Texture instance
-    if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyTextureType)) {
+    if (!PyObject_TypeCheck(value, &mcrfpydef::PyTextureType)) {
         PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance");
         return -1;
     }
@@ -501,20 +490,20 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
     PyObject* pos_obj = nullptr;
     PyObject* texture = nullptr;
     int sprite_index = 0;
-    float scale = 1.0f;
-    float scale_x = 1.0f;
-    float scale_y = 1.0f;
+    double scale = 1.0f;
+    double scale_x = 1.0f;
+    double scale_y = 1.0f;
     PyObject* click_handler = nullptr;
     int visible = 1;
-    float opacity = 1.0f;
+    double opacity = 1.0f;
     int z_index = 0;
     const char* name = nullptr;
-    float x = 0.0f, y = 0.0f;
+    double x = 0.0f, y = 0.0f;
     PyObject* snapshot = nullptr;  // #144: snapshot parameter
     PyObject* align_obj = nullptr;  // Alignment enum or None
-    float margin = 0.0f;
-    float horiz_margin = -1.0f;
-    float vert_margin = -1.0f;
+    double margin = 0.0f;
+    double horiz_margin = -1.0f;
+    double vert_margin = -1.0f;
     PyObject* parent_obj = nullptr;  // Auto-attach parent (Frame, Scene, or Grid)
 
     // Keywords list matches the new spec: positional args first, then all keyword args
@@ -529,7 +518,7 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
     };
 
     // Parse arguments with | for optional positional args
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOifffOifizffOOfffO", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOidddOidizddOOdddO", const_cast<char**>(kwlist),
                                      &pos_obj, &texture, &sprite_index,  // Positional
                                      &scale, &scale_x, &scale_y, &click_handler,
                                      &visible, &opacity, &z_index, &name, &x, &y, &snapshot,
@@ -538,38 +527,26 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
         return -1;
     }
     
-    // Handle position argument (can be tuple, Vector, or use x/y keywords)
+    // pos: the checked converter (#540 item 12); without it the x / y keywords are used.
     if (pos_obj) {
-        PyVectorObject* vec = PyVector::from_arg(pos_obj);
-        if (vec) {
-            x = vec->data.x;
-            y = vec->data.y;
-            Py_DECREF(vec);
-        } else {
-            PyErr_Clear();
-            if (PyTuple_Check(pos_obj) && PyTuple_Size(pos_obj) == 2) {
-                PyObject* x_val = PyTuple_GetItem(pos_obj, 0);
-                PyObject* y_val = PyTuple_GetItem(pos_obj, 1);
-                if ((PyFloat_Check(x_val) || PyLong_Check(x_val)) &&
-                    (PyFloat_Check(y_val) || PyLong_Check(y_val))) {
-                    x = PyFloat_Check(x_val) ? PyFloat_AsDouble(x_val) : PyLong_AsLong(x_val);
-                    y = PyFloat_Check(y_val) ? PyFloat_AsDouble(y_val) : PyLong_AsLong(y_val);
-                } else {
-                    PyErr_SetString(PyExc_TypeError, "pos tuple must contain numbers");
-                    return -1;
-                }
-            } else {
-                PyErr_SetString(PyExc_TypeError, "pos must be a tuple (x, y) or Vector");
-                return -1;
-            }
-        }
+        sf::Vector2f v;
+        if (!mcrf::to_vector2f(pos_obj, v, "pos")) return -1;
+        x = v.x;
+        y = v.y;
+    }
+    if (!mcrf::require_finite(x, "x") || !mcrf::require_finite(y, "y") ||
+        !mcrf::require_finite(scale, "scale") || !mcrf::require_finite(scale_x, "scale_x") ||
+        !mcrf::require_finite(scale_y, "scale_y") || !mcrf::require_finite(opacity, "opacity") ||
+        !mcrf::require_finite(margin, "margin") || !mcrf::require_finite(horiz_margin, "horiz_margin") ||
+        !mcrf::require_finite(vert_margin, "vert_margin")) {
+        return -1;
     }
 
     // #144: Handle snapshot parameter - renders a UIDrawable to texture
     std::shared_ptr<PyTexture> texture_ptr = nullptr;
     if (snapshot && snapshot != Py_None) {
         // Check if snapshot is a Frame (most common case)
-        if (PyObject_IsInstance(snapshot, (PyObject*)&mcrfpydef::PyUIFrameType)) {
+        if (PyObject_TypeCheck(snapshot, &mcrfpydef::PyUIFrameType)) {
             auto pyframe = (PyUIFrameObject*)snapshot;
             if (!pyframe->data) {
                 PyErr_SetString(PyExc_ValueError, "Invalid Frame object for snapshot");
@@ -606,7 +583,7 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
     }
     // Handle texture - allow None or use default (only if no snapshot)
     else if (texture && texture != Py_None) {
-        if (!PyObject_IsInstance(texture, (PyObject*)&mcrfpydef::PyTextureType)) {
+        if (!PyObject_TypeCheck(texture, &mcrfpydef::PyTextureType)) {
             PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance or None");
             return -1;
         }
@@ -632,7 +609,7 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
     
     // Set other properties
     self->data->visible = visible;
-    self->data->opacity = opacity;
+    self->data->assignOpacity(opacity);  // the setter's clamp, not a raw store (#540)
     self->data->z_index = z_index;
     if (name) {
         self->data->name = std::string(name);

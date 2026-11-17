@@ -1,5 +1,6 @@
 // UIGridView.cpp - Rendering view for GridData (#252)
 #include "UIGridView.h"
+#include <cfloat>
 #include "PyWrap.h"
 #include "UICollection.h"  // #430: UICollection::pyobject_for (GridView.children)
 #include "PyGridData.h"
@@ -602,6 +603,35 @@ UIDrawable* UIGridView::click_at(sf::Vector2f point)
 
 // Property system. The shared names (x, y, pos, w, h, size, rotation, origin,
 // opacity, z_index) are handled by UIDrawable (#426, lost in the #355 type split).
+// A zoom must be positive AFTER narrowing to float (1e-46 is 0.0f), and the arithmetic derived from
+// it must stay finite: the default camera centres on w / (2 * zoom) and h / (2 * zoom) (applyDefaultCamera)
+// and the view spans w / zoom by h / zoom tiles, all in float. So zoom >= max(|w|, |h|) / FLT_MAX is
+// the real lower bound for a view of this size (no magic minimum); a smaller positive zoom would make
+// center (inf, inf). Raises ValueError and returns false when it does not hold.
+static bool checkZoom(float zoom, float w, float h)
+{
+    if (!(zoom > 0.0f)) {
+        mcrf::raise_got(PyExc_ValueError, "zoom must be greater than 0", (double)zoom);
+        return false;
+    }
+    const double extent = std::max(std::fabs((double)w), std::fabs((double)h));
+    if (!(extent / (double)zoom <= (double)FLT_MAX)) {
+        mcrf::raise_got(PyExc_ValueError,
+            "zoom is too small for this view: the camera centre (size / (2 * zoom)) would not be finite", (double)zoom);
+        return false;
+    }
+    return true;
+}
+
+bool UIGridView::checkFloatTarget(const std::string& name, float final_value) const
+{
+    // zoom <= 0 (or a zoom whose derived centre is not finite) is rejected as a target. (A delta
+    // animation's end is only known when it starts; an easing that overshoots can still pass
+    // through values <= 0 on the way, which setProperty tolerates.)
+    if (name == "zoom") return checkZoom(final_value, box.getSize().x, box.getSize().y);
+    return true;
+}
+
 bool UIGridView::setProperty(const std::string& name, float value)
 {
     // Each camera change marks the view dirty: a cache_subtree ancestor only redraws when told.
@@ -704,16 +734,16 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
     PyObject* parent_obj = nullptr;
     PyObject* align_obj = nullptr;
     // #169 - NaN sentinel: distinguishes "user passed a center" from "default it".
-    float center_x = std::numeric_limits<float>::quiet_NaN();
-    float center_y = std::numeric_limits<float>::quiet_NaN();
-    float zoom = 1.0f;
+    double center_x = std::numeric_limits<double>::quiet_NaN();
+    double center_y = std::numeric_limits<double>::quiet_NaN();
+    double zoom = 1.0f;
     int visible = 1;
-    float opacity = 1.0f;
+    double opacity = 1.0f;
     int z_index = 0;
     const char* name = nullptr;
-    float x = 0.0f, y = 0.0f, w = 0.0f, h = 0.0f;
+    double x = 0.0f, y = 0.0f, w = 0.0f, h = 0.0f;
     int grid_w = 2, grid_h = 2;
-    float margin = 0.0f, horiz_margin = -1.0f, vert_margin = -1.0f;
+    double margin = 0.0f, horiz_margin = -1.0f, vert_margin = -1.0f;
 
     static const char* kwlist[] = {
         "pos", "size", "grid_size", "texture",   // positional
@@ -724,7 +754,7 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
         nullptr
     };
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOOOOfffifizffffiiOOOfff",
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOOOOdddidizddddiiOOOddd",
                                      const_cast<char**>(kwlist),
                                      &pos_obj, &size_obj, &grid_size_obj, &texture_obj,
                                      &grid_obj, &fill_color_obj, &click_handler,
@@ -752,9 +782,9 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
             return -1;
         }
 
-        if (PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyGridDataType)) {
+        if (PyObject_TypeCheck(grid_obj, &mcrfpydef::PyGridDataType)) {
             self->data->grid_data = ((PyGridDataObject*)grid_obj)->data;
-        } else if (PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
+        } else if (PyObject_TypeCheck(grid_obj, &mcrfpydef::PyUIGridViewType)) {
             // Another Grid/GridView: share the map it is looking at.
             self->data->grid_data = ((PyUIGridViewObject*)grid_obj)->data->grid_data;
         } else {
@@ -782,30 +812,17 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
     // --------------------------------------------------------------------
     // The camera: this view's own rendering state.
     // --------------------------------------------------------------------
+    // pos / size: the checked converter (nan/inf and out-of-range are errors, #540 item 12).
     if (pos_obj && pos_obj != Py_None) {
-        PyVectorObject* vec = PyVector::from_arg(pos_obj);
-        if (vec) {
-            x = vec->data.x;
-            y = vec->data.y;
-            Py_DECREF(vec);
-        } else {
-            PyErr_Clear();
-            sf::Vector2f p = PyObject_to_sfVector2f(pos_obj);
-            if (PyErr_Occurred()) {
-                PyErr_SetString(PyExc_TypeError, "pos must be a tuple (x, y) or Vector");
-                return -1;
-            }
-            x = p.x;
-            y = p.y;
-        }
+        sf::Vector2f p;
+        if (!mcrf::to_vector2f(pos_obj, p, "pos")) return -1;
+        x = p.x;
+        y = p.y;
     }
 
     if (size_obj && size_obj != Py_None) {
-        sf::Vector2f s = PyObject_to_sfVector2f(size_obj);
-        if (PyErr_Occurred()) {
-            PyErr_SetString(PyExc_TypeError, "size must be a tuple (w, h)");
-            return -1;
-        }
+        sf::Vector2f s;
+        if (!mcrf::to_vector2f(size_obj, s, "size")) return -1;
         w = s.x;
         h = s.y;
     } else if (w == 0.0f && h == 0.0f) {
@@ -815,12 +832,28 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
         self->data->size_follows_map = true;
     }
 
-    self->data->zoom = zoom;
+    // center_x / center_y: nan is the "not given" sentinel (#169); infinity is ValueError and a
+    // finite value beyond float range OverflowError, like every other constructor float.
+    if ((!std::isnan(center_x) && !mcrf::require_finite(center_x, "center_x")) ||
+        (!std::isnan(center_y) && !mcrf::require_finite(center_y, "center_y"))) {
+        return -1;
+    }
+    if (!mcrf::require_finite(x, "x") || !mcrf::require_finite(y, "y") ||
+        !mcrf::require_finite(w, "w") || !mcrf::require_finite(h, "h") ||
+        !mcrf::require_finite(zoom, "zoom") || !mcrf::require_finite(opacity, "opacity") ||
+        !mcrf::require_finite(margin, "margin") || !mcrf::require_finite(horiz_margin, "horiz_margin") ||
+        !mcrf::require_finite(vert_margin, "vert_margin")) {
+        return -1;
+    }
+    // zoom: positive and derived-finite AFTER narrowing to float (a double 1e-46 is 0.0f)
+    if (!checkZoom(static_cast<float>(zoom), static_cast<float>(w), static_cast<float>(h))) return -1;
+
+    self->data->zoom = static_cast<float>(zoom);
     self->data->position = sf::Vector2f(x, y);
     self->data->box.setPosition(self->data->position);
     self->data->box.setSize(sf::Vector2f(w, h));
     self->data->visible = visible;
-    self->data->opacity = opacity;
+    self->data->assignOpacity(opacity);  // the setter's clamp, not a raw store (#540)
     self->data->z_index = z_index;
     if (name) self->data->UIDrawable::name = std::string(name);
 
@@ -999,14 +1032,14 @@ int UIGridView::set_grid(PyUIGridViewObject* self, PyObject* value, void* closur
     }
     // A GridData: point this camera at that map. (#361: no aliasing cast -- the
     // wrapper holds the GridData itself, not a UIGrid it was a base subobject of.)
-    if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyGridDataType)) {
+    if (PyObject_TypeCheck(value, &mcrfpydef::PyGridDataType)) {
         PyGridDataObject* pygrid = (PyGridDataObject*)value;
         self->data->grid_data = pygrid->data;
         self->data->grid_data->registerView(self->data);
         return 0;
     }
     // A Grid/GridView: share the map it is looking at.
-    if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
+    if (PyObject_TypeCheck(value, &mcrfpydef::PyUIGridViewType)) {
         PyUIGridViewObject* pyview = (PyUIGridViewObject*)value;
         if (pyview->data->grid_data) {
             self->data->grid_data = pyview->data->grid_data;
@@ -1030,7 +1063,7 @@ PyObject* UIGridView::get_center(PyUIGridViewObject* self, void* closure)
 
 int UIGridView::set_center(PyUIGridViewObject* self, PyObject* value, void* closure)
 {
-    sf::Vector2f vec = PyObject_to_sfVector2f(value);
+    sf::Vector2f vec = PyObject_to_sfVector2f(value, "center");
     if (PyErr_Occurred()) return -1;
     self->data->center_x = vec.x;
     self->data->center_y = vec.y;
@@ -1045,8 +1078,9 @@ PyObject* UIGridView::get_zoom(PyUIGridViewObject* self, void* closure)
 
 int UIGridView::set_zoom(PyUIGridViewObject* self, PyObject* value, void* closure)
 {
-    double val = PyFloat_AsDouble(value);
-    if (val == -1.0 && PyErr_Occurred()) return -1;
+    float val = 0.0f;
+    if (!mcrf::to_float(value, val, "zoom")) return -1;
+    if (!checkZoom(val, self->data->box.getSize().x, self->data->box.getSize().y)) return -1;
     self->data->zoom = static_cast<float>(val);
     if (self->data->camera_is_default) self->data->applyDefaultCamera();  // #530
     self->data->markDirty();
@@ -1081,30 +1115,9 @@ PyObject* UIGridView::py_center_camera(PyUIGridViewObject* self, PyObject* args)
         Py_RETURN_NONE;
     }
 
+    // Held references, Vector by type, nan/inf ValueError, errors name the argument (#540).
     float tile_x, tile_y;
-    PyVectorObject* vec = PyVector::from_arg(pos_arg);
-    if (vec) {
-        tile_x = vec->data.x;
-        tile_y = vec->data.y;
-        Py_DECREF(vec);
-    } else {
-        PyErr_Clear();
-        if (!PyTuple_Check(pos_arg) || PyTuple_Size(pos_arg) != 2) {
-            PyErr_SetString(PyExc_TypeError,
-                "center_camera() takes an optional (tile_x, tile_y) tuple or Vector");
-            return nullptr;
-        }
-        PyObject* x_obj = PyTuple_GetItem(pos_arg, 0);
-        PyObject* y_obj = PyTuple_GetItem(pos_arg, 1);
-        if (!(PyFloat_Check(x_obj) || PyLong_Check(x_obj)) ||
-            !(PyFloat_Check(y_obj) || PyLong_Check(y_obj))) {
-            PyErr_SetString(PyExc_TypeError, "tile coordinates must be numeric");
-            return nullptr;
-        }
-        tile_x = PyFloat_Check(x_obj) ? PyFloat_AsDouble(x_obj) : (float)PyLong_AsLong(x_obj);
-        tile_y = PyFloat_Check(y_obj) ? PyFloat_AsDouble(y_obj) : (float)PyLong_AsLong(y_obj);
-    }
-
+    if (!PyPositionHelper::FromObject(pos_arg, &tile_x, &tile_y, "center_camera() position")) return nullptr;
     self->data->center_camera(tile_x, tile_y);
     Py_RETURN_NONE;
 }
@@ -1153,7 +1166,7 @@ int UIGridView::set_perspective(PyUIGridViewObject* self, PyObject* value, void*
         return 0;
     }
 
-    if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIEntityType)) {
+    if (!PyObject_TypeCheck(value, &mcrfpydef::PyUIEntityType)) {
         PyErr_SetString(PyExc_TypeError, "perspective must be an Entity or None");
         return -1;
     }
@@ -1214,15 +1227,16 @@ PyObject* UIGridView::get_float_member_gv(PyUIGridViewObject* self, void* closur
 int UIGridView::set_float_member_gv(PyUIGridViewObject* self, PyObject* value, void* closure)
 {
     float val;
-    if (PyFloat_Check(value)) val = PyFloat_AsDouble(value);
-    else if (PyLong_Check(value)) val = PyLong_AsLong(value);
-    else { PyErr_SetString(PyExc_TypeError, "Value must be a number"); return -1; }
-
     auto member_offset = (int)(intptr_t)closure;
+    static const char* const gv_names[] = {"?", "?", "?", "?", "center_x", "center_y", "zoom", "camera_rotation"};
+    if (!mcrf::to_float(value, val, (member_offset >= 4 && member_offset <= 7) ? gv_names[member_offset] : "value")) return -1;
     switch (member_offset) {
         case 4: self->data->center_x = val; self->data->camera_is_default = false; break;
         case 5: self->data->center_y = val; self->data->camera_is_default = false; break;
-        case 6: self->data->zoom = val; break;
+        case 6:
+            if (!checkZoom(val, self->data->box.getSize().x, self->data->box.getSize().y)) return -1;
+            self->data->zoom = val;
+            break;
         case 7: self->data->camera_rotation = val; break;
         default: PyErr_SetString(PyExc_RuntimeError, "Invalid member offset"); return -1;
     }
@@ -1568,18 +1582,8 @@ PyObject* UIGridView::subscript(PyUIGridViewObject* self, PyObject* key)
         PyErr_SetString(PyExc_RuntimeError, "Grid has no underlying data");
         return NULL;
     }
-    if (!PyTuple_Check(key) || PyTuple_Size(key) != 2) {
-        PyErr_SetString(PyExc_TypeError, "Grid indices must be a 2-tuple (x, y)");
-        return NULL;
-    }
-    PyObject* x_obj = PyTuple_GetItem(key, 0);
-    PyObject* y_obj = PyTuple_GetItem(key, 1);
-    if (!PyLong_Check(x_obj) || !PyLong_Check(y_obj)) {
-        PyErr_SetString(PyExc_TypeError, "Grid indices must be integers");
-        return NULL;
-    }
-    int x = (int)PyLong_AsLong(x_obj);
-    int y = (int)PyLong_AsLong(y_obj);
+    int x, y;
+    if (!PyPosition_FromObjectInt(key, &x, &y, "Grid index")) return NULL;  // floors, range-checked (#540)
 
     auto& grid_data = self->data->grid_data;
     if (x < 0 || x >= grid_data->grid_w) {

@@ -103,7 +103,7 @@ int PyTextBaseline::from_arg(PyObject* arg, TextBaseline* out) {
     // A member, or a plain int. Not a bool, a str, or another enum's member
     // (InputState.PRESSED == 0 is not TextBaseline.TOP).
     int is_member = text_baseline_enum_class
-        ? PyObject_IsInstance(arg, text_baseline_enum_class) : 0;
+        ? PyObject_TypeCheck(arg, (PyTypeObject*)text_baseline_enum_class) : 0;
     if (is_member < 0) return 0;
     if (!is_member && !PyLong_CheckExact(arg)) {
         PyErr_Format(PyExc_TypeError,

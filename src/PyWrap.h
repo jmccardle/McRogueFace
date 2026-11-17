@@ -161,10 +161,25 @@ int visit_callable(const std::unique_ptr<Callable>& c, visitproc visit, void* ar
 // Argument conversion and reference ownership
 // ---------------------------------------------------------------------------
 
-// Read a Vector, or anything Vector() accepts, into `out` without leaking.
-// Vectors and 2-sequences of numbers take a fast path with no allocation.
-// Returns false with a Python error set (TypeError naming `what`) on failure.
+// Read a Vector (by type) or a 2-sequence of real numbers into `out`; anything else is a
+// TypeError naming `what`. Returns false with a Python error set on failure.
+// A nan or infinite component is a ValueError (#540 item 12): this is the choke point for every
+// Vector-valued position / size / center / origin property and constructor argument.
 bool to_vector2f(PyObject* arg, sf::Vector2f& out, const char* what);
+
+// ValueError "<what> must be finite (got nan|inf|-inf)" for nan / inf, OverflowError when a finite
+// value does not fit a float (#540 items 6, 12). For constructor arguments parsed as doubles
+// ("d"): a "f" format would turn 1e39 into inf before anything could tell it from a real inf.
+bool require_finite(double value, const char* what);
+
+// "<msg> (got <value>)" with the exception type `exc`: PyErr_Format has no %g.
+void raise_got(PyObject* exc, const char* msg, double value);
+
+// An int or float property value as a float: TypeError "<what> must be a number" for anything
+// else, ValueError for nan/inf, OverflowError for an int or float beyond float range. The one
+// converter for scalar float setters (x, y, w, h, rotation, radius, thickness, ...).
+// `check_finite=false` leaves nan/inf to a caller with its own, more specific range message.
+bool to_float(PyObject* value, float& out, const char* what, bool check_finite = true);
 
 // Owns one new reference for the lifetime of the full expression or scope:
 //     _click(self, PyRef(PyTuple_New(0)).get(), kwargs);
@@ -186,6 +201,15 @@ public:
 private:
     PyObject* p;
 };
+
+// A new reference to a BORROWED object (PyList_GetItem, PySequence_Fast_GET_ITEM, ...), released at
+// scope exit. Take it before any call that can run user code (__float__, __index__, __bool__, a
+// callback): that code may mutate the container the object was borrowed from (#543 class).
+inline PyRef hold(PyObject* borrowed)
+{
+    Py_XINCREF(borrowed);
+    return PyRef(borrowed);
+}
 
 // Every live registered wrapper, as new references (#468: exit teardown).
 std::vector<PyRef> live_wrappers();
@@ -213,12 +237,17 @@ std::shared_ptr<T> py_shared(T* obj)
 bool to_int(double value, int& out, const char* what);
 bool to_int(PyObject* value, int& out, const char* what);
 
-// A grid cell coordinate (#431): a Python int, or a float with an integral value
-// (5.0, e.g. a Vector component). A non-integral, NaN or infinite float raises
-// ValueError (never truncated), anything else TypeError, outside int's range
-// OverflowError. to_cell_pos reads a Vector or an (x, y) pair the same way.
+// A grid cell coordinate (#431, #540 item 3): an int, an __index__ object, or a float, which is
+// FLOORED (toward negative infinity) like every other integer position; nan/inf is ValueError,
+// outside int's range OverflowError, anything else TypeError. to_cell_pos reads a Vector or a
+// 2-sequence the same way (the integer position helper).
 bool to_cell(PyObject* value, int& out, const char* what);
 bool to_cell_pos(PyObject* value, sf::Vector2i& out, const char* what);
+
+// A float that stands for a cell (an entity's tile position), floored and range-checked:
+// ValueError for nan/inf, OverflowError when the floored value does not fit an int.
+// Use this instead of static_cast<int>(float) on anything a script can set.
+bool float_to_cell(double value, int& out, const char* what);
 
 // Print the pending error from a Python callback, headed "<what> callback raised an
 // exception:". sys.exit() in a callback is a request to quit, not an error: it gets

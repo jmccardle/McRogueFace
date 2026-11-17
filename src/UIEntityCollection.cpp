@@ -116,7 +116,7 @@ PyObject* UIEntityCollection::getitem(PyUIEntityCollectionObject* self, Py_ssize
 
 // #447: the entity behind an EntityCollection argument, or nullptr with TypeError set.
 static std::shared_ptr<UIEntity> entity_arg(PyObject* o, const char* what) {
-    if (!PyObject_IsInstance(o, (PyObject*)&mcrfpydef::PyUIEntityType)) {
+    if (!PyObject_TypeCheck(o, &mcrfpydef::PyUIEntityType)) {
         PyErr_Format(PyExc_TypeError, "%s requires Entity objects, not %.200s", what, Py_TYPE(o)->tp_name);
         return nullptr;
     }
@@ -210,7 +210,7 @@ int UIEntityCollection::contains(PyUIEntityCollectionObject* self, PyObject* val
 
     // Type checking
     PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
-    if (!PyObject_IsInstance(value, (PyObject*)entity_type)) {
+    if (!PyObject_TypeCheck(value, (PyTypeObject*)entity_type)) {
         return 0;  // Not an Entity, can't be in collection
     }
 
@@ -476,7 +476,7 @@ PyObject* UIEntityCollection::remove(PyUIEntityCollectionObject* self, PyObject*
 {
     PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
 
-    if (!PyObject_IsInstance(o, (PyObject*)entity_type)) {
+    if (!PyObject_TypeCheck(o, (PyTypeObject*)entity_type)) {
         PyErr_SetString(PyExc_TypeError, "EntityCollection.remove requires an Entity object");
         return NULL;
     }
@@ -611,7 +611,7 @@ PyObject* UIEntityCollection::index_method(PyUIEntityCollectionObject* self, PyO
 
     PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
 
-    if (!PyObject_IsInstance(value, (PyObject*)entity_type)) {
+    if (!PyObject_TypeCheck(value, (PyTypeObject*)entity_type)) {
         PyErr_SetString(PyExc_TypeError, "EntityCollection.index requires an Entity object");
         return NULL;
     }
@@ -642,7 +642,7 @@ PyObject* UIEntityCollection::count(PyUIEntityCollectionObject* self, PyObject* 
     }
 
     PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
-    if (!PyObject_IsInstance(value, (PyObject*)entity_type)) {
+    if (!PyObject_TypeCheck(value, (PyTypeObject*)entity_type)) {
         return PyLong_FromLong(0);
     }
 

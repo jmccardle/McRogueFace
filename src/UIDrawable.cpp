@@ -623,14 +623,8 @@ int UIDrawable::set_float_member(PyObject* self, PyObject* value, void* closure)
     if (!drawable) return -1;
 
     float val = 0.0f;
-    if (PyFloat_Check(value)) {
-        val = PyFloat_AsDouble(value);
-    } else if (PyLong_Check(value)) {
-        val = static_cast<float>(PyLong_AsLong(value));
-    } else {
-        PyErr_SetString(PyExc_TypeError, "Value must be a number (int or float)");
-        return -1;
-    }
+    static const char* const member_names[] = {"x", "y", "w", "h"};
+    if (!mcrf::to_float(value, val, member >= 0 && member < 4 ? member_names[member] : "value")) return -1;
     
     // #426: the same setters the animation system uses
     const sf::Vector2f p = drawable->position;
@@ -701,14 +695,7 @@ int UIDrawable::set_rotation(PyObject* self, PyObject* value, void* closure) {
     if (!drawable) return -1;
 
     float val = 0.0f;
-    if (PyFloat_Check(value)) {
-        val = PyFloat_AsDouble(value);
-    } else if (PyLong_Check(value)) {
-        val = static_cast<float>(PyLong_AsLong(value));
-    } else {
-        PyErr_SetString(PyExc_TypeError, "rotation must be a number (int or float)");
-        return -1;
-    }
+    if (!mcrf::to_float(value, val, "rotation")) return -1;
 
     drawable->assignRotation(val);
     return 0;
@@ -813,57 +800,15 @@ int UIDrawable::set_grid_pos(PyObject* self, PyObject* value, void* closure) {
         return -1;
     }
 
-    // Parse the grid position value
-    float grid_x, grid_y;
-    if (PyTuple_Check(value) && PyTuple_Size(value) == 2) {
-        PyObject* x_obj = PyTuple_GetItem(value, 0);
-        PyObject* y_obj = PyTuple_GetItem(value, 1);
-
-        if (PyFloat_Check(x_obj) || PyLong_Check(x_obj)) {
-            grid_x = PyFloat_Check(x_obj) ? PyFloat_AsDouble(x_obj) : static_cast<float>(PyLong_AsLong(x_obj));
-        } else {
-            PyErr_SetString(PyExc_TypeError, "grid_pos x must be a number");
-            return -1;
-        }
-
-        if (PyFloat_Check(y_obj) || PyLong_Check(y_obj)) {
-            grid_y = PyFloat_Check(y_obj) ? PyFloat_AsDouble(y_obj) : static_cast<float>(PyLong_AsLong(y_obj));
-        } else {
-            PyErr_SetString(PyExc_TypeError, "grid_pos y must be a number");
-            return -1;
-        }
-    } else if (PyObject_HasAttrString(value, "x") && PyObject_HasAttrString(value, "y")) {
-        // Vector-like object
-        PyObject* x_attr = PyObject_GetAttrString(value, "x");
-        PyObject* y_attr = PyObject_GetAttrString(value, "y");
-
-        if (x_attr && (PyFloat_Check(x_attr) || PyLong_Check(x_attr))) {
-            grid_x = PyFloat_Check(x_attr) ? PyFloat_AsDouble(x_attr) : static_cast<float>(PyLong_AsLong(x_attr));
-        } else {
-            Py_XDECREF(x_attr);
-            Py_XDECREF(y_attr);
-            PyErr_SetString(PyExc_TypeError, "grid_pos x must be a number");
-            return -1;
-        }
-
-        if (y_attr && (PyFloat_Check(y_attr) || PyLong_Check(y_attr))) {
-            grid_y = PyFloat_Check(y_attr) ? PyFloat_AsDouble(y_attr) : static_cast<float>(PyLong_AsLong(y_attr));
-        } else {
-            Py_XDECREF(x_attr);
-            Py_XDECREF(y_attr);
-            PyErr_SetString(PyExc_TypeError, "grid_pos y must be a number");
-            return -1;
-        }
-
-        Py_DECREF(x_attr);
-        Py_DECREF(y_attr);
-    } else {
-        PyErr_SetString(PyExc_TypeError, "grid_pos must be a tuple (x, y) or Vector");
-        return -1;
-    }
+    // Parse the grid position value: the checked converter (#540)
+    sf::Vector2f grid_pos;
+    if (!mcrf::to_vector2f(value, grid_pos, "grid_pos")) return -1;
+    const float grid_x = grid_pos.x, grid_y = grid_pos.y;
 
     // Convert grid position to pixel position
     sf::Vector2f cell_size = grid->getEffectiveCellSize();
+    if (!mcrf::require_finite((double)grid_x * cell_size.x, "grid_pos") ||
+        !mcrf::require_finite((double)grid_y * cell_size.y, "grid_pos")) return -1;
     drawable->position.x = grid_x * cell_size.x;
     drawable->position.y = grid_y * cell_size.y;
     drawable->onPositionChanged();
@@ -926,57 +871,15 @@ int UIDrawable::set_grid_size(PyObject* self, PyObject* value, void* closure) {
         return -1;
     }
 
-    // Parse the grid size value
-    float grid_w, grid_h;
-    if (PyTuple_Check(value) && PyTuple_Size(value) == 2) {
-        PyObject* w_obj = PyTuple_GetItem(value, 0);
-        PyObject* h_obj = PyTuple_GetItem(value, 1);
-
-        if (PyFloat_Check(w_obj) || PyLong_Check(w_obj)) {
-            grid_w = PyFloat_Check(w_obj) ? PyFloat_AsDouble(w_obj) : static_cast<float>(PyLong_AsLong(w_obj));
-        } else {
-            PyErr_SetString(PyExc_TypeError, "grid_size width must be a number");
-            return -1;
-        }
-
-        if (PyFloat_Check(h_obj) || PyLong_Check(h_obj)) {
-            grid_h = PyFloat_Check(h_obj) ? PyFloat_AsDouble(h_obj) : static_cast<float>(PyLong_AsLong(h_obj));
-        } else {
-            PyErr_SetString(PyExc_TypeError, "grid_size height must be a number");
-            return -1;
-        }
-    } else if (PyObject_HasAttrString(value, "x") && PyObject_HasAttrString(value, "y")) {
-        // Vector-like object
-        PyObject* x_attr = PyObject_GetAttrString(value, "x");
-        PyObject* y_attr = PyObject_GetAttrString(value, "y");
-
-        if (x_attr && (PyFloat_Check(x_attr) || PyLong_Check(x_attr))) {
-            grid_w = PyFloat_Check(x_attr) ? PyFloat_AsDouble(x_attr) : static_cast<float>(PyLong_AsLong(x_attr));
-        } else {
-            Py_XDECREF(x_attr);
-            Py_XDECREF(y_attr);
-            PyErr_SetString(PyExc_TypeError, "grid_size width must be a number");
-            return -1;
-        }
-
-        if (y_attr && (PyFloat_Check(y_attr) || PyLong_Check(y_attr))) {
-            grid_h = PyFloat_Check(y_attr) ? PyFloat_AsDouble(y_attr) : static_cast<float>(PyLong_AsLong(y_attr));
-        } else {
-            Py_XDECREF(x_attr);
-            Py_XDECREF(y_attr);
-            PyErr_SetString(PyExc_TypeError, "grid_size height must be a number");
-            return -1;
-        }
-
-        Py_DECREF(x_attr);
-        Py_DECREF(y_attr);
-    } else {
-        PyErr_SetString(PyExc_TypeError, "grid_size must be a tuple (w, h) or Vector");
-        return -1;
-    }
+    // Parse the grid size value: the checked converter (#540)
+    sf::Vector2f grid_sz;
+    if (!mcrf::to_vector2f(value, grid_sz, "grid_size")) return -1;
+    const float grid_w = grid_sz.x, grid_h = grid_sz.y;
 
     // Convert grid size to pixel size and resize
     sf::Vector2f cell_size = grid->getEffectiveCellSize();
+    if (!mcrf::require_finite((double)grid_w * cell_size.x, "grid_size") ||
+        !mcrf::require_finite((double)grid_h * cell_size.y, "grid_size")) return -1;
     drawable->resize(grid_w * cell_size.x, grid_h * cell_size.y);
 
     return 0;
@@ -1368,7 +1271,7 @@ int UIDrawable::set_shader(PyObject* self, PyObject* value, void* closure) {
     }
 
     // Check if it's a Shader object
-    if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyShaderType)) {
+    if (!PyObject_TypeCheck(value, &mcrfpydef::PyShaderType)) {
         PyErr_SetString(PyExc_TypeError, "shader must be a Shader object or None");
         return -1;
     }
@@ -1515,9 +1418,9 @@ int UIDrawable::set_parent(PyObject* self, PyObject* value, void* closure) {
     // Value must be a Frame, Grid, or Scene (things with children collections).
     // #364: the internal _GridData (PyGridDataType) is NOT among them -- it holds
     // entities and cells, never drawables -- so it falls through to the TypeError.
-    bool is_frame = PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIFrameType);
-    bool is_gridview = PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridViewType);
-    bool is_scene = PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PySceneType);
+    bool is_frame = PyObject_TypeCheck(value, &mcrfpydef::PyUIFrameType);
+    bool is_gridview = PyObject_TypeCheck(value, &mcrfpydef::PyUIGridViewType);
+    bool is_scene = PyObject_TypeCheck(value, &mcrfpydef::PySceneType);
 
     if (!is_frame && !is_gridview && !is_scene) {
         PyErr_SetString(PyExc_TypeError, "parent must be a Frame, Grid, Scene, or None");
@@ -2122,13 +2025,13 @@ PyObject* UIDrawable::py_realign(PyObject* self, PyObject* args) {
     PyObjectsEnum objtype = PyObjectsEnum::UIFRAME;  // Default, will be set by type check
 
     // Determine the type from the Python object
-    if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUIFrameType)) objtype = PyObjectsEnum::UIFRAME;
-    else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUICaptionType)) objtype = PyObjectsEnum::UICAPTION;
-    else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUISpriteType)) objtype = PyObjectsEnum::UISPRITE;
-    else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUIGridViewType)) objtype = PyObjectsEnum::UIGRIDVIEW;
-    else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUILineType)) objtype = PyObjectsEnum::UILINE;
-    else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUICircleType)) objtype = PyObjectsEnum::UICIRCLE;
-    else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUIArcType)) objtype = PyObjectsEnum::UIARC;
+    if (PyObject_TypeCheck(self, &mcrfpydef::PyUIFrameType)) objtype = PyObjectsEnum::UIFRAME;
+    else if (PyObject_TypeCheck(self, &mcrfpydef::PyUICaptionType)) objtype = PyObjectsEnum::UICAPTION;
+    else if (PyObject_TypeCheck(self, &mcrfpydef::PyUISpriteType)) objtype = PyObjectsEnum::UISPRITE;
+    else if (PyObject_TypeCheck(self, &mcrfpydef::PyUIGridViewType)) objtype = PyObjectsEnum::UIGRIDVIEW;
+    else if (PyObject_TypeCheck(self, &mcrfpydef::PyUILineType)) objtype = PyObjectsEnum::UILINE;
+    else if (PyObject_TypeCheck(self, &mcrfpydef::PyUICircleType)) objtype = PyObjectsEnum::UICIRCLE;
+    else if (PyObject_TypeCheck(self, &mcrfpydef::PyUIArcType)) objtype = PyObjectsEnum::UIARC;
 
     UIDrawable* drawable = extractDrawable(self, objtype);
     if (!drawable) return NULL;
@@ -2247,14 +2150,7 @@ int UIDrawable::set_margin(PyObject* self, PyObject* value, void* closure) {
     if (!drawable) return -1;
 
     float margin = 0.0f;
-    if (PyFloat_Check(value)) {
-        margin = static_cast<float>(PyFloat_AsDouble(value));
-    } else if (PyLong_Check(value)) {
-        margin = static_cast<float>(PyLong_AsLong(value));
-    } else {
-        PyErr_SetString(PyExc_TypeError, "margin must be a number");
-        return -1;
-    }
+    if (!mcrf::to_float(value, margin, "margin")) return -1;
 
     // Validate margins for current alignment
     if (drawable->align_type != AlignmentType::NONE) {
@@ -2286,14 +2182,7 @@ int UIDrawable::set_horiz_margin(PyObject* self, PyObject* value, void* closure)
     if (!drawable) return -1;
 
     float horiz_margin = 0.0f;
-    if (PyFloat_Check(value)) {
-        horiz_margin = static_cast<float>(PyFloat_AsDouble(value));
-    } else if (PyLong_Check(value)) {
-        horiz_margin = static_cast<float>(PyLong_AsLong(value));
-    } else {
-        PyErr_SetString(PyExc_TypeError, "horiz_margin must be a number");
-        return -1;
-    }
+    if (!mcrf::to_float(value, horiz_margin, "horiz_margin")) return -1;
 
     // Validate margins for current alignment
     if (drawable->align_type != AlignmentType::NONE) {
@@ -2325,14 +2214,7 @@ int UIDrawable::set_vert_margin(PyObject* self, PyObject* value, void* closure) 
     if (!drawable) return -1;
 
     float vert_margin = 0.0f;
-    if (PyFloat_Check(value)) {
-        vert_margin = static_cast<float>(PyFloat_AsDouble(value));
-    } else if (PyLong_Check(value)) {
-        vert_margin = static_cast<float>(PyLong_AsLong(value));
-    } else {
-        PyErr_SetString(PyExc_TypeError, "vert_margin must be a number");
-        return -1;
-    }
+    if (!mcrf::to_float(value, vert_margin, "vert_margin")) return -1;
 
     // Validate margins for current alignment
     if (drawable->align_type != AlignmentType::NONE) {

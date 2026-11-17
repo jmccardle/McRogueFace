@@ -106,7 +106,7 @@ int PyTransition::from_arg(PyObject* arg, TransitionType* out_type, bool* was_no
     }
 
     // Accept Transition enum member (check if it's an instance of our enum)
-    if (transition_enum_class && PyObject_IsInstance(arg, transition_enum_class)) {
+    if (transition_enum_class && PyObject_TypeCheck(arg, (PyTypeObject*)transition_enum_class)) {
         // IntEnum members have a 'value' attribute
         PyObject* value = PyObject_GetAttrString(arg, "value");
         if (!value) {

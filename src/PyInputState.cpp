@@ -130,7 +130,7 @@ PyObject* PyInputState::create_enum_class(PyObject* module) {
 
 int PyInputState::from_arg(PyObject* arg, bool* out_pressed) {
     // Accept InputState enum member
-    if (input_state_enum_class && PyObject_IsInstance(arg, input_state_enum_class)) {
+    if (input_state_enum_class && PyObject_TypeCheck(arg, (PyTypeObject*)input_state_enum_class)) {
         PyObject* value = PyObject_GetAttrString(arg, "value");
         if (!value) {
             return 0;

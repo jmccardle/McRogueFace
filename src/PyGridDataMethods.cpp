@@ -54,21 +54,8 @@ PyObject* PyGridData::py_at(PyGridDataObject* self, PyObject* args, PyObject* kw
 
 PyObject* PyGridData::subscript(PyGridDataObject* self, PyObject* key)
 {
-    if (!PyTuple_Check(key) || PyTuple_Size(key) != 2) {
-        PyErr_SetString(PyExc_TypeError, "Grid indices must be a tuple of (x, y)");
-        return NULL;
-    }
-
-    PyObject* x_obj = PyTuple_GetItem(key, 0);
-    PyObject* y_obj = PyTuple_GetItem(key, 1);
-
-    if (!PyLong_Check(x_obj) || !PyLong_Check(y_obj)) {
-        PyErr_SetString(PyExc_TypeError, "Grid indices must be integers");
-        return NULL;
-    }
-
-    int x = PyLong_AsLong(x_obj);
-    int y = PyLong_AsLong(y_obj);
+    int x, y;
+    if (!PyPosition_FromObjectInt(key, &x, &y, "Grid index")) return NULL;  // floors, range-checked (#540)
 
     if (x < 0 || x >= self->data->grid_w) {
         PyErr_Format(PyExc_IndexError, "x index %d is out of range [0, %d)", x, self->data->grid_w);
@@ -438,7 +425,7 @@ PyObject* PyGridData::py_add_layer(PyGridDataObject* self, PyObject* args) {
     std::shared_ptr<GridLayer> layer;
     PyObject* py_layer_ref = nullptr;
 
-    if (PyObject_IsInstance(layer_obj, color_layer_type)) {
+    if (PyObject_TypeCheck(layer_obj, (PyTypeObject*)color_layer_type)) {
         PyColorLayerObject* py_layer = (PyColorLayerObject*)layer_obj;
         if (!py_layer->data) {
             PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
@@ -478,7 +465,7 @@ PyObject* PyGridData::py_add_layer(PyGridDataObject* self, PyObject* args) {
         self->data->attachLayer(layer);
         py_layer->grid = self->data;
 
-    } else if (PyObject_IsInstance(layer_obj, tile_layer_type)) {
+    } else if (PyObject_TypeCheck(layer_obj, (PyTypeObject*)tile_layer_type)) {
         PyTileLayerObject* py_layer = (PyTileLayerObject*)layer_obj;
         if (!py_layer->data) {
             PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
@@ -550,7 +537,7 @@ PyObject* PyGridData::py_remove_layer(PyGridDataObject* self, PyObject* args) {
         Py_RETURN_NONE;
     }
 
-    if (PyObject_IsInstance(layer_obj, (PyObject*)&mcrfpydef::PyColorLayerType)) {
+    if (PyObject_TypeCheck(layer_obj, &mcrfpydef::PyColorLayerType)) {
         auto* py_layer = (PyColorLayerObject*)layer_obj;
         if (py_layer->data) {
             py_layer->data->parent_grid = nullptr;
@@ -560,7 +547,7 @@ PyObject* PyGridData::py_remove_layer(PyGridDataObject* self, PyObject* args) {
         Py_RETURN_NONE;
     }
 
-    if (PyObject_IsInstance(layer_obj, (PyObject*)&mcrfpydef::PyTileLayerType)) {
+    if (PyObject_TypeCheck(layer_obj, &mcrfpydef::PyTileLayerType)) {
         auto* py_layer = (PyTileLayerObject*)layer_obj;
         if (py_layer->data) {
             py_layer->data->parent_grid = nullptr;
@@ -646,9 +633,13 @@ static bool parseValueRange(PyObject* range_obj, float* out_min, float* out_max,
         PyErr_Format(PyExc_ValueError, "%s must have exactly 2 elements (min, max)", what);
         return false;
     }
-    *out_min = (float)PyFloat_AsDouble(PySequence_Fast_GET_ITEM(range_obj, 0));
-    *out_max = (float)PyFloat_AsDouble(PySequence_Fast_GET_ITEM(range_obj, 1));
-    if (PyErr_Occurred()) return false;
+    // PySequence_Size ran __len__ on a list or tuple (no user code); the items are borrowed from a
+    // possibly mutable list, so hold both before converting either (#543 class); nan / inf is an error.
+    PyObject* lo = PySequence_Fast_GET_ITEM(range_obj, 0);
+    PyObject* hi = PySequence_Fast_GET_ITEM(range_obj, 1);
+    mcrf::PyRef lo_hold = mcrf::hold(lo);
+    mcrf::PyRef hi_hold = mcrf::hold(hi);
+    if (!mcrf::to_float(lo, *out_min, what) || !mcrf::to_float(hi, *out_max, what)) return false;
     if (*out_min > *out_max) {
         // PyErr_Format has no %g
         char buf[256];
@@ -672,7 +663,7 @@ PyObject* PyGridData::py_apply_threshold(PyGridDataObject* self, PyObject* args,
         return nullptr;
     }
 
-    if (!PyObject_IsInstance(source_obj, (PyObject*)&mcrfpydef::PyHeightMapType)) {
+    if (!PyObject_TypeCheck(source_obj, &mcrfpydef::PyHeightMapType)) {
         PyErr_SetString(PyExc_TypeError, "source must be a HeightMap");
         return nullptr;
     }
@@ -737,7 +728,7 @@ PyObject* PyGridData::py_apply_ranges(PyGridDataObject* self, PyObject* args) {
         return nullptr;
     }
 
-    if (!PyObject_IsInstance(source_obj, (PyObject*)&mcrfpydef::PyHeightMapType)) {
+    if (!PyObject_TypeCheck(source_obj, &mcrfpydef::PyHeightMapType)) {
         PyErr_SetString(PyExc_TypeError, "source must be a HeightMap");
         return nullptr;
     }
@@ -770,6 +761,8 @@ PyObject* PyGridData::py_apply_ranges(PyGridDataObject* self, PyObject* args) {
     Py_ssize_t num_ranges = PyList_Size(ranges_obj);
     for (Py_ssize_t i = 0; i < num_ranges; i++) {
         PyObject* entry = PyList_GetItem(ranges_obj, i);
+        if (!entry) return nullptr;  // the list shrank under us (IndexError is set)
+        mcrf::PyRef entry_hold = mcrf::hold(entry);  // user code in the conversions below may mutate the list (#543)
 
         if (!PyTuple_Check(entry) || PyTuple_Size(entry) != 2) {
             PyErr_Format(PyExc_TypeError,
@@ -1034,7 +1027,7 @@ PyMethodDef PyGridData_all_methods[] = {
          MCRF_SIG("(pos, radius: int = 0, light_walls: bool = True, algorithm: FOV | int = FOV.BASIC)", "None"),
          MCRF_DESC("Compute field of view from a position. Updates the internal FOV state; use is_in_fov() to query visibility."),
          MCRF_ARGS_START
-         MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector")
+         MCRF_ARG("pos", "Cell as (x, y) tuple, list, or Vector (fractions are floored)")
          MCRF_ARG("radius", "Maximum view distance (0 = unlimited)")
          MCRF_ARG("light_walls", "Whether walls are lit when visible")
          MCRF_ARG("algorithm", "FOV algorithm to use (FOV.BASIC, FOV.DIAMOND, FOV.SHADOW, FOV.PERMISSIVE_0-8)")
