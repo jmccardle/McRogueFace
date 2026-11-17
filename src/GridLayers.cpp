@@ -903,8 +903,8 @@ PyMethodDef PyGridLayerAPI::ColorLayer_methods[] = {
          MCRF_SIG("(pos: tuple, size: tuple, color: Color)", "None"),
          MCRF_DESC("Fill a rectangular region with a color.")
          MCRF_ARGS_START
-         MCRF_ARG("pos", "Top-left corner as (x, y)")
-         MCRF_ARG("size", "Dimensions as (width, height)")
+         MCRF_ARG("pos", "Top-left corner: (x, y) tuple, list or Vector")
+         MCRF_ARG("size", "Dimensions: (width, height) tuple, list or Vector")
          MCRF_ARG("color", "Color object or (r, g, b[, a]) tuple")
      )},
     {"draw_fov", (PyCFunction)PyGridLayerAPI::ColorLayer_draw_fov, METH_VARARGS | METH_KEYWORDS,
@@ -1252,25 +1252,11 @@ PyObject* PyGridLayerAPI::ColorLayer_fill_rect(PyColorLayerObject* self, PyObjec
 
     // Parse pos
     int x, y;
-    if (PyTuple_Check(pos_obj) && PyTuple_Size(pos_obj) == 2) {
-        x = PyLong_AsLong(PyTuple_GetItem(pos_obj, 0));
-        y = PyLong_AsLong(PyTuple_GetItem(pos_obj, 1));
-        if (PyErr_Occurred()) return NULL;
-    } else {
-        PyErr_SetString(PyExc_TypeError, "pos must be a (x, y) tuple");
-        return NULL;
-    }
+    if (!PyPosition_FromObjectInt(pos_obj, &x, &y)) return NULL;
 
     // Parse size
     int width, height;
-    if (PyTuple_Check(size_obj) && PyTuple_Size(size_obj) == 2) {
-        width = PyLong_AsLong(PyTuple_GetItem(size_obj, 0));
-        height = PyLong_AsLong(PyTuple_GetItem(size_obj, 1));
-        if (PyErr_Occurred()) return NULL;
-    } else {
-        PyErr_SetString(PyExc_TypeError, "size must be a (width, height) tuple");
-        return NULL;
-    }
+    if (!PyPosition_FromObjectInt(size_obj, &width, &height)) return NULL;
 
     sf::Color color;
     if (!PyColor::to_color(color_obj, color)) return NULL;  // #450
@@ -1919,8 +1905,8 @@ PyMethodDef PyGridLayerAPI::TileLayer_methods[] = {
          MCRF_SIG("(pos: tuple, size: tuple, index: int)", "None"),
          MCRF_DESC("Fill a rectangular region with a tile index.")
          MCRF_ARGS_START
-         MCRF_ARG("pos", "Top-left corner as (x, y)")
-         MCRF_ARG("size", "Dimensions as (width, height)")
+         MCRF_ARG("pos", "Top-left corner: (x, y) tuple, list or Vector")
+         MCRF_ARG("size", "Dimensions: (width, height) tuple, list or Vector")
          MCRF_ARG("index", "Tile index to fill with (-1 for no tile)")
          MCRF_NOTE("Any int is stored. An index outside 0 to sprite_count-1 is not rendered (like -1); one above the highest sprite index of a known texture also warns (TextureWarning).")
      )},
@@ -2225,25 +2211,11 @@ PyObject* PyGridLayerAPI::TileLayer_fill_rect(PyTileLayerObject* self, PyObject*
 
     // Parse pos
     int x, y;
-    if (PyTuple_Check(pos_obj) && PyTuple_Size(pos_obj) == 2) {
-        x = PyLong_AsLong(PyTuple_GetItem(pos_obj, 0));
-        y = PyLong_AsLong(PyTuple_GetItem(pos_obj, 1));
-        if (PyErr_Occurred()) return NULL;
-    } else {
-        PyErr_SetString(PyExc_TypeError, "pos must be a (x, y) tuple");
-        return NULL;
-    }
+    if (!PyPosition_FromObjectInt(pos_obj, &x, &y)) return NULL;
 
     // Parse size
     int width, height;
-    if (PyTuple_Check(size_obj) && PyTuple_Size(size_obj) == 2) {
-        width = PyLong_AsLong(PyTuple_GetItem(size_obj, 0));
-        height = PyLong_AsLong(PyTuple_GetItem(size_obj, 1));
-        if (PyErr_Occurred()) return NULL;
-    } else {
-        PyErr_SetString(PyExc_TypeError, "size must be a (width, height) tuple");
-        return NULL;
-    }
+    if (!PyPosition_FromObjectInt(size_obj, &width, &height)) return NULL;
 
     if (!WarnTileIndexAbove(*self->data, tile_index)) return NULL;
     self->data->fillRect(x, y, width, height, tile_index);
