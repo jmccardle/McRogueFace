@@ -54,6 +54,19 @@ HANG_SECONDS = 30.0 * float(os.environ.get("MCRF_TIMEOUT_MULTIPLIER", "1"))
 ROUNDS = 25
 
 
+_watchdog = {"stop": threading.Event(), "thread": None}
+
+
+def stop_watchdog():
+    """Retire the watchdog before the process exits. A daemon thread still running at exit is
+    parked forever by CPython, and its frames keep the script's globals (and everything they
+    hold) alive past finalization, so LeakSanitizer reports them (the daemon-thread note in
+    sanitizers/asan.supp). The other FrameLock tests stop their heartbeat the same way."""
+    _watchdog["stop"].set()
+    if _watchdog["thread"] is not None:
+        _watchdog["thread"].join()
+
+
 def start_watchdog():
     """Progress-based hang detector for calls that block (step() parked in closeWindow()).
 
@@ -67,8 +80,7 @@ def start_watchdog():
     def run():
         last = progress()
         since = time.monotonic()
-        while True:
-            time.sleep(0.5)
+        while not _watchdog["stop"].wait(0.5):
             now = progress()
             if now != last:
                 last, since = now, time.monotonic()
@@ -77,11 +89,13 @@ def start_watchdog():
                       % (HANG_SECONDS, now), flush=True)
                 os._exit(1)
 
-    threading.Thread(target=run, name="hang-watchdog", daemon=True).start()
+    _watchdog["thread"] = threading.Thread(target=run, name="hang-watchdog", daemon=True)
+    _watchdog["thread"].start()
 
 
 def hang(what):
     print("FAIL: deadlock/hang: %s (no progress for %.0fs)" % (what, HANG_SECONDS))
+    stop_watchdog()
     sys.exit(1)
 
 
@@ -226,4 +240,5 @@ for name, w, h in (("greedy W=1 hold=2ms", 1, 0.002),
     print("%s: %s" % (name, "ok" if not problems else "; ".join(problems)))
     ok = ok and not problems
 print("PASS" if ok else "FAIL")
+stop_watchdog()
 sys.exit(0 if ok else 1)
