@@ -1,5 +1,7 @@
 #pragma once
 #include "Python.h"
+#include <cmath>
+#include <climits>
 #include "PyVector.h"
 #include "McRFPy_API.h"
 
@@ -116,10 +118,10 @@ private:
         if (vector_type) {
             if (PyObject_IsInstance(obj, (PyObject*)vector_type)) {
                 PyVectorObject* vec = (PyVectorObject*)obj;
-                *out_x = static_cast<int>(vec->data.x);
-                *out_y = static_cast<int>(vec->data.y);
                 Py_DECREF(vector_type);
-                return true;
+                // Fractional components truncate toward zero (#540 item 3 is undecided);
+                // non-finite or out-of-range ones raise before the float->int cast.
+                return float_to_int(vec->data.x, out_x) && float_to_int(vec->data.y, out_y);
             }
             Py_DECREF(vector_type);
         } else {
@@ -182,17 +184,44 @@ private:
         return false;
     }
 
-    // Extract an int from a numeric Python object (integers only)
+    // Checked double -> int: ValueError for nan/inf, OverflowError outside int range.
+    // Truncates toward zero; sets the Python error and returns false on failure.
+    static bool float_to_int(double v, int* out) {
+        if (!std::isfinite(v)) {
+            PyErr_SetString(PyExc_ValueError, "position component must be finite");
+            return false;
+        }
+        if (!(v > static_cast<double>(INT_MIN) - 1.0 && v < static_cast<double>(INT_MAX) + 1.0)) {
+            PyErr_SetString(PyExc_OverflowError, "position component out of range for a C int");
+            return false;
+        }
+        *out = static_cast<int>(v);
+        return true;
+    }
+
+    // Extract an int from a numeric Python object (integers, or whole-number floats).
+    // Returns false WITHOUT an error set when obj is not an acceptable number (caller
+    // may try another interpretation); returns false WITH an error set (OverflowError /
+    // ValueError) when it is a number that does not fit an int. Callers must check
+    // PyErr_Occurred() after a false return and propagate.
     static bool extract_int(PyObject* obj, int* out) {
         if (PyLong_Check(obj)) {
-            *out = static_cast<int>(PyLong_AsLong(obj));
+            long v = PyLong_AsLong(obj);
+            if (v == -1 && PyErr_Occurred()) return false;  // OverflowError, propagate
+            if (v < INT_MIN || v > INT_MAX) {
+                PyErr_SetString(PyExc_OverflowError, "position component out of range for a C int");
+                return false;
+            }
+            *out = static_cast<int>(v);
             return true;
         }
         // Also accept float but only if it's a whole number
         if (PyFloat_Check(obj)) {
             double val = PyFloat_AsDouble(obj);
-            if (val == static_cast<double>(static_cast<int>(val))) {
-                *out = static_cast<int>(val);
+            int iv;
+            if (!float_to_int(val, &iv)) return false;
+            if (val == static_cast<double>(iv)) {
+                *out = iv;
                 return true;
             }
         }
@@ -221,6 +250,7 @@ public:
         if (extract_from_iterable_int(obj, out_x, out_y)) {
             return true;
         }
+        if (PyErr_Occurred()) return false;  // OverflowError / ValueError from a component
         PyErr_SetString(PyExc_TypeError,
             "Expected integer position as (x, y) tuple, [x, y] list, Vector, or other 2-element sequence");
         return false;
@@ -292,12 +322,14 @@ public:
                 if (extract_int(x_obj, out_x) && extract_int(y_obj, out_y)) {
                     return true;
                 }
+                if (PyErr_Occurred()) return false;
             }
 
             if (pos_obj) {
                 if (extract_from_iterable_int(pos_obj, out_x, out_y)) {
                     return true;
                 }
+                if (PyErr_Occurred()) return false;
             }
         }
 
@@ -311,6 +343,7 @@ public:
             if (extract_int(first, out_x) && extract_int(second, out_y)) {
                 return true;
             }
+            if (PyErr_Occurred()) return false;
         }
 
         // Try single iterable argument: func((x, y)) or func(Vector) or func([x, y])
@@ -319,6 +352,7 @@ public:
             if (extract_from_iterable_int(first, out_x, out_y)) {
                 return true;
             }
+            if (PyErr_Occurred()) return false;
         }
 
         PyErr_SetString(PyExc_TypeError,
