@@ -62,8 +62,10 @@ with mcrfpy.lock():
 The main thread parks in `closeWindow()` until every holder returns, so **time held inside
 the lock is added to the frame that serves it, approximately 1:1.**
 
-Measured by `tests/integration/frame_lock_hold_budget_test.py` (re-run it to regenerate
-these numbers; it is a test, so they cannot rot). One handler invocation per frame, the
+Measured by `tests/benchmarks/frame_lock_hold_cost_bench.py` (re-run it to regenerate
+these numbers; it is a report with no pass/fail threshold, because the numbers are a
+property of the machine -- the ordering rules around them are gated, in counts, by
+`tests/integration/frame_lock_hold_ordering_test.py`). One handler invocation per frame, the
 same thread and the same `time.sleep(H)` in both arms — the only variable is which side of
 the barrier the sleep happens on:
 
@@ -101,8 +103,11 @@ so a re-entering thread was served again in the same window and the window never
 One thread with a 1 ms hold reduced the main loop to 31 frames in 2 s, and eight polite
 threads (1 ms gap) could trigger the same thing once hold time approached the gap. Now
 the same greedy thread is served exactly 1.0 acquires per frame at every hold length
-(`tests/integration/frame_lock_hold_budget_test.py`, and the re-admission gate in
-`tests/regression/issue_410_framelock_readmission_test.py`).
+(`tests/regression/issue_410_framelock_readmission_test.py`: with W threads blocked in
+`lock()`, one frame admits exactly W holders in exactly one window, counted with
+`get_metrics()['lock_admissions']` / `['lock_windows']`). A late arrival is deferred even
+while the window is still open -- admission is never keyed on a flag the main thread has
+to get around to setting (#535: that gap is a whole scheduler quantum on a loaded machine).
 
 The rule still stands as a cost model: time held is added to the frame that serves it,
 and a greedy loop is now paced to one acquire per frame, so a backlog drains at the frame
@@ -170,7 +175,7 @@ trying to measure.
 
 | what you did | how it presents | how to find it |
 |---|---|---|
-| held the lock for `H` ms | frame time up by `H` ms; stutter | `frame_lock_hold_budget_test.py`; `get_metrics()['current_frame']` rate |
+| held the lock for `H` ms | frame time up by `H` ms; stutter | `tests/benchmarks/frame_lock_hold_cost_bench.py`; `get_metrics()['current_frame']` rate; `lock_waiting` / `lock_windows` / `lock_admissions` |
 | re-acquired in a tight loop | paced to one acquire per frame (was: engine at single-digit FPS, #410) | acquires-per-frame ratio |
 | called `step()`/`advance()` while holding | `RuntimeError` (previously: silent hard hang) | the exception names the call and the rule |
 | called `step()`/`advance()` from a thread that does not drive the clock | `RuntimeError` (previously: two frame bodies ran concurrently) | #411; `tests/regression/issue_411_clock_owner_test.py` |
@@ -183,7 +188,8 @@ trying to measure.
 
 | file | covers |
 |---|---|
-| `tests/integration/frame_lock_hold_budget_test.py` | the 1:1 coefficient, the control arm, barrier overhead |
+| `tests/integration/frame_lock_hold_ordering_test.py` | served by the frame that finds it waiting; main thread parked exactly while a holder is inside; outside work does not park it (counts, no clock) |
+| `tests/benchmarks/frame_lock_hold_cost_bench.py` | reported (unthresholded): the 1:1 coefficient, the control arm, barrier overhead |
 | `tests/integration/frame_lock_stress_test.py` | contention across many threads, fairness, no starvation |
 | `tests/integration/frame_lock_soak_test.py` | sustained load: no drift in wait time, frame time, or allocation |
 | `tests/regression/frame_lock_reentrancy_test.py` | B7 — re-entrancy, nesting, the deadlock arrangement itself |

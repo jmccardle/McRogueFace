@@ -133,7 +133,6 @@ _SAN_STDERR = ("asserts nothing on stderr, but LSan prints its \"Suppressions us
                "child engines also run the debug Python (3.15d)")
 _SAN_DEPS = ("`mcrf_project deps` needs a packaging-capable engine, but the sanitizer engine "
              "is a Python 3.15d build; plus the stderr noise (see issue_505)")
-_SAN_TIMING = "timing budget; ASan's slowdown breaks it (#535)"
 SANITIZER_VARIANTS = ("asan", "tsan")
 SANITIZER_SKIPS = {
     "asan": {
@@ -143,8 +142,6 @@ SANITIZER_SKIPS = {
         "integration/issue_509_deps_keeps_foreign_venv_test.py": _SAN_DEPS,
         "unit/grid_observe_mask_test.py": "RSS-growth budget (4 MB over 5000 projections); ASan's quarantine grows RSS by ~200 MB",
         "regression/issue_421_frame_pointer_test.py": "times out (50 s) under ASan; it measures Release frame pointers, not memory safety",
-        "regression/issue_410_framelock_readmission_test.py": _SAN_TIMING,
-        "integration/frame_lock_hold_budget_test.py": _SAN_TIMING,
     },
     "tsan": {},
 }
