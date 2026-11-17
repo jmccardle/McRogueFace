@@ -1,4 +1,4 @@
-# mcrf: objects=[Color,ColorLayer,Entity,Grid,Scene,TileLayer] verified=0.3.5 status=ok
+# mcrf: objects=[Color,ColorLayer,Entity,Grid,Scene,TileLayer] verified=0.3.6-dev status=ok
 import mcrfpy
 
 # Scene setup
@@ -26,6 +26,7 @@ grid.entities.append(player)
 mcrfpy.current_scene = scene
 
 # --- Cell Hover Highlighting ---
+# region: hover
 current_highlight = [None]
 
 def on_cell_enter(cell_pos):
@@ -40,3 +41,4 @@ def on_cell_exit(cell_pos):
 
 grid.on_cell_enter = on_cell_enter
 grid.on_cell_exit = on_cell_exit
+# endregion
