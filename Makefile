@@ -306,7 +306,7 @@ asan-test: asan
 		ASAN_OPTIONS="detect_leaks=1:halt_on_error=1:print_summary=1:malloc_context_size=64" \
 		LSAN_OPTIONS="suppressions=$(CURDIR)/sanitizers/asan.supp" \
 		UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1" \
-		python3 run_tests.py -v --sanitizer --exclude=packaging
+		python3 run_tests.py -v --sanitizer=asan --exclude=packaging
 
 # Fuzzing targets (clang-18 + libFuzzer + ASan + UBSan).
 # Design: ONE instrumented executable `mcrfpy_fuzz` that embeds CPython,
@@ -393,7 +393,7 @@ tsan-test: tsan
 		MCRF_LIB_DIR=../__lib_tsan \
 		MCRF_TIMEOUT_MULTIPLIER=10 \
 		TSAN_OPTIONS="halt_on_error=1:second_deadlock_stack=1:suppressions=$(CURDIR)/sanitizers/tsan.supp" \
-		python3 run_tests.py -v --sanitizer --exclude=packaging
+		python3 run_tests.py -v --sanitizer=tsan --exclude=packaging
 
 valgrind-test: debug
 	@echo "Running test suite under Valgrind memcheck..."
