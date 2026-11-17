@@ -73,6 +73,7 @@ def on_transition_complete():
 
 # Start on menu, then transition to game
 menu_scene.activate()
+menu_scene.children.append(mcrfpy.Frame(pos=(0, 0), size=(1024, 768), fill_color=mcrfpy.Color(40, 90, 160)))
 
 transition = FadeTransition(menu_scene, game_scene)
 transition.fade_out_in(duration=0.8, on_complete=on_transition_complete)
