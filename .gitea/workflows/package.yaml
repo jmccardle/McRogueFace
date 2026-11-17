@@ -64,14 +64,16 @@ jobs:
         run: make linux
 
       - name: Generate the docs the package bundles
-        run: xvfb-run -a make docs
+        run: xvfb-run -a -s "-noreset" make docs
 
       - name: Package
         run: make package-linux
 
       - name: Smoke-test the package
         # The SFML build needs an X display to create a Grid, even with --headless.
-        run: xvfb-run -a python3 tools/smoke_package.py --version "$(tools/version.sh)" dist/McRogueFace-*-Linux.tar.gz
+        # smoke_package.py also runs the package in clean debian:13 and
+        # ubuntu:24.04 containers (#525), which needs podman or docker on the runner.
+        run: xvfb-run -a -s "-noreset" python3 tools/smoke_package.py --version "$(tools/version.sh)" dist/McRogueFace-*-Linux.tar.gz
 
       - name: Report what the package links against (#525)
         if: always()
