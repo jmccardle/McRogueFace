@@ -64,6 +64,7 @@ def run_tests():
 
     # Make 5 screenshot calls
     for i in range(5):
+        mcrfpy.step(0)  # a finished frame is what a screenshot shows (#529)
         automation.screenshot(f"/tmp/bench_test_{i}.png")
 
     filename = mcrfpy.end_benchmark()
@@ -104,6 +105,7 @@ def run_tests():
     # Time screenshot calls
     start = time.perf_counter()
     for i in range(iterations):
+        mcrfpy.step(0)  # a finished frame is what a screenshot shows (#529); dt 0 adds no time
         automation.screenshot(f"/tmp/speed_test.png")
     screenshot_time = time.perf_counter() - start
     print(f"  {iterations} screenshot() calls: {screenshot_time*1000:.2f}ms ({screenshot_time*1000/iterations:.3f}ms each)")

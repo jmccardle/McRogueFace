@@ -250,7 +250,7 @@ bool McRFPy_Automation::charToKeyStroke(Py_UCS4 ch, sf::Keyboard::Key* key, bool
 }
 
 // Screenshot implementation. #529: captures the display buffer, i.e. the last complete
-// frame; GameEngine::presentForCapture() renders first only when there is none to show.
+// frame; GameEngine::beginCapture() renders first only when there is none to show.
 PyObject* McRFPy_Automation::_screenshot(PyObject* self, PyObject* args) {
     const char* filename;
     if (!PyArg_ParseTuple(args, "s", &filename)) {
@@ -266,7 +266,8 @@ PyObject* McRFPy_Automation::_screenshot(PyObject* self, PyObject* args) {
     // Get the render target (#451: a headless one is created here, which needs a display)
     if (!mcrf::require_display_py("automation.screenshot()")) return NULL;
     sf::RenderTarget* target = &engine->getRenderTarget();
-    engine->presentForCapture();
+    GameEngine::CaptureScope capture(*engine);
+    if (!capture.ok) return NULL;
 
     // For RenderWindow (windowed mode), capture the current buffer
     if (auto* window = dynamic_cast<sf::RenderWindow*>(target)) {
@@ -955,7 +956,7 @@ static PyMethodDef automationMethods[] = {
          MCRF_ARG("filename", "Path to the output image file (PNG, JPG, etc.)")
          MCRF_RETURNS("True if the file was saved successfully, False otherwise")
          MCRF_RAISES("RuntimeError", "If the game engine or render target is not initialized")
-         MCRF_NOTE("Captures the last complete frame (what is on screen), never a mid-frame render: a second call after changing objects, with no frame in between, returns the same image. If no frame has been rendered yet in this process, the first call renders one (a static scene needs no frame loop). Headless, a step() or advance() that finished since the last render is drawn first. In a Timer callback, you get the previous frame.")
+         MCRF_NOTE("Captures the last complete frame, never a mid-frame render: a second call after changing objects, with no frame in between, returns the same image, and in a Timer callback you get the previous frame. If no frame has been rendered yet in this process, the first call renders one, so a script that builds a scene and shoots at once gets the scene. In a window, otherwise, you get the last presented frame. Headless step() and advance() do not draw: a headless screenshot after a step draws the scene as it is at the time of the shot, and further calls with no step in between return that image again. Raises RuntimeError if called while the capture render itself is running (e.g. from a warnings hook).")
      )},
 
     {"position", McRFPy_Automation::_position, METH_NOARGS,

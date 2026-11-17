@@ -153,6 +153,7 @@ class TutorialShowcase:
     def screenshot(self):
         """Take the screenshot - synchronous in headless mode!"""
         self.scene.activate()
+        mcrfpy.step(0)  # a finished frame is what a screenshot shows (#529)
         result = automation.screenshot(self.output_path)
         print(f"  -> {self.output_path} (result: {result})")
         return result

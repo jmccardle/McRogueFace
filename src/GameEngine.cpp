@@ -519,10 +519,11 @@ void GameEngine::run()
 void GameEngine::doFrame()
 {
     // #529: callbacks run in here; a screenshot they take shows the previous frame.
-    struct FrameScope {
+    struct FrameScope {  // restores, not clears: step() can be called from a callback
         bool& flag;
-        explicit FrameScope(bool& f) : flag(f) { flag = true; }
-        ~FrameScope() { flag = false; }
+        bool saved;
+        explicit FrameScope(bool& f) : flag(f), saved(f) { flag = true; }
+        ~FrameScope() { flag = saved; }
     } frameScope(in_frame);
     // #341: simulation metrics belong to this frame's sim pass; render counters are
     // cleared/published around the render pass below.
@@ -1202,10 +1203,11 @@ float GameEngine::step(float dt) {
 // Scene.update() -- step(float) still passes through the caller's own float unchanged.
 float GameEngine::runSimFrame(int ms, float actual_dt) {
     // #529: timer callbacks run in here; a screenshot they take shows the last render.
-    struct FrameScope {
+    struct FrameScope {  // restores, not clears: step() can be called from a callback
         bool& flag;
-        explicit FrameScope(bool& f) : flag(f) { flag = true; }
-        ~FrameScope() { flag = false; }
+        bool saved;
+        explicit FrameScope(bool& f) : flag(f), saved(f) { flag = true; }
+        ~FrameScope() { flag = saved; }
     } frameScope(in_frame);
     simulation_time += ms;
 
@@ -1336,7 +1338,7 @@ int GameEngine::advance(int ms) {
 // Rendering is orthogonal to the clock: any state can be drawn at any moment. This is
 // the path a screenshot takes, and -- since step() deliberately never renders -- it is
 // how a headless script gets real render metrics without the clock moving.
-void GameEngine::renderScene() {
+void GameEngine::renderScene(bool present) {
     sf::RenderTarget& target = getRenderTarget();  // #451: created here when headless
 
     metrics.beginRender();
@@ -1354,9 +1356,11 @@ void GameEngine::renderScene() {
     metrics.endRender();
 
     // Present, as doFrame() does, so the buffer a screenshot reads is a complete frame.
+    // A windowed capture passes present=false and presents after it has read the frame:
+    // the GL back buffer is undefined once swapped (#529).
     if (headless && headless_renderer) {
         headless_renderer->display();
-    } else if (window) {
+    } else if (window && present) {
         window->display();
     }
 
@@ -1365,11 +1369,33 @@ void GameEngine::renderScene() {
 }
 
 // #529: see GameEngine.h. The one place that decides whether a screenshot needs a render.
-void GameEngine::presentForCapture() {
+bool GameEngine::beginCapture() {
     getRenderTarget();  // raises NoDisplayError here, before any state is touched
     const bool no_frame_yet = !frame_rendered;
     const bool headless_step_pending = headless && render_stale && !in_frame;
-    if (no_frame_yet || headless_step_pending) {
-        renderScene();
+    if (!(no_frame_yet || headless_step_pending)) return true;
+
+    if (capture_rendering) {
+        // Reached from inside the capture render itself (a warnings hook run by a first-draw
+        // TextureWarning that takes a screenshot): no complete frame exists yet, and
+        // rendering again would recurse.
+        PyErr_SetString(PyExc_RuntimeError,
+            "screenshot requested while the frame it needs is still being rendered "
+            "(for example from a warnings hook): there is no complete frame to capture yet");
+        return false;
+    }
+    capture_rendering = true;
+    struct Reset { bool& f; ~Reset() { f = false; } } reset{capture_rendering};
+    renderScene(/*present=*/false);
+    // Headless presented inside renderScene (RenderTexture::display() is well defined).
+    // Windowed holds the swap until endCapture(), after the caller has read the frame.
+    capture_present_pending = !headless && window;
+    return true;
+}
+
+void GameEngine::endCapture() {
+    if (capture_present_pending) {
+        capture_present_pending = false;
+        window->display();
     }
 }

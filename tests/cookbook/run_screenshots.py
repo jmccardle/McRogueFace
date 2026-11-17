@@ -70,6 +70,7 @@ def capture_demo(module_path, output_name, category):
 
         # Take screenshot
         output_path = os.path.join(SCREENSHOT_BASE, category, f"{output_name}.png")
+        mcrfpy.step(0)  # a finished frame is what a screenshot shows (#529)
         automation.screenshot(output_path)
         print(f"  OK: {output_path}")
         return True

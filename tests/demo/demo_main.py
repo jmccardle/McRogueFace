@@ -126,6 +126,7 @@ class DemoRunner:
             # which raised TypeError and broke the headless path outright.
             screen.scene.activate()
             filename = os.path.join(self.screenshot_dir, screen.get_screenshot_name())
+            mcrfpy.step(0)  # a finished frame is what a screenshot shows (#529)
             automation.screenshot(filename)
             print(f"  [{i+1}/{len(self.screens)}] {filename}")
 

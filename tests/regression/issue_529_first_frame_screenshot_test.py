@@ -11,10 +11,12 @@ The rule, headless and windowed alike:
     finished since the last render is drawn when the next screenshot, outside a frame, asks.
 
 Each scenario runs in a child engine, once headless and once windowed (the suite runs under
-xvfb-run, so a display exists), driven by _issue_529_child.py.
+xvfb-run, so a display exists), driven by _issue_529_child.py. Windowed actions are
+sequenced by counted frames, never by wall-clock durations.
 """
 import ast
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -32,10 +34,17 @@ def check(cond, msg):
 
 
 def run(case, windowed):
-    env = dict(os.environ, CASE_529=case, OUT_529=tempfile.mkdtemp(prefix="mcrf529_"))
+    out_dir = tempfile.mkdtemp(prefix="mcrf529_")
+    env = dict(os.environ, CASE_529=case, OUT_529=out_dir)
     cmd = [sys.executable] + ([] if windowed else ["--headless"]) + ["--exec", CHILD]
-    r = subprocess.run(cmd, capture_output=True, text=True, timeout=120, env=env,
-                       cwd=os.getcwd())
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=120, env=env,
+                           cwd=os.getcwd())
+    except subprocess.TimeoutExpired:
+        check(False, "%s/%s timed out (the scenario never reached its end)" % (case, windowed))
+        return None
+    finally:
+        shutil.rmtree(out_dir, ignore_errors=True)
     lines = [l for l in r.stdout.splitlines() if l.startswith("RESULT ")]
     if r.returncode != 0 or len(lines) != 1:
         check(False, "%s/%s ran: rc=%d\n%s\n%s" % (case, windowed, r.returncode, r.stdout, r.stderr))
@@ -72,6 +81,49 @@ for windowed in (False, True):
               % (mode, r["in_cb"]))
         check(r["after"] == GREEN,
               "%s (d) after the frame the mutation shows: %r" % (mode, r["after"]))
+
+    # A nested step() inside a callback must not take the callback out of its frame.
+    r = run("nested", windowed)
+    if r:
+        check(r["in_cb"] == RED and r["in_cb_same"],
+              "%s nested step() then mutate then shot, all inside a callback: previous frame (%r)"
+              % (mode, r["in_cb"]))
+        check(r["after"] == GREEN, "%s nested: after the frame the mutation shows: %r" % (mode, r["after"]))
+
+    # Window.screenshot() follows the same rules.
+    r = run("window", windowed)
+    if r:
+        check(r["p1"] == RED and r["p2"] == RED and r["same"],
+              "%s Window.screenshot(): first shot shows the scene, a mutation with no frame is not in "
+              "the second (%r, %r)" % (mode, r["p1"], r["p2"]))
+        check(r["p3"] == GREEN, "%s Window.screenshot() after a frame shows the mutation: %r" % (mode, r["p3"]))
+
+    # A screenshot taken while the first-frame capture is itself rendering raises, once.
+    r = run("reentrant", windowed)
+    if r:
+        check(r["px"] == RED, "%s reentrant: the outer capture still succeeds: %r" % (mode, r["px"]))
+        check(len(r["inner"]) >= 1 and all(
+              i.startswith("RuntimeError") and "no complete frame" in i for i in r["inner"]),
+              "%s reentrant: the warnings hook's screenshot raised RuntimeError: %r" % (mode, r["inner"]))
+
+    # Known differences between the modes. DOCUMENTED BEHAVIOUR FOR NOW (the owner may change
+    # them); these pin it so a change is a decision, not an accident.
+    r = run("diff_i", windowed)
+    if r:
+        if windowed:
+            check(r["px"] == RED,
+                  "%s (i) frame; mutate; shot shows the OLD frame (it was presented before the mutation): %r"
+                  % (mode, r["px"]))
+        else:
+            check(r["px"] == GREEN,
+                  "%s (i) step(); mutate; shot shows the MUTATION (step draws nothing; the shot draws the "
+                  "scene as it is then): %r" % (mode, r["px"]))
+
+    r = run("diff_ii", windowed)
+    if r:
+        check(r["px"] == GREEN,
+              "%s (ii) a first-ever shot inside a callback has no previous frame, so it renders the "
+              "current state mid-frame: %r" % (mode, r["px"]))
 
 if failures:
     print("FAIL: %d check(s)" % len(failures))

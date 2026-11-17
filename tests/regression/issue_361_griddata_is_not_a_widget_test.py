@@ -37,7 +37,7 @@ def check(label, ok):
 
 def shot():
     """Render a frame to PNG and return its bytes. Identical pixels -> identical
-    bytes; headless screenshots are synchronous (#153)."""
+    bytes; a step() before each shot makes it draw the current scene (#529)."""
     global _counter
     path = os.path.join(TMPDIR, "s%d.png" % _counter)
     _counter += 1

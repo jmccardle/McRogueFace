@@ -31,8 +31,8 @@ def check(label, ok):
 
 def shot():
     """Render a frame to PNG and return its bytes (identical pixels -> identical
-    bytes with the deterministic PNG encoder). Headless screenshots are synchronous
-    (#153): render-then-capture, so no Timer dance is required."""
+    bytes with the deterministic PNG encoder). A step() before the
+    screenshot makes it draw the current scene (#529), so no Timer dance is required."""
     global _counter
     path = os.path.join(TMPDIR, "s%d.png" % _counter)
     _counter += 1

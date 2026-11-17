@@ -24,7 +24,7 @@ _counter = 0
 
 
 def shot():
-    """Headless screenshot is synchronous (#153): render + capture inline."""
+    """Step, then screenshot: the shot draws the scene as it is after the step (#529)."""
     global _counter
     path = os.path.join(TMPDIR, "p%d.png" % _counter)
     _counter += 1
