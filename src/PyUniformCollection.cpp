@@ -285,7 +285,7 @@ int PyUniformCollectionType::mp_ass_subscript(PyObject* obj, PyObject* key, PyOb
 
     // Check for binding types first
     // PropertyBinding
-    if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyPropertyBindingType)) {
+    if (PyObject_TypeCheck(value, &mcrfpydef::PyPropertyBindingType)) {
         PyPropertyBindingObject* binding = (PyPropertyBindingObject*)value;
         if (binding->binding) {
             self->collection->setPropertyBinding(name, binding->binding);
@@ -296,7 +296,7 @@ int PyUniformCollectionType::mp_ass_subscript(PyObject* obj, PyObject* key, PyOb
     }
 
     // CallableBinding
-    if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyCallableBindingType)) {
+    if (PyObject_TypeCheck(value, &mcrfpydef::PyCallableBindingType)) {
         PyCallableBindingObject* binding = (PyCallableBindingObject*)value;
         if (binding->binding) {
             self->collection->setCallableBinding(name, binding->binding);

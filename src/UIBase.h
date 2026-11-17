@@ -54,6 +54,9 @@ static PyObject* UIDrawable_move(T* self, PyObject* args, PyObject* kwds)
         return NULL;
     }
 
+    // dx and dy are finite floats, but position + delta can still leave float range (#540)
+    if (!mcrf::require_finite((double)self->data->position.x + dx, "x") ||
+        !mcrf::require_finite((double)self->data->position.y + dy, "y")) return NULL;
     self->data->move(dx, dy);
     Py_RETURN_NONE;
 }
@@ -167,10 +170,10 @@ static PyObject* UIDrawable_animate(T* self, PyObject* args, PyObject* kwds)
 #define UIDRAWABLE_ATTACH_TO_PARENT(parent_obj, self) \
     do { \
         if ((parent_obj) && (parent_obj) != Py_None) { \
-            if (!PyObject_IsInstance((parent_obj), (PyObject*)&mcrfpydef::PyUIFrameType) && \
-                !PyObject_IsInstance((parent_obj), (PyObject*)&mcrfpydef::PySceneType) && \
-                !PyObject_IsInstance((parent_obj), (PyObject*)&mcrfpydef::PyGridDataType) && \
-                !PyObject_IsInstance((parent_obj), (PyObject*)&mcrfpydef::PyUIGridViewType)) { \
+            if (!PyObject_TypeCheck((parent_obj), &mcrfpydef::PyUIFrameType) && \
+                !PyObject_TypeCheck((parent_obj), &mcrfpydef::PySceneType) && \
+                !PyObject_TypeCheck((parent_obj), &mcrfpydef::PyGridDataType) && \
+                !PyObject_TypeCheck((parent_obj), &mcrfpydef::PyUIGridViewType)) { \
                 PyErr_SetString(PyExc_TypeError, "parent must be a Frame, Scene, or Grid"); \
                 return -1; \
             } \

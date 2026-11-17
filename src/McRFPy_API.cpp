@@ -256,15 +256,9 @@ static int mcrfpy_set_default_transition_duration(PyObject* self, PyObject* valu
         PyErr_SetString(PyExc_AttributeError, "cannot delete 'default_transition_duration'");
         return -1;
     }
-    double duration;
-    if (PyFloat_Check(value)) {
-        duration = PyFloat_AsDouble(value);
-    } else if (PyLong_Check(value)) {
-        duration = PyLong_AsDouble(value);
-    } else {
-        PyErr_SetString(PyExc_TypeError, "default_transition_duration must be a number");
-        return -1;
-    }
+    float duration_f;
+    if (!mcrf::to_float(value, duration_f, "default_transition_duration")) return -1;  // nan/inf: ValueError (#540)
+    const double duration = duration_f;
     if (duration < 0.0) {
         PyErr_SetString(PyExc_ValueError, "default_transition_duration must be non-negative");
         return -1;
@@ -2709,7 +2703,7 @@ static bool extract_point(PyObject* obj, int* x, int* y, const char* arg_name) {
     }
 
     // Try Vector type
-    if (PyObject_IsInstance(obj, (PyObject*)&mcrfpydef::PyVectorType)) {
+    if (PyObject_TypeCheck(obj, &mcrfpydef::PyVectorType)) {
         PyVectorObject* vec = (PyVectorObject*)obj;
         *x = static_cast<int>(vec->data.x);
         *y = static_cast<int>(vec->data.y);

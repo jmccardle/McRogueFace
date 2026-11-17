@@ -474,20 +474,20 @@ PyObject* UIArc::repr(PyUIArcObject* self) {
 int UIArc::init(PyUIArcObject* self, PyObject* args, PyObject* kwds) {
     // Arguments
     PyObject* center_obj = nullptr;
-    float radius = 0.0f;
-    float start_angle = 0.0f;
-    float end_angle = 90.0f;
+    double radius = 0.0f;
+    double start_angle = 0.0f;
+    double end_angle = 90.0f;
     PyObject* color_obj = nullptr;
-    float thickness = 1.0f;
+    double thickness = 1.0f;
     PyObject* click_handler = nullptr;
     int visible = 1;
-    float opacity = 1.0f;
+    double opacity = 1.0f;
     int z_index = 0;
     const char* name = nullptr;
     PyObject* align_obj = nullptr;  // Alignment enum or None
-    float margin = 0.0f;
-    float horiz_margin = -1.0f;
-    float vert_margin = -1.0f;
+    double margin = 0.0f;
+    double horiz_margin = -1.0f;
+    double vert_margin = -1.0f;
     PyObject* parent_obj = nullptr;  // Auto-attach parent (Frame, Scene, or Grid)
 
     static const char* kwlist[] = {
@@ -498,7 +498,7 @@ int UIArc::init(PyUIArcObject* self, PyObject* args, PyObject* kwds) {
         nullptr
     };
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OfffOfOifizOfffO", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OdddOdOidizOdddO", const_cast<char**>(kwlist),
                                      &center_obj, &radius, &start_angle, &end_angle,
                                      &color_obj, &thickness,
                                      &click_handler, &visible, &opacity, &z_index, &name,

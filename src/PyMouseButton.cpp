@@ -150,7 +150,7 @@ PyObject* PyMouseButton::create_enum_class(PyObject* module) {
 
 int PyMouseButton::from_arg(PyObject* arg, sf::Mouse::Button* out_button) {
     // Accept MouseButton enum member
-    if (mouse_button_enum_class && PyObject_IsInstance(arg, mouse_button_enum_class)) {
+    if (mouse_button_enum_class && PyObject_TypeCheck(arg, (PyTypeObject*)mouse_button_enum_class)) {
         PyObject* value = PyObject_GetAttrString(arg, "value");
         if (!value) {
             return 0;

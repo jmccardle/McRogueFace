@@ -235,7 +235,13 @@ int UICaption::set_float_member(PyUICaptionObject* self, PyObject* value, void* 
 {
     float val;
     auto member_ptr = reinterpret_cast<intptr_t>(closure);
-    if (!mcrf::to_float(value, val, "Value")) return -1;
+    // outline / font_size keep checkGlyphSize's own range message for nan, inf and out of range
+    {
+        static const char* const member_names[] = {"x", "y", "?", "?", "outline", "font_size"};
+        const bool glyph = member_ptr == 4 || member_ptr == 5;
+        if (!mcrf::to_float(value, val, (member_ptr >= 0 && member_ptr < 6) ? member_names[member_ptr] : "value",
+                            !glyph)) return -1;
+    }
     if (member_ptr == 0) { //x
         self->data->text.setPosition(val, self->data->text.getPosition().y);
         self->data->markCompositeDirty(); // #289: position change invalidates parent cache
@@ -609,18 +615,18 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
     const char* text = "";
     PyObject* fill_color = nullptr;
     PyObject* outline_color = nullptr;
-    float outline = 0.0f;
-    float font_size = 16.0f;
+    double outline = 0.0f;
+    double font_size = 16.0f;
     PyObject* click_handler = nullptr;
     int visible = 1;
-    float opacity = 1.0f;
+    double opacity = 1.0f;
     int z_index = 0;
     const char* name = nullptr;
-    float x = 0.0f, y = 0.0f;
+    double x = 0.0f, y = 0.0f;
     PyObject* align_obj = nullptr;  // Alignment enum or None
-    float margin = 0.0f;
-    float horiz_margin = -1.0f;
-    float vert_margin = -1.0f;
+    double margin = 0.0f;
+    double horiz_margin = -1.0f;
+    double vert_margin = -1.0f;
     PyObject* parent_obj = nullptr;  // Auto-attach parent (Frame, Scene, or Grid)
     PyObject* baseline_obj = nullptr;  // #478: TextBaseline; default_text_baseline if omitted
 
@@ -638,7 +644,7 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
     };
 
     // '$' marker makes all following args keyword-only (Python 3.3+ format extension).
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOz$OOffOifizffOfffOO", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOz$OOddOidizddOdddOO", const_cast<char**>(kwlist),
                                      &pos_obj, &font, &text,  // pos+font+text are positional-or-keyword
                                      &fill_color, &outline_color, &outline, &font_size, &click_handler,
                                      &visible, &opacity, &z_index, &name, &x, &y,
@@ -663,7 +669,7 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
     // Handle font argument
     std::shared_ptr<PyFont> pyfont = nullptr;
     if (font && font != Py_None) {
-        if (!PyObject_IsInstance(font, (PyObject*)&mcrfpydef::PyFontType)) {
+        if (!PyObject_TypeCheck(font, &mcrfpydef::PyFontType)) {
             PyErr_SetString(PyExc_TypeError, "font must be a mcrfpy.Font instance");
             return -1;
         }

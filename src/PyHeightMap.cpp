@@ -1,7 +1,8 @@
 #include "PyHeightMap.h"
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
-#include "PyPositionHelper.h"  // Standardized position argument parsing
+#include "PyPositionHelper.h"
+#include "PyWrap.h"  // Standardized position argument parsing
 #include "PyNoiseSource.h"     // For direct noise sampling (#209)
 #include "PyBSP.h"             // For direct BSP sampling (#209)
 #include <sstream>
@@ -1334,6 +1335,25 @@ static TCOD_Random* CreateTCODRandom(PyObject* seed_obj)
 }
 
 // Method: add_hill(center, radius, height) -> HeightMap
+// libtcod's add_hill / dig_hill cast (int)(hx - radius) and ceilf(hx + radius) (and the y forms)
+// with no range check (heightmap_c.c): the radius and height must be finite, and centre +/- radius
+// must stay within int range, or the cast is undefined (#540 item 7).
+static bool checkHill(float cx, float cy, float radius, float height, const char* height_name)
+{
+    if (!mcrf::require_finite(radius, "radius") || !mcrf::require_finite(height, height_name)) return false;
+    const double lo = static_cast<double>(INT_MIN) - 1.0, hi = static_cast<double>(INT_MAX) + 1.0;
+    for (double v : {(double)cx - radius, (double)cx + radius, (double)cy - radius, (double)cy + radius}) {
+        if (!(v > lo && v < hi)) {
+            char buf[200];
+            snprintf(buf, sizeof buf, "center +/- radius must fit in a C int (center=(%g, %g), radius=%g)",
+                     (double)cx, (double)cy, (double)radius);
+            PyErr_SetString(PyExc_OverflowError, buf);
+            return false;
+        }
+    }
+    return true;
+}
+
 PyObject* PyHeightMap::add_hill(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
 {
     static const char* keywords[] = {"center", "radius", "height", nullptr};
@@ -1354,6 +1374,8 @@ PyObject* PyHeightMap::add_hill(PyHeightMapObject* self, PyObject* args, PyObjec
     if (!PyPosition_FromObject(center_obj, &cx, &cy)) {
         return nullptr;
     }
+
+    if (!checkHill(cx, cy, radius, height, "height")) return nullptr;
 
     // Warn on zero/negative radius (no-op but likely user error)
     if (radius <= 0) {
@@ -1390,6 +1412,8 @@ PyObject* PyHeightMap::dig_hill(PyHeightMapObject* self, PyObject* args, PyObjec
     if (!PyPosition_FromObject(center_obj, &cx, &cy)) {
         return nullptr;
     }
+
+    if (!checkHill(cx, cy, radius, target_height, "target_height")) return nullptr;
 
     // Warn on zero/negative radius (no-op but likely user error)
     if (radius <= 0) {
@@ -1572,6 +1596,20 @@ PyObject* PyHeightMap::dig_bezier(PyHeightMapObject* self, PyObject* args, PyObj
     if (!self->heightmap) {
         PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
         return nullptr;
+    }
+
+    // The radii and heights reach (int)(x +/- radius) in libtcod (#540 item 7); the control points
+    // are limited to INT_MAX / 3 below, so a radius within that bound keeps every probe in range.
+    {
+        const float bezier_radius_limit = static_cast<float>(INT_MAX / 3);
+        if (!mcrf::require_finite(start_radius, "start_radius") || !mcrf::require_finite(end_radius, "end_radius") ||
+            !mcrf::require_finite(start_height, "start_height") || !mcrf::require_finite(end_height, "end_height")) {
+            return nullptr;
+        }
+        if (std::fabs(start_radius) > bezier_radius_limit || std::fabs(end_radius) > bezier_radius_limit) {
+            PyErr_Format(PyExc_OverflowError, "start_radius / end_radius must be within +/-%d", INT_MAX / 3);
+            return nullptr;
+        }
     }
 
     // Parse 4 control points
@@ -1960,7 +1998,7 @@ PyObject* PyHeightMap::gradients(PyHeightMapObject* self, PyObject* args, PyObje
 static PyHeightMapObject* validateOtherHeightMapType(PyObject* other_obj, const char* method_name)
 {
     // Check that other is a HeightMap
-    int is_hmap = PyObject_IsInstance(other_obj, (PyObject*)&mcrfpydef::PyHeightMapType);
+    int is_hmap = PyObject_TypeCheck(other_obj, &mcrfpydef::PyHeightMapType);
 
     if (is_hmap < 0) {
         return nullptr;  // Error in isinstance check
@@ -2305,7 +2343,7 @@ static bool parseNoiseSampleParams(
     }
 
     // Validate source is a NoiseSource
-    int is_noise = PyObject_IsInstance(source_obj, (PyObject*)&mcrfpydef::PyNoiseSourceType);
+    int is_noise = PyObject_TypeCheck(source_obj, &mcrfpydef::PyNoiseSourceType);
 
     if (is_noise < 0) return false;
     if (!is_noise) {
@@ -2517,7 +2555,7 @@ static bool collectBSPNodes(
         Py_ssize_t count = PyList_Size(nodes_list);
         for (Py_ssize_t i = 0; i < count; i++) {
             PyObject* item = PyList_GetItem(nodes_list, i);
-            int is_node = PyObject_IsInstance(item, bspnode_type);
+            int is_node = PyObject_TypeCheck(item, (PyTypeObject*)bspnode_type);
             if (is_node < 0) {
                 return false;
             }
@@ -2628,7 +2666,7 @@ PyObject* PyHeightMap::add_bsp(PyHeightMapObject* self, PyObject* args, PyObject
     }
 
     // Validate bsp is a BSP
-    int is_bsp = PyObject_IsInstance(bsp_obj, (PyObject*)&mcrfpydef::PyBSPType);
+    int is_bsp = PyObject_TypeCheck(bsp_obj, &mcrfpydef::PyBSPType);
 
     if (is_bsp < 0) return nullptr;
     if (!is_bsp) {
@@ -2706,7 +2744,7 @@ PyObject* PyHeightMap::multiply_bsp(PyHeightMapObject* self, PyObject* args, PyO
     }
 
     // Validate bsp is a BSP
-    int is_bsp = PyObject_IsInstance(bsp_obj, (PyObject*)&mcrfpydef::PyBSPType);
+    int is_bsp = PyObject_TypeCheck(bsp_obj, &mcrfpydef::PyBSPType);
 
     if (is_bsp < 0) return nullptr;
     if (!is_bsp) {

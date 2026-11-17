@@ -17,11 +17,20 @@ bool parse_animate_args(PyObject* args, PyObject* kwds, AnimateArgs& out)
     PyObject* callback = nullptr;
     const char* conflict_mode = nullptr;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOf|OppOs", const_cast<char**>(keywords),
-                                     &out.property, &out.target, &out.duration,
+    double duration_d = 0.0;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOd|OppOs", const_cast<char**>(keywords),
+                                     &out.property, &out.target, &duration_d,
                                      &easing_arg, &delta, &loop, &callback, &conflict_mode)) {
         return false;
     }
+    // A duration is a finite, non-negative number of seconds: nan jumps to the end and inf never
+    // progresses (#540 item 12); a negative one has no meaning.
+    if (!mcrf::require_finite(duration_d, "duration")) return false;
+    if (duration_d < 0.0) {
+        mcrf::raise_got(PyExc_ValueError, "duration must not be negative", duration_d);
+        return false;
+    }
+    out.duration = static_cast<float>(duration_d);
     if (callback && callback != Py_None && !PyCallable_Check(callback)) {
         PyErr_SetString(PyExc_TypeError, "callback must be callable");
         return false;

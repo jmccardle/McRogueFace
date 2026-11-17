@@ -92,16 +92,32 @@ to `grid`.
 
 ## Integer (cell) positions and non-finite numbers (#540)
 
-Methods that take a **cell** (`grid.at(...)`, `layer.set(...)`, `fill_rect`, `compute_fov`,
-`HeightMap.add(pos=...)`, `BSP(pos=...)`, and so on) accept a tuple, list, `Vector`, any
-two-item sequence, or two separate numbers. Fractional components are **floored** (toward
-negative infinity, not truncated), whatever the input shape: `(2.7, 3.2)` and
-`Vector(2.7, 3.2)` are cell `(2, 3)`, and `Vector(-0.5, 1)` is cell `(-1, 1)`, which then fails the
-caller's own bounds check like any other out-of-range cell. The same rule applies where an
-argument is a size rather than a position, so `size=(2.5, 2)` means `(2, 2)`.
-`bytes`, `bytearray`, `memoryview`, `range` and `str` are not positions.
+**Cells.** Methods that take a cell (`grid.at(...)`, `layer.set(...)`, `fill_rect`, `compute_fov`,
+`HeightMap.add(pos=...)`, `BSP(pos=...)`, `Entity.path_to`, pathfinding endpoints, ...) and the
+entity cell properties (`Entity(grid_pos=...)`, `cell_pos`, `cell_x`, `cell_y`) accept a tuple,
+list, `Vector`, any two-item sequence of numbers, or two separate numbers. Fractional components
+are **floored** (toward negative infinity, not truncated), whatever the input shape:
+`(2.7, 3.2)` and `Vector(2.7, 3.2)` are cell `(2, 3)`, and `Vector(-0.5, 1)` is cell `(-1, 1)`,
+which then fails the caller's own bounds check like any other out-of-range cell. An entity's
+fractional tile position (`draw_pos`) is floored to its cell the same way. Where an argument is a
+size rather than a position the same rule applies, so `size=(2.5, 2)` means `(2, 2)`. A value
+outside the range of a C `int` after flooring raises `OverflowError`. `bytes`, `bytearray`,
+`memoryview`, `range` and `str` are not positions (`TypeError`). Not covered by the floor rule:
+integer arguments that are not positions (counts, indices, `tile_size`, `sight_radius`, ...), which
+keep their own rules.
 
-`nan` and `inf` raise `ValueError` wherever a position, size or float property is set,
-whether by constructor, property assignment, `move()`/`resize()` or an animation target
-(`Frame(pos=(float("inf"), 0))`, `frame.x = float("nan")`, `frame.animate("x", float("inf"), 1)`).
-A value outside the range of a C `int` (after flooring) or `float` raises `OverflowError`.
+**Positions, sizes and float properties.** `nan` and `inf` raise `ValueError`, and a finite value
+beyond the range of a C `float` raises `OverflowError`, when set on any `Frame`, `Caption`,
+`Sprite`, `Grid`, `Entity`, `Arc`, `Line` or `Circle` (and `Viewport3D` x/y/w/h) through a
+constructor argument, a property (`pos`, `size`, `x`, `y`, `w`, `h`, `center`, `origin`, `rotation`,
+`opacity`, margins, `scale`, `radius`, `thickness`, `zoom`, `grid_pos`, `grid_size`, ...),
+`move()` / `resize()` (including a `move` whose result leaves float range), or an animation target
+(`frame.animate("x", float("inf"), 1)`); `Scene.pos` and `default_transition_duration` follow the
+same rule. Animation durations must be finite and not negative. `Grid.zoom` must be greater than
+0. `HeightMap.add_hill` / `dig_hill` / `dig_bezier`, `get_dijkstra_map` / `find_path`
+(`diagonal_cost`) and `apply_ranges` bounds reject non-finite or out-of-range values too.
+
+Not covered: `Vector(...)` itself (a math type that may hold `inf`; it is rejected where it is
+stored), `Grid(center_x=nan, center_y=nan)` (nan is the "default camera" sentinel; infinity is
+rejected), `Sound` / `Music` volume and pitch, shader uniforms, 3D camera and entity floats, and
+the other float parameters of `HeightMap` methods.

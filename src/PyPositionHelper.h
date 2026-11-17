@@ -261,6 +261,16 @@ public:
         return false;
     }
 
+    // A single cell coordinate: an int / __index__ object exactly, a float floored (#540 item 3).
+    // OverflowError / ValueError as for a position component; TypeError "<what> must be a
+    // number" for anything else.
+    static bool IntFromObject(PyObject* obj, int* out, const char* what) {
+        if (extract_int(obj, out, what)) return true;
+        if (PyErr_Occurred()) return false;
+        PyErr_Format(PyExc_TypeError, "%s must be a number", what ? what : "value");
+        return false;
+    }
+
     // Extract integer position from any supported format
     // Sets Python error and returns false on failure
     // `what`: see FromObject.
@@ -408,6 +418,11 @@ inline bool PyPosition_ParseFloat(PyObject* args, PyObject* kwds, float* x, floa
 // Usage: if (!PyPosition_FromObjectInt(obj, &x, &y)) return NULL;
 inline bool PyPosition_FromObjectInt(PyObject* obj, int* x, int* y, const char* what = nullptr) {
     return PyPositionHelper::FromObjectInt(obj, x, y, what);
+}
+
+// A single cell coordinate (int, __index__ object, or a float, floored)
+inline bool PyPosition_IntFromObject(PyObject* obj, int* out, const char* what) {
+    return PyPositionHelper::IntFromObject(obj, out, what);
 }
 
 // Extract float position from a single Python object

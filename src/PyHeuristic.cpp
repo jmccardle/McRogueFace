@@ -100,7 +100,7 @@ PyObject* PyHeuristic::create_enum_class(PyObject* module) {
 }
 
 int PyHeuristic::from_arg(PyObject* arg, int* out_value) {
-    if (heuristic_enum_class && PyObject_IsInstance(arg, heuristic_enum_class)) {
+    if (heuristic_enum_class && PyObject_TypeCheck(arg, (PyTypeObject*)heuristic_enum_class)) {
         PyObject* value = PyObject_GetAttrString(arg, "value");
         if (!value) return 0;
         long val = PyLong_AsLong(value);

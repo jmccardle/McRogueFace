@@ -34,11 +34,19 @@ static bool ParseRange(PyObject* range_obj, float* out_min, float* out_max, cons
         return false;
     }
 
-    *out_min = (float)PyFloat_AsDouble(PySequence_Fast_GET_ITEM(seq, 0));
-    *out_max = (float)PyFloat_AsDouble(PySequence_Fast_GET_ITEM(seq, 1));
+    // New references to both items before converting either: a conversion (__float__) can run
+    // user code that mutates the list (#543 class). nan / inf bounds are errors (#540).
+    PyObject* lo = PySequence_Fast_GET_ITEM(seq, 0);
+    PyObject* hi = PySequence_Fast_GET_ITEM(seq, 1);
+    Py_INCREF(lo);
+    Py_INCREF(hi);
     Py_DECREF(seq);
-
-    if (PyErr_Occurred()) return false;
+    const std::string lo_name = std::string(arg_name) + " min";
+    const std::string hi_name = std::string(arg_name) + " max";
+    const bool ok = mcrf::to_float(lo, *out_min, lo_name.c_str()) && mcrf::to_float(hi, *out_max, hi_name.c_str());
+    Py_DECREF(lo);
+    Py_DECREF(hi);
+    if (!ok) return false;
 
     if (*out_min > *out_max) {
         // Build error message manually since PyErr_Format has limited float support
@@ -68,7 +76,7 @@ static bool ValidateHeightMapSize(PyHeightMapObject* hmap, int grid_x, int grid_
 
 // Helper to check if an object is a HeightMap
 static bool IsHeightMapObject(PyObject* obj, PyHeightMapObject** out_hmap) {
-    bool result = PyObject_IsInstance(obj, (PyObject*)&mcrfpydef::PyHeightMapType);
+    bool result = PyObject_TypeCheck(obj, &mcrfpydef::PyHeightMapType);
 
     if (result && out_hmap) {
         *out_hmap = (PyHeightMapObject*)obj;
@@ -1045,8 +1053,8 @@ int PyGridLayerAPI::ColorLayer_init(PyColorLayerObject* self, PyObject* args, Py
 
     // Validate grid kwarg type up-front (before allocating data).
     if (grid_obj && grid_obj != Py_None &&
-        !PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyGridDataType) &&
-        !PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
+        !PyObject_TypeCheck(grid_obj, &mcrfpydef::PyGridDataType) &&
+        !PyObject_TypeCheck(grid_obj, &mcrfpydef::PyUIGridViewType)) {
         PyErr_SetString(PyExc_TypeError, "grid must be a mcrfpy.Grid instance");
         return -1;
     }
@@ -1363,7 +1371,7 @@ PyObject* PyGridLayerAPI::ColorLayer_apply_perspective(PyColorLayerObject* self,
         return NULL;
     }
 
-    if (!PyObject_IsInstance(entity_obj, (PyObject*)&mcrfpydef::PyUIEntityType)) {
+    if (!PyObject_TypeCheck(entity_obj, &mcrfpydef::PyUIEntityType)) {
         PyErr_SetString(PyExc_TypeError, "entity must be an Entity object");
         return NULL;
     }
@@ -1601,6 +1609,8 @@ PyObject* PyGridLayerAPI::ColorLayer_apply_ranges(PyColorLayerObject* self, PyOb
     Py_ssize_t n_ranges = PyList_Size(ranges_obj);
     for (Py_ssize_t i = 0; i < n_ranges; ++i) {
         PyObject* item = PyList_GetItem(ranges_obj, i);
+        if (!item) return NULL;  // the list shrank under us (IndexError is set)
+        mcrf::PyRef item_hold = mcrf::hold(item);  // user code in the conversions below may mutate the list (#543)
 
         if (!PyTuple_Check(item) || PyTuple_Size(item) != 2) {
             PyErr_Format(PyExc_TypeError,
@@ -1786,21 +1796,21 @@ int PyGridLayerAPI::ColorLayer_set_grid(PyColorLayerObject* self, PyObject* valu
     }
 
     // Validate it's a Grid (GridView) or internal _GridData
-    if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridViewType) &&
-        !PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyGridDataType)) {
+    if (!PyObject_TypeCheck(value, &mcrfpydef::PyUIGridViewType) &&
+        !PyObject_TypeCheck(value, &mcrfpydef::PyGridDataType)) {
         PyErr_SetString(PyExc_TypeError, "grid must be a Grid object or None");
         return -1;
     }
 
     // Extract UIGrid shared_ptr from Grid (UIGridView) or _GridData (UIGrid)
     std::shared_ptr<GridData> target_grid;
-    if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
+    if (PyObject_TypeCheck(value, &mcrfpydef::PyUIGridViewType)) {
         auto* pyview = (PyUIGridViewObject*)value;
         if (pyview->data->grid_data) {
             // GridView's grid_data is aliased from a UIGrid, cast back
             target_grid = std::static_pointer_cast<GridData>(pyview->data->grid_data);
         }
-    } else if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyGridDataType)) {
+    } else if (PyObject_TypeCheck(value, &mcrfpydef::PyGridDataType)) {
         target_grid = ((PyGridDataObject*)value)->data;
     }
     if (!target_grid) {
@@ -1985,8 +1995,8 @@ int PyGridLayerAPI::TileLayer_init(PyTileLayerObject* self, PyObject* args, PyOb
 
     // Validate grid kwarg type up-front (before allocating data).
     if (grid_obj && grid_obj != Py_None &&
-        !PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyGridDataType) &&
-        !PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
+        !PyObject_TypeCheck(grid_obj, &mcrfpydef::PyGridDataType) &&
+        !PyObject_TypeCheck(grid_obj, &mcrfpydef::PyUIGridViewType)) {
         PyErr_SetString(PyExc_TypeError, "grid must be a mcrfpy.Grid instance");
         return -1;
     }
@@ -1994,7 +2004,7 @@ int PyGridLayerAPI::TileLayer_init(PyTileLayerObject* self, PyObject* args, PyOb
     // Parse texture
     std::shared_ptr<PyTexture> texture;
     if (texture_obj && texture_obj != Py_None) {
-        if (PyObject_IsInstance(texture_obj, (PyObject*)&mcrfpydef::PyTextureType)) {
+        if (PyObject_TypeCheck(texture_obj, &mcrfpydef::PyTextureType)) {
             texture = ((PyTextureObject*)texture_obj)->data;
         } else {
             PyErr_SetString(PyExc_TypeError, "texture must be a Texture object");
@@ -2343,6 +2353,8 @@ PyObject* PyGridLayerAPI::TileLayer_apply_ranges(PyTileLayerObject* self, PyObje
     Py_ssize_t n_ranges = PyList_Size(ranges_obj);
     for (Py_ssize_t i = 0; i < n_ranges; ++i) {
         PyObject* item = PyList_GetItem(ranges_obj, i);
+        if (!item) return NULL;  // the list shrank under us (IndexError is set)
+        mcrf::PyRef item_hold = mcrf::hold(item);  // user code in the conversions below may mutate the list (#543)
 
         if (!PyTuple_Check(item) || PyTuple_Size(item) != 2) {
             PyErr_Format(PyExc_TypeError,
@@ -2468,7 +2480,7 @@ int PyGridLayerAPI::TileLayer_set_texture(PyTileLayerObject* self, PyObject* val
         return 0;
     }
 
-    if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyTextureType)) {
+    if (!PyObject_TypeCheck(value, &mcrfpydef::PyTextureType)) {
         PyErr_SetString(PyExc_TypeError, "texture must be a Texture object or None");
         return -1;
     }
@@ -2532,20 +2544,20 @@ int PyGridLayerAPI::TileLayer_set_grid(PyTileLayerObject* self, PyObject* value,
     }
 
     // Validate it's a Grid (GridView) or internal _GridData
-    if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridViewType) &&
-        !PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyGridDataType)) {
+    if (!PyObject_TypeCheck(value, &mcrfpydef::PyUIGridViewType) &&
+        !PyObject_TypeCheck(value, &mcrfpydef::PyGridDataType)) {
         PyErr_SetString(PyExc_TypeError, "grid must be a Grid object or None");
         return -1;
     }
 
     // Extract UIGrid shared_ptr from Grid (UIGridView) or _GridData (UIGrid)
     std::shared_ptr<GridData> target_grid;
-    if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
+    if (PyObject_TypeCheck(value, &mcrfpydef::PyUIGridViewType)) {
         auto* pyview = (PyUIGridViewObject*)value;
         if (pyview->data->grid_data) {
             target_grid = std::static_pointer_cast<GridData>(pyview->data->grid_data);
         }
-    } else if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyGridDataType)) {
+    } else if (PyObject_TypeCheck(value, &mcrfpydef::PyGridDataType)) {
         target_grid = ((PyGridDataObject*)value)->data;
     }
     if (!target_grid) {

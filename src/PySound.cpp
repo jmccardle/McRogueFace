@@ -174,7 +174,7 @@ int PySound::init(PySoundObject* self, PyObject* args, PyObject* kwds)
             PyErr_Format(PyExc_RuntimeError, "Failed to load sound file: %s", filename);
             return -1;
         }
-    } else if (PyObject_IsInstance(source_obj, (PyObject*)&mcrfpydef::PySoundBufferType)) {
+    } else if (PyObject_TypeCheck(source_obj, &mcrfpydef::PySoundBufferType)) {
         // SoundBuffer object
         auto* sbObj = (PySoundBufferObject*)source_obj;
         if (!sbObj->data || sbObj->data->samples.empty()) {

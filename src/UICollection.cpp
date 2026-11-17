@@ -57,24 +57,24 @@ static void unlink_child(std::shared_ptr<UIDrawable> drawable) {
 // Helper to extract shared_ptr<UIDrawable> from any UIDrawable Python subclass.
 // Returns nullptr without setting an error if the type doesn't match.
 static std::shared_ptr<UIDrawable> extractDrawable(PyObject* o) {
-    if (PyObject_IsInstance(o, (PyObject*)&PyUIFrameType))
+    if (PyObject_TypeCheck(o, &PyUIFrameType))
         return ((PyUIFrameObject*)o)->data;
-    if (PyObject_IsInstance(o, (PyObject*)&PyUICaptionType))
+    if (PyObject_TypeCheck(o, &PyUICaptionType))
         return ((PyUICaptionObject*)o)->data;
-    if (PyObject_IsInstance(o, (PyObject*)&PyUISpriteType))
+    if (PyObject_TypeCheck(o, &PyUISpriteType))
         return ((PyUISpriteObject*)o)->data;
     // #361: a GridData is NOT a drawable and cannot be appended to a collection.
     // It falls through to the caller's TypeError -- appending a map to a scene used
     // to draw the whole grid a second time through a frozen, invisible camera.
-    if (PyObject_IsInstance(o, (PyObject*)&PyUIGridViewType))
+    if (PyObject_TypeCheck(o, &PyUIGridViewType))
         return ((PyUIGridViewObject*)o)->data;
-    if (PyObject_IsInstance(o, (PyObject*)&PyUILineType))
+    if (PyObject_TypeCheck(o, &PyUILineType))
         return ((PyUILineObject*)o)->data;
-    if (PyObject_IsInstance(o, (PyObject*)&PyUICircleType))
+    if (PyObject_TypeCheck(o, &PyUICircleType))
         return ((PyUICircleObject*)o)->data;
-    if (PyObject_IsInstance(o, (PyObject*)&PyUIArcType))
+    if (PyObject_TypeCheck(o, &PyUIArcType))
         return ((PyUIArcObject*)o)->data;
-    if (PyObject_IsInstance(o, (PyObject*)&PyViewport3DType))
+    if (PyObject_TypeCheck(o, &PyViewport3DType))
         return ((PyViewport3DObject*)o)->data;
     return nullptr;
 }
@@ -332,7 +332,7 @@ PyObject* UICollection::inplace_concat(PyUICollectionObject* self, PyObject* oth
         }
         
         // Type check - must be a UIDrawable subclass
-        if (!PyObject_IsInstance(item, (PyObject*)&PyDrawableType)) {
+        if (!PyObject_TypeCheck(item, &PyDrawableType)) {
             Py_DECREF(item);
             PyErr_Format(PyExc_TypeError,
                 "UICollection can only contain Drawable objects; "

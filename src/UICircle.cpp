@@ -413,25 +413,25 @@ int UICircle::init(PyUICircleObject* self, PyObject* args, PyObject* kwds) {
         "parent", NULL
     };
 
-    float radius = 10.0f;
+    double radius = 10.0f;
     PyObject* center_obj = NULL;
     PyObject* fill_color_obj = NULL;
     PyObject* outline_color_obj = NULL;
-    float outline = 0.0f;
+    double outline = 0.0f;
 
     // Common UIDrawable kwargs
     PyObject* click_obj = NULL;
     int visible = 1;
-    float opacity_val = 1.0f;
+    double opacity_val = 1.0f;
     int z_index = 0;
     const char* name = NULL;
     PyObject* align_obj = NULL;  // Alignment enum or None
-    float margin = 0.0f;
-    float horiz_margin = -1.0f;
-    float vert_margin = -1.0f;
+    double margin = 0.0f;
+    double horiz_margin = -1.0f;
+    double vert_margin = -1.0f;
     PyObject* parent_obj = NULL;  // Auto-attach parent (Frame, Scene, or Grid)
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OfOOfOpfisOfffO", (char**)kwlist,
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OdOOdOpdisOdddO", (char**)kwlist,
             &center_obj, &radius, &fill_color_obj, &outline_color_obj, &outline,
             &click_obj, &visible, &opacity_val, &z_index, &name,
             &align_obj, &margin, &horiz_margin, &vert_margin,

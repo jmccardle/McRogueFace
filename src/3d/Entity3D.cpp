@@ -733,7 +733,7 @@ int Entity3D::init(PyEntity3DObject* self, PyObject* args, PyObject* kwds)
     if (viewport_obj && viewport_obj != Py_None) {
         // Will be handled by EntityCollection3D when appending
         // For now, just validate it's the right type
-        if (!PyObject_IsInstance(viewport_obj, (PyObject*)&mcrfpydef::PyViewport3DType)) {
+        if (!PyObject_TypeCheck(viewport_obj, &mcrfpydef::PyViewport3DType)) {
             PyErr_SetString(PyExc_TypeError, "viewport must be a Viewport3D");
             return -1;
         }
@@ -936,7 +936,7 @@ int Entity3D::set_model(PyEntity3DObject* self, PyObject* value, void* closure)
         return 0;
     }
 
-    if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyModel3DType)) {
+    if (!PyObject_TypeCheck(value, &mcrfpydef::PyModel3DType)) {
         PyErr_SetString(PyExc_TypeError, "model must be a Model3D or None");
         return -1;
     }

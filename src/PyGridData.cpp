@@ -55,7 +55,7 @@ int PyGridData::parse_grid_shape(PyObject* grid_size_obj, PyObject* texture_obj,
     }
 
     if (texture_obj && texture_obj != Py_None) {
-        if (!PyObject_IsInstance(texture_obj, (PyObject*)&mcrfpydef::PyTextureType)) {
+        if (!PyObject_TypeCheck(texture_obj, &mcrfpydef::PyTextureType)) {
             PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance or None");
             return -1;
         }
@@ -119,8 +119,8 @@ int PyGridData::apply_layers_arg(const std::shared_ptr<GridData>& grid,
 
     PyObject* item;
     while ((item = PyIter_Next(iterator)) != NULL) {
-        bool is_color = PyObject_IsInstance(item, color_layer_type);
-        bool is_tile  = PyObject_IsInstance(item, tile_layer_type);
+        bool is_color = PyObject_TypeCheck(item, (PyTypeObject*)color_layer_type);
+        bool is_tile  = PyObject_TypeCheck(item, (PyTypeObject*)tile_layer_type);
         if (!is_color && !is_tile) {
             Py_DECREF(item);
             Py_DECREF(iterator);

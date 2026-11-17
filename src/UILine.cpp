@@ -450,17 +450,17 @@ int UILine::init(PyUILineObject* self, PyObject* args, PyObject* kwds) {
     // Arguments
     PyObject* start_obj = nullptr;
     PyObject* end_obj = nullptr;
-    float thickness = 1.0f;
+    double thickness = 1.0f;
     PyObject* color_obj = nullptr;
     PyObject* click_handler = nullptr;
     int visible = 1;
-    float opacity = 1.0f;
+    double opacity = 1.0f;
     int z_index = 0;
     const char* name = nullptr;
     PyObject* align_obj = nullptr;  // Alignment enum or None
-    float margin = 0.0f;
-    float horiz_margin = -1.0f;
-    float vert_margin = -1.0f;
+    double margin = 0.0f;
+    double horiz_margin = -1.0f;
+    double vert_margin = -1.0f;
     PyObject* parent_obj = nullptr;  // Auto-attach parent (Frame, Scene, or Grid)
 
     static const char* kwlist[] = {
@@ -471,7 +471,7 @@ int UILine::init(PyUILineObject* self, PyObject* args, PyObject* kwds) {
         nullptr
     };
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOfOOifizOfffO", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOdOOidizOdddO", const_cast<char**>(kwlist),
                                      &start_obj, &end_obj, &thickness, &color_obj,
                                      &click_handler, &visible, &opacity, &z_index, &name,
                                      &align_obj, &margin, &horiz_margin, &vert_margin,

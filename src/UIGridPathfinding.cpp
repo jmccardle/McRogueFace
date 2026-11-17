@@ -330,7 +330,7 @@ bool UIGridPathfinding::ExtractPosition(PyObject* obj, int* x, int* y,
                                         GridData* expected_grid,
                                         const char* arg_name) {
     // Check if it's an Entity
-    if (PyObject_IsInstance(obj, (PyObject*)&mcrfpydef::PyUIEntityType)) {
+    if (PyObject_TypeCheck(obj, &mcrfpydef::PyUIEntityType)) {
         auto* entity = (PyUIEntityObject*)obj;
         if (!entity->data) {
             PyErr_Format(PyExc_RuntimeError,
@@ -347,46 +347,13 @@ bool UIGridPathfinding::ExtractPosition(PyObject* obj, int* x, int* y,
                 "%s: Entity belongs to a different grid", arg_name);
             return false;
         }
-        *x = static_cast<int>(entity->data->position.x);
-        *y = static_cast<int>(entity->data->position.y);
-        return true;
+        return mcrf::float_to_cell(entity->data->position.x, *x, arg_name) &&
+               mcrf::float_to_cell(entity->data->position.y, *y, arg_name);
     }
 
-    // Check if it's a Vector
-    if (PyObject_IsInstance(obj, (PyObject*)&mcrfpydef::PyVectorType)) {
-        auto* vec = (PyVectorObject*)obj;
-        *x = static_cast<int>(vec->data.x);
-        *y = static_cast<int>(vec->data.y);
-        return true;
-    }
-
-    // Try tuple/list
-    if (PySequence_Check(obj) && PySequence_Size(obj) == 2) {
-        PyObject* x_obj = PySequence_GetItem(obj, 0);
-        PyObject* y_obj = PySequence_GetItem(obj, 1);
-
-        bool ok = false;
-        if (x_obj && y_obj && PyNumber_Check(x_obj) && PyNumber_Check(y_obj)) {
-            PyObject* x_long = PyNumber_Long(x_obj);
-            PyObject* y_long = PyNumber_Long(y_obj);
-            if (x_long && y_long) {
-                *x = PyLong_AsLong(x_long);
-                *y = PyLong_AsLong(y_long);
-                ok = !PyErr_Occurred();
-            }
-            Py_XDECREF(x_long);
-            Py_XDECREF(y_long);
-        }
-
-        Py_XDECREF(x_obj);
-        Py_XDECREF(y_obj);
-
-        if (ok) return true;
-    }
-
-    PyErr_Format(PyExc_TypeError,
-        "%s: expected Vector, Entity, or (x, y) tuple", arg_name);
-    return false;
+    // A Vector, tuple, list or other 2-sequence: the integer position helper (floored,
+    // range-checked, held references; its TypeError names the argument).
+    return PyPosition_FromObjectInt(obj, x, y, arg_name);
 }
 
 //=============================================================================
@@ -941,6 +908,14 @@ PyObject* UIGridPathfinding::Grid_find_path(PyGridDataObject* self, PyObject* ar
         return NULL;
     }
 
+    // diagonal_cost reaches (int)(diagonal_cost * 100 + 0.1) (and libtcod's own cost maths):
+    // finite, and small enough that the product fits an int (#540 item 7)
+    if (!mcrf::require_finite(diagonal_cost, "diagonal_cost")) return NULL;
+    if (std::fabs(diagonal_cost) > 1.0e6f) {
+        PyErr_SetString(PyExc_OverflowError, "diagonal_cost must be within +/-1e6");
+        return NULL;
+    }
+
     if (!self->data) {
         PyErr_SetString(PyExc_RuntimeError, "Grid is invalid");
         return NULL;
@@ -1039,7 +1014,7 @@ static bool collectRoots(PyObject* root_obj, GridData* grid,
     if (out_mask) *out_mask = nullptr;
 
     // DiscreteMap mask path
-    if (PyObject_IsInstance(root_obj, (PyObject*)&mcrfpydef::PyDiscreteMapType)) {
+    if (PyObject_TypeCheck(root_obj, &mcrfpydef::PyDiscreteMapType)) {
         auto* dmap = (PyDiscreteMapObject*)root_obj;
         if (!dmap->data) {
             PyErr_SetString(PyExc_RuntimeError, "DiscreteMap is invalid");
@@ -1124,6 +1099,14 @@ PyObject* UIGridPathfinding::Grid_get_dijkstra_map(PyGridDataObject* self, PyObj
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OfzOOO", const_cast<char**>(kwlist),
                                      &root_obj, &diagonal_cost, &collide_label, &roots_obj,
                                      &radius_obj, &heuristic_obj)) {
+        return NULL;
+    }
+
+    // diagonal_cost reaches (int)(diagonal_cost * 100 + 0.1) (and libtcod's own cost maths):
+    // finite, and small enough that the product fits an int (#540 item 7)
+    if (!mcrf::require_finite(diagonal_cost, "diagonal_cost")) return NULL;
+    if (std::fabs(diagonal_cost) > 1.0e6f) {
+        PyErr_SetString(PyExc_OverflowError, "diagonal_cost must be within +/-1e6");
         return NULL;
     }
 

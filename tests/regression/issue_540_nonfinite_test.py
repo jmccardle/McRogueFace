@@ -56,7 +56,14 @@ for cname, (ctor, scalars, vectors) in ctor_kwargs.items():
         for bl, bad in BAD:
             for shape, val in (("tuple", (bad, 1.0)), ("tuple-y", (1.0, bad)), ("list", [bad, 1.0]), ("Vector", V(bad, 1.0))):
                 must_raise(f"{cname}({kw}={shape} with {bl})", lambda: ctor(**{kw: val}))
-    must_raise(f"{cname}(1e39) overflows to inf", lambda: ctor(**{(vectors[0]): (1e39, 0.0)}))
+    # a finite value too large for a float is OverflowError (ValueError is for nan / inf; #540 item 6)
+    try:
+        ctor(**{(vectors[0]): (1e39, 0.0)})
+        fails.append(f"{cname}({vectors[0]}=(1e39, 0)): accepted")
+    except OverflowError:
+        pass
+    except BaseException as e:
+        fails.append(f"{cname}({vectors[0]}=(1e39, 0)): raised {type(e).__name__}: {e}; want OverflowError")
 # the first positional argument too
 must_raise("Frame((inf, 0))", lambda: mcrfpy.Frame((inf, 0)))
 must_raise("Caption((nan, 0))", lambda: mcrfpy.Caption((nan, 0)))

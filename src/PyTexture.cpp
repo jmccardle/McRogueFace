@@ -371,7 +371,7 @@ PyObject* PyTexture::composite(PyObject* cls, PyObject* args, PyObject* kwds)
 
     for (Py_ssize_t i = 0; i < count; i++) {
         PyObject* item = PyList_GetItem(layers_list, i);
-        if (!PyObject_IsInstance(item, (PyObject*)texture_type)) {
+        if (!PyObject_TypeCheck(item, (PyTypeObject*)texture_type)) {
             PyErr_Format(PyExc_TypeError,
                 "layers[%zd] is not a Texture object", i);
             return NULL;

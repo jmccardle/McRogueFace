@@ -87,7 +87,7 @@ static int UIEntity_set_shader(PyUIEntityObject* self, PyObject* value, void* cl
     }
 
     // Check if value is a Shader object
-    if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyShaderType)) {
+    if (!PyObject_TypeCheck(value, &mcrfpydef::PyShaderType)) {
         PyErr_SetString(PyExc_TypeError, "shader must be a Shader object or None");
         return -1;
     }

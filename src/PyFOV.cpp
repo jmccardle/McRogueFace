@@ -121,7 +121,7 @@ int PyFOV::from_arg(PyObject* arg, TCOD_fov_algorithm_t* out_algo, bool* was_non
     }
 
     // Accept FOV enum member (check if it's an instance of our enum)
-    if (fov_enum_class && PyObject_IsInstance(arg, fov_enum_class)) {
+    if (fov_enum_class && PyObject_TypeCheck(arg, (PyTypeObject*)fov_enum_class)) {
         // IntEnum members have a 'value' attribute
         PyObject* value = PyObject_GetAttrString(arg, "value");
         if (!value) {

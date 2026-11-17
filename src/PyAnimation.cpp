@@ -26,15 +26,24 @@ int PyAnimation::init(PyAnimationObject* self, PyObject* args, PyObject* kwds) {
     const char* property_name;
     PyObject* target_value;
     float duration;
+    double duration_d = 0.0;
     PyObject* easing_arg = Py_None;
     int delta = 0;
     int loop_val = 0;
     PyObject* callback = nullptr;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOf|OppO", const_cast<char**>(keywords),
-                                      &property_name, &target_value, &duration, &easing_arg, &delta, &loop_val, &callback)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOd|OppO", const_cast<char**>(keywords),
+                                      &property_name, &target_value, &duration_d, &easing_arg, &delta, &loop_val, &callback)) {
         return -1;
     }
+    // A duration is a finite, non-negative number of seconds: nan jumps to the end and inf never
+    // progresses (#540 item 12); a negative one has no meaning.
+    if (!mcrf::require_finite(duration_d, "duration")) return -1;
+    if (duration_d < 0.0) {
+        mcrf::raise_got(PyExc_ValueError, "duration must not be negative", duration_d);
+        return -1;
+    }
+    duration = static_cast<float>(duration_d);
     
     // Validate callback is callable if provided
     if (callback && callback != Py_None && !PyCallable_Check(callback)) {
@@ -239,7 +248,7 @@ PyObject* PyAnimation::start(PyAnimationObject* self, PyObject* args, PyObject* 
     bool handled = false;
 
     // Use PyObject_IsInstance to support inheritance
-    if (PyObject_IsInstance(target_obj, (PyObject*)&mcrfpydef::PyUIFrameType)) {
+    if (PyObject_TypeCheck(target_obj, &mcrfpydef::PyUIFrameType)) {
         PyUIFrameObject* frame = (PyUIFrameObject*)target_obj;
         if (frame->data) {
             self->data->start(frame->data);
@@ -247,7 +256,7 @@ PyObject* PyAnimation::start(PyAnimationObject* self, PyObject* args, PyObject* 
             handled = true;
         }
     }
-    else if (PyObject_IsInstance(target_obj, (PyObject*)&mcrfpydef::PyUICaptionType)) {
+    else if (PyObject_TypeCheck(target_obj, &mcrfpydef::PyUICaptionType)) {
         PyUICaptionObject* caption = (PyUICaptionObject*)target_obj;
         if (caption->data) {
             self->data->start(caption->data);
@@ -255,7 +264,7 @@ PyObject* PyAnimation::start(PyAnimationObject* self, PyObject* args, PyObject* 
             handled = true;
         }
     }
-    else if (PyObject_IsInstance(target_obj, (PyObject*)&mcrfpydef::PyUISpriteType)) {
+    else if (PyObject_TypeCheck(target_obj, &mcrfpydef::PyUISpriteType)) {
         PyUISpriteObject* sprite = (PyUISpriteObject*)target_obj;
         if (sprite->data) {
             self->data->start(sprite->data);
@@ -263,7 +272,7 @@ PyObject* PyAnimation::start(PyAnimationObject* self, PyObject* args, PyObject* 
             handled = true;
         }
     }
-    else if (PyObject_IsInstance(target_obj, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
+    else if (PyObject_TypeCheck(target_obj, &mcrfpydef::PyUIGridViewType)) {
         // #252: GridView (unified Grid) - animate the view directly
         PyUIGridViewObject* view = (PyUIGridViewObject*)target_obj;
         if (view->data) {
@@ -274,7 +283,7 @@ PyObject* PyAnimation::start(PyAnimationObject* self, PyObject* args, PyObject* 
     }
     // #361: a GridData is NOT an animation target -- it has no position, size,
     // color or camera to tween. Animate the Grid (GridView) that displays it.
-    else if (PyObject_IsInstance(target_obj, (PyObject*)&mcrfpydef::PyUIEntityType)) {
+    else if (PyObject_TypeCheck(target_obj, &mcrfpydef::PyUIEntityType)) {
         // Special handling for Entity since it doesn't inherit from UIDrawable
         PyUIEntityObject* entity = (PyUIEntityObject*)target_obj;
         if (entity->data) {

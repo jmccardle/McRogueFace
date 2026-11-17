@@ -100,7 +100,7 @@ static PyDiscreteMapObject* CreateNewDiscreteMap(int width, int height) {
 // ============================================================================
 static PyDiscreteMapObject* validateOtherDiscreteMapType(PyObject* other_obj, const char* method_name) {
     // Check if other is a DiscreteMap
-    int is_dmap = PyObject_IsInstance(other_obj, (PyObject*)&mcrfpydef::PyDiscreteMapType);
+    int is_dmap = PyObject_TypeCheck(other_obj, &mcrfpydef::PyDiscreteMapType);
 
     if (is_dmap < 0) {
         return nullptr;  // Error during check
@@ -803,7 +803,7 @@ PyObject* PyDiscreteMap::add(PyDiscreteMapObject* self, PyObject* args, PyObject
     } else {
         PyErr_Clear();  // Clear the parseIntValue error
 
-        if (!PyObject_IsInstance(other_obj, (PyObject*)&mcrfpydef::PyDiscreteMapType)) {
+        if (!PyObject_TypeCheck(other_obj, &mcrfpydef::PyDiscreteMapType)) {
             PyErr_Format(PyExc_TypeError, "add() requires a DiscreteMap or an int, not %.100s",
                          Py_TYPE(other_obj)->tp_name);
             return nullptr;
@@ -860,7 +860,7 @@ PyObject* PyDiscreteMap::subtract(PyDiscreteMapObject* self, PyObject* args, PyO
     } else {
         PyErr_Clear();
 
-        if (!PyObject_IsInstance(other_obj, (PyObject*)&mcrfpydef::PyDiscreteMapType)) {
+        if (!PyObject_TypeCheck(other_obj, &mcrfpydef::PyDiscreteMapType)) {
             PyErr_Format(PyExc_TypeError, "subtract() requires a DiscreteMap or an int, not %.100s",
                          Py_TYPE(other_obj)->tp_name);
             return nullptr;
@@ -1526,7 +1526,7 @@ PyObject* PyDiscreteMap::from_heightmap(PyTypeObject* type, PyObject* args, PyOb
     }
 
     // Validate HeightMap
-    int is_hmap = PyObject_IsInstance(hmap_obj, (PyObject*)&mcrfpydef::PyHeightMapType);
+    int is_hmap = PyObject_TypeCheck(hmap_obj, &mcrfpydef::PyHeightMapType);
 
     if (is_hmap < 0) {
         return nullptr;
@@ -1557,6 +1557,8 @@ PyObject* PyDiscreteMap::from_heightmap(PyTypeObject* type, PyObject* args, PyOb
     Py_ssize_t n_mappings = PyList_Size(mapping_obj);
     for (Py_ssize_t i = 0; i < n_mappings; i++) {
         PyObject* item = PyList_GetItem(mapping_obj, i);
+        if (!item) return nullptr;  // the list shrank under us (IndexError is set)
+        mcrf::PyRef item_hold = mcrf::hold(item);  // user code in the conversions below may mutate the list (#543)
 
         if (!PyTuple_Check(item) || PyTuple_Size(item) != 2) {
             PyErr_SetString(PyExc_TypeError, "each mapping must be a ((min, max), value) tuple");

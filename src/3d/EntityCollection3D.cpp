@@ -101,7 +101,7 @@ int EntityCollection3D::contains(PyEntityCollection3DObject* self, PyObject* val
     if (!self->data) return 0;
 
     // Check if value is an Entity3D
-    if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyEntity3DType)) {
+    if (!PyObject_TypeCheck(value, &mcrfpydef::PyEntity3DType)) {
         return 0;
     }
 
@@ -125,7 +125,7 @@ PyObject* EntityCollection3D::append(PyEntityCollection3DObject* self, PyObject*
     }
 
     // Check if argument is an Entity3D
-    if (!PyObject_IsInstance(o, (PyObject*)&mcrfpydef::PyEntity3DType)) {
+    if (!PyObject_TypeCheck(o, &mcrfpydef::PyEntity3DType)) {
         PyErr_SetString(PyExc_TypeError, "Can only append Entity3D objects");
         return NULL;
     }
@@ -154,7 +154,7 @@ PyObject* EntityCollection3D::remove(PyEntityCollection3DObject* self, PyObject*
     }
 
     // Check if argument is an Entity3D
-    if (!PyObject_IsInstance(o, (PyObject*)&mcrfpydef::PyEntity3DType)) {
+    if (!PyObject_TypeCheck(o, &mcrfpydef::PyEntity3DType)) {
         PyErr_SetString(PyExc_TypeError, "Can only remove Entity3D objects");
         return NULL;
     }
@@ -249,7 +249,7 @@ PyObject* EntityCollection3D::extend(PyEntityCollection3DObject* self, PyObject*
     std::vector<std::shared_ptr<mcrf::Entity3D>> to_add;
     PyObject* item;
     while ((item = PyIter_Next(iterator)) != NULL) {
-        if (!PyObject_IsInstance(item, (PyObject*)&mcrfpydef::PyEntity3DType)) {
+        if (!PyObject_TypeCheck(item, &mcrfpydef::PyEntity3DType)) {
             Py_DECREF(item);
             Py_DECREF(iterator);
             PyErr_SetString(PyExc_TypeError, "extend() requires an iterable of Entity3D objects");

@@ -297,7 +297,8 @@ int UIFrame::set_float_member(PyUIFrameObject* self, PyObject* value, void* clos
 {
     float val;
     auto member_ptr = reinterpret_cast<intptr_t>(closure);
-    if (!mcrf::to_float(value, val, "Value")) return -1;
+    static const char* const member_names[] = {"x", "y", "w", "h", "outline"};
+    if (!mcrf::to_float(value, val, (member_ptr >= 0 && member_ptr < 5) ? member_names[member_ptr] : "value")) return -1;
     if (member_ptr == 0) { //x
         self->data->box.setPosition(val, self->data->box.getPosition().y);
         self->data->markDirty();
@@ -590,20 +591,20 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
     PyObject* size_obj = nullptr;
     PyObject* fill_color = nullptr;
     PyObject* outline_color = nullptr;
-    float outline = 0.0f;
+    double outline = 0.0f;
     PyObject* children_arg = nullptr;
     PyObject* click_handler = nullptr;
     int visible = 1;
-    float opacity = 1.0f;
+    double opacity = 1.0f;
     int z_index = 0;
     const char* name = nullptr;
-    float x = 0.0f, y = 0.0f, w = 0.0f, h = 0.0f;
+    double x = 0.0f, y = 0.0f, w = 0.0f, h = 0.0f;
     int clip_children = 0;
     int cache_subtree = 0;  // #144: texture caching
     PyObject* align_obj = nullptr;  // Alignment enum or None
-    float margin = 0.0f;
-    float horiz_margin = -1.0f;
-    float vert_margin = -1.0f;
+    double margin = 0.0f;
+    double horiz_margin = -1.0f;
+    double vert_margin = -1.0f;
     PyObject* parent_obj = nullptr;  // Auto-attach parent (Frame, Scene, or Grid)
 
     // Keywords list matches the new spec: positional args first, then all keyword args
@@ -618,7 +619,7 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
     };
 
     // Parse arguments with | for optional positional args
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOfOOifizffffiiOfffO", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOdOOidizddddiiOdddO", const_cast<char**>(kwlist),
                                      &pos_obj, &size_obj,  // Positional
                                      &fill_color, &outline_color, &outline, &children_arg, &click_handler,
                                      &visible, &opacity, &z_index, &name, &x, &y, &w, &h, &clip_children, &cache_subtree,

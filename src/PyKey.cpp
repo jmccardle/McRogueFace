@@ -278,7 +278,7 @@ PyObject* PyKey::create_enum_class(PyObject* module) {
 
 int PyKey::from_arg(PyObject* arg, sf::Keyboard::Key* out_key) {
     // Accept Key enum member
-    if (key_enum_class && PyObject_IsInstance(arg, key_enum_class)) {
+    if (key_enum_class && PyObject_TypeCheck(arg, (PyTypeObject*)key_enum_class)) {
         PyObject* value = PyObject_GetAttrString(arg, "value");
         if (!value) {
             return 0;

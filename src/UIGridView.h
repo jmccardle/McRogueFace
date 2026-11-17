@@ -143,6 +143,7 @@ public:
     unsigned int rotationTextureSize = 0;
 
     // Property system for animations
+    bool checkFloatTarget(const std::string& name, float final_value) const override;  // zoom > 0 (#540)
     bool setProperty(const std::string& name, float value) override;
     bool setProperty(const std::string& name, const sf::Vector2f& value) override;
     bool setProperty(const std::string& name, const sf::Color& value) override;

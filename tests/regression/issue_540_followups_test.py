@@ -4,9 +4,9 @@
    __getitem__ keeps its type, args and (SystemExit) code.
 2. HeightMap size= goes through the helper: 2**32+3 is not (3), 2**70 is not "must be positive".
 3. A TypeError raised INSIDE a user's __len__ propagates with its own message; IndexError from
-   __getitem__ propagates. (A type with no length slot being "not a position" is not observable apart from the old
-   behaviour, which also ended in the helper's TypeError, so it has no check here; see
-   issue_540_sequence_errors_test.py for the plain TypeError guard.)
+   __getitem__ propagates.
+   A type with __getitem__ but no length slot is not a position, and the TypeError is the helper's,
+   not CPython's "has no len()" (it catches a dropped slot check).
 4. The helper's OverflowError / ValueError name the argument, and no path leaks CPython's raw
    "Python int too large to convert to C long".
 5. add_bsp / multiply_bsp: offset and region arithmetic cannot overflow int and paint cells of a
@@ -101,6 +101,10 @@ class LenTypeError:
     def __getitem__(self, i): return 0
 
 
+class NoLen:
+    def __getitem__(self, i): return 0
+
+
 class GetIndexError:
     def __len__(self): return 2
     def __getitem__(self, i): raise IndexError("my own index message")
@@ -113,6 +117,12 @@ for label, fn in {
 }.items():
     expect(f"{label} __len__ TypeError keeps message", lambda: fn(LenTypeError()), TypeError, "my own len message")
     expect(f"{label} __getitem__ IndexError", lambda: fn(GetIndexError()), IndexError, "my own index message")
+    # A type with __getitem__ but no length slot is not a position. The helper decides that from the
+    # type slots; a version that called len() would now propagate CPython's own "has no len()"
+    # TypeError (item 14), so this is what catches a dropped slot check.
+    e = expect(f"{label} no length slot", lambda: fn(NoLen()), TypeError)
+    if e is not None and "len" in str(e).replace("length", ""):
+        fails.append(f"{label} no length slot: leaked CPython's len() error: {e}")
 
 # ---- 2. HeightMap size= ----
 hm = mcrfpy.HeightMap((8, 8))
