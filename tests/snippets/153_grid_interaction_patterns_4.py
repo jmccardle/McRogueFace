@@ -1,4 +1,4 @@
-# mcrf: objects=[Color,ColorLayer,Entity,Grid,InputState,Key,Scene,TileLayer] verified=0.3.5 status=ok
+# mcrf: objects=[Color,ColorLayer,Entity,Grid,InputState,Key,Scene,TileLayer] verified=0.3.6-dev status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("game")
@@ -24,6 +24,7 @@ grid.entities.append(player)
 mcrfpy.current_scene = scene
 
 # --- WASD Movement ---
+# region: wasd
 move_map = {
     mcrfpy.Key.W: (0, -1),
     mcrfpy.Key.A: (-1, 0),
@@ -46,3 +47,4 @@ def handle_key(key, action):
                 player.grid_y = new_y
 
 scene.on_key = handle_key
+# endregion

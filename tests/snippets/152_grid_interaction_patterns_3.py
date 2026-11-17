@@ -1,4 +1,4 @@
-# mcrf: objects=[Color,ColorLayer,Entity,Grid,InputState,MouseButton,Scene,TileLayer] verified=0.3.5 status=ok
+# mcrf: objects=[Color,ColorLayer,Entity,Grid,InputState,MouseButton,Scene,TileLayer] verified=0.3.6-dev status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("game")
@@ -24,6 +24,7 @@ grid.entities.append(player)
 mcrfpy.current_scene = scene
 
 # --- Cell Click Actions ---
+# region: click
 def show_cell_info(x, y, point):
     print(f"Cell ({x}, {y}): walkable={point.walkable}")
 
@@ -45,3 +46,4 @@ def on_cell_click(cell_pos, button, action):
         point.walkable = not point.walkable
 
 grid.on_cell_click = on_cell_click
+# endregion

@@ -1,12 +1,42 @@
-"""McRogueFace - Cell Highlighting (Targeting) (basic)
+# mcrf: objects=[Color,ColorLayer,Entity,Grid,Scene] verified=0.3.6-dev status=ok
+import mcrfpy
 
-Documentation: https://mcrogueface.github.io/cookbook/grid_cell_highlighting
-Repository: https://github.com/jmccardle/McRogueFace/blob/master/docs/cookbook/grid/grid_cell_highlighting_basic.py
+scene = mcrfpy.Scene("demo")
+mcrfpy.current_scene = scene
 
-This code is extracted from the McRogueFace documentation and can be
-run directly with: ./mcrogueface path/to/this/file.py
-"""
+grid = mcrfpy.Grid(
+    grid_size=(16, 12),
+    texture=mcrfpy.default_texture,
+    pos=(0, 0),
+    size=(1024, 768),
+    zoom=4.0
+)
+scene.children.append(grid)
 
+for y in range(12):
+    for x in range(16):
+        cell = grid.at(x, y)
+        cell.tilesprite = 48
+        cell.walkable = True
+
+player = mcrfpy.Entity(grid_pos=(8, 6), texture=mcrfpy.default_texture, sprite_index=84)
+grid.entities.append(player)
+
+# Create a highlight layer (above tiles, below entities)
+highlight_layer = mcrfpy.ColorLayer(name="highlight", z_index=1)
+grid.add_layer(highlight_layer)
+
+def highlight_cells(cells, color):
+    """Highlight a list of (x, y) coordinates."""
+    highlight_layer.fill(mcrfpy.Color(0, 0, 0, 0))
+    for x, y in cells:
+        highlight_layer.set((x, y), color)
+
+def clear_highlights():
+    """Remove all highlighting."""
+    highlight_layer.fill(mcrfpy.Color(0, 0, 0, 0))
+
+# region: attack-range
 def get_line_range(start_x, start_y, max_range):
     """Get cells in cardinal directions (ranged attack)."""
     cells = set()
@@ -16,6 +46,9 @@ def get_line_range(start_x, start_y, max_range):
             x = start_x + dx * dist
             y = start_y + dy * dist
 
+            # NOTE: grid.at(x, y) can go out of bounds here before the
+            # transparent check runs - add an explicit bounds guard for
+            # production use.
             # Stop if wall blocks line of sight
             if not grid.at(x, y).transparent:
                 break
@@ -72,3 +105,12 @@ def get_cone_range(origin_x, origin_y, direction, length, spread):
                     cells.add((x, y))
 
     return cells
+# endregion
+
+for cells, color in [
+    (get_radius_range(8, 6, 3), mcrfpy.Color(255, 50, 50, 100)),
+    (get_line_range(8, 6, 5), mcrfpy.Color(255, 255, 50, 150)),
+    (get_cone_range(8, 6, 'e', 6, 60), mcrfpy.Color(255, 100, 0, 120)),
+]:
+    for x, y in cells:
+        highlight_layer.set((x, y), color)

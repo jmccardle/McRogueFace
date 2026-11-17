@@ -1,4 +1,4 @@
-# mcrf: objects=[Color,ColorLayer,Entity,Grid,InputState,MouseButton,Scene,TileLayer] verified=0.3.5 status=ok
+# mcrf: objects=[Color,ColorLayer,Entity,Grid,InputState,MouseButton,Scene,TileLayer] verified=0.3.6-dev status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("game")
@@ -24,6 +24,7 @@ grid.entities.append(player)
 mcrfpy.current_scene = scene
 
 # --- Entity Selection ---
+# region: selection
 selected = [None]
 
 def select_entity(entity):
@@ -48,3 +49,4 @@ def on_cell_click(cell_pos, button, action):
         select_entity(None)
 
 grid.on_cell_click = on_cell_click
+# endregion

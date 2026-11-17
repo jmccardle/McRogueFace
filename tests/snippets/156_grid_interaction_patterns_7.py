@@ -1,4 +1,4 @@
-# mcrf: objects=[Color,ColorLayer,Entity,Grid,Scene,TileLayer] verified=0.3.5 status=ok
+# mcrf: objects=[Color,ColorLayer,Entity,Grid,Scene,TileLayer] verified=0.3.6-dev status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("game")
@@ -24,6 +24,7 @@ grid.entities.append(player)
 mcrfpy.current_scene = scene
 
 # --- Path Preview ---
+# region: path-preview
 current_path_cells = []
 
 def show_path_to(target_x, target_y):
@@ -55,6 +56,7 @@ def on_cell_enter(cell_pos):
     show_path_to(int(cell_pos.x), int(cell_pos.y))
 
 grid.on_cell_enter = on_cell_enter
+# endregion
 
 # Exercise the pattern once so the layer content isn't dead code
 show_path_to(15, 12)
