@@ -1590,9 +1590,11 @@ PyStatus init_python(const char *program_name, const McRogueFaceConfig& mcrf_con
 #endif // __EMSCRIPTEN__
 
     status = Py_InitializeFromConfig(&config);
+#ifndef __EMSCRIPTEN__  // no sibling venv on web: sibling_site_packages is never set
     if (!PyStatus_Exception(status) && !sibling_site_packages.empty()) {
         isolate_from_sibling_venv(sibling_site_packages);
     }
+#endif
 
     PyConfig_Clear(&config);
 
@@ -1644,8 +1646,13 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
     // Set sys.executable to the McRogueFace binary path
     // #505: see init_python.
     auto exe_path = executable_filename();
+#ifdef __EMSCRIPTEN__
+    // Web has no launch path and no venv: executable is the engine, as before #505.
+    PyConfig_SetString(&pyconfig, &pyconfig.executable, exe_path.c_str());
+#else
     auto launch_exe = launch_executable(config);
     PyConfig_SetString(&pyconfig, &pyconfig.executable, launch_exe.c_str());
+#endif
     PyConfig_SetString(&pyconfig, &pyconfig.base_executable, exe_path.c_str());
 
     // Set interactive mode (replaces deprecated Py_InspectFlag)
@@ -1785,9 +1792,11 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
     PyImport_AppendInittab("mcrfpy", &PyInit_mcrfpy);
 
     status = Py_InitializeFromConfig(&pyconfig);
+#ifndef __EMSCRIPTEN__  // no sibling venv on web: sibling_site_packages is never set
     if (!PyStatus_Exception(status) && !sibling_site_packages.empty()) {
         isolate_from_sibling_venv(sibling_site_packages);
     }
+#endif
     PyConfig_Clear(&pyconfig);
 
     return status;
