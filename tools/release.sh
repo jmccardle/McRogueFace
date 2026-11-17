@@ -94,6 +94,9 @@ echo "ok: master at $(git rev-parse --short HEAD), $CURRENT -> $VERSION, previou
 step bump "header -> $VERSION, build"
 set_version "$VERSION"
 make -j"$(nproc)"
+# #531: compile the web target now. A desktop-only change broke it for a release cycle once;
+# failing here is minutes in, not after the suite. package-web reuses this build.
+make wasm-game
 
 # --- 3. test -------------------------------------------------------------------------
 step test "full suite and snippet check"
