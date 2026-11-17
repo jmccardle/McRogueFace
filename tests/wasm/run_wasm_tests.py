@@ -34,6 +34,7 @@ Exit code 0 = all tests passed, 1 = a test failed, 2 = harness/setup error.
 """
 import argparse
 import functools
+import math
 import http.server
 import socket
 import socketserver
@@ -208,6 +209,148 @@ def t_text_baseline(page):
     return _expect(out == want, f"line tops, baseline_y, metrics, default -> {out!r}")
 
 
+def canvas_image(page):
+    """The WebGL canvas as the browser composited it, as a PIL RGBA image.
+
+    Playwright's element screenshot reads the compositor output, so it needs no
+    preserveDrawingBuffer and sees exactly what a player sees. Two animation frames
+    first: the engine draws from requestAnimationFrame, so the scene a test just set
+    has been drawn once the second callback runs. The shot must be 1:1 with the
+    canvas backing store, or pixel coordinates would not be engine coordinates.
+    The engine letterboxes its 1024x768 scene into the canvas, which follows the
+    viewport, so a test wanting scene coordinates sizes the viewport to 1024x768
+    first (see with_scene_viewport).
+    """
+    import io
+    from PIL import Image
+    # The playground shell lays the canvas out at a CSS size smaller than its backing
+    # store; pin it to backing-store size at the page origin for the shot, then restore.
+    old_css = page.evaluate("""() => {
+        const c = Module.canvas, old = c.style.cssText;
+        c.style.cssText = `position: fixed; left: 0; top: 0; z-index: 2147483647;
+            width: ${c.width}px; height: ${c.height}px; margin: 0; padding: 0; border: 0`;
+        return old;
+    }""")
+    try:
+        page.evaluate("new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))")
+        png = page.locator("#canvas").screenshot()
+    finally:
+        page.evaluate("(css) => { Module.canvas.style.cssText = css; }", old_css)
+    img = Image.open(io.BytesIO(png)).convert("RGBA")
+    backing = tuple(page.evaluate("[Module.canvas.width, Module.canvas.height]"))
+    if img.size != backing:
+        raise RuntimeError(f"canvas shot is {img.size}, backing store is {backing}")
+    return img
+
+
+def with_scene_viewport(page, fn):
+    """Run fn() with the viewport (and so the canvas) exactly the 1024x768 scene size,
+    where one scene unit is one canvas pixel; restore the viewport afterwards and wait
+    (bounded, raising on timeout) until the canvas is back at its prior size."""
+    old = page.viewport_size
+    old_canvas = page.evaluate("[Module.canvas.width, Module.canvas.height]")
+    page.set_viewport_size({"width": 1024, "height": 768})
+    try:
+        page.wait_for_function(
+            "() => Module.canvas.width === 1024 && Module.canvas.height === 768", timeout=10000)
+        return fn()
+    finally:
+        page.set_viewport_size(old)
+        page.wait_for_function(
+            "([w, h]) => Module.canvas.width === w && Module.canvas.height === h",
+            arg=old_canvas, timeout=10000)
+
+
+# #542 scene, 1024x768 over a mid-grey Frame (100, 100, 100). Every arc is 10 px thick,
+# so its band edges are at radius r - 5 and r + 5.
+#   A  scene child, centre (300, 300), r 100, 0..180 (lower half; angles run clockwise
+#      on screen, y down), opaque (200, 100, 50).
+#   B  scene child, centre (700, 300), r 100, 270..360 (upper right), white at alpha 128.
+#   C  child of a black Frame at (100, 450) 300x250, local centre (150, 100) = scene
+#      (250, 550), r 60, 0..270, opaque (50, 200, 100): tests the parent's offset.
+#   D  scene child, centre (700, 550), r 80, 0..90, rotation 90 about its own centre,
+#      opaque (220, 40, 200): rotation turns a point at angle t to t + 90, so it
+#      sweeps 90..180 (lower left).
+ARC_SCENE_SRC = (
+    "import mcrfpy\n"
+    "sc = mcrfpy.Scene('arc542')\n"
+    "sc.children.append(mcrfpy.Frame(pos=(0, 0), size=(1024, 768),"
+    " fill_color=mcrfpy.Color(100, 100, 100)))\n"
+    "sc.children.append(mcrfpy.Arc(center=(300, 300), radius=100, start_angle=0,"
+    " end_angle=180, color=mcrfpy.Color(200, 100, 50), thickness=10))\n"
+    "sc.children.append(mcrfpy.Arc(center=(700, 300), radius=100, start_angle=270,"
+    " end_angle=360, color=mcrfpy.Color(255, 255, 255, 128), thickness=10))\n"
+    "box = mcrfpy.Frame(pos=(100, 450), size=(300, 250), fill_color=mcrfpy.Color(0, 0, 0))\n"
+    "box.children.append(mcrfpy.Arc(center=(150, 100), radius=60, start_angle=0,"
+    " end_angle=270, color=mcrfpy.Color(50, 200, 100), thickness=10))\n"
+    "sc.children.append(box)\n"
+    "d = mcrfpy.Arc(center=(700, 550), radius=80, start_angle=0, end_angle=90,"
+    " color=mcrfpy.Color(220, 40, 200), thickness=10)\n"
+    "d.origin = (700, 550)\n"
+    "d.rotation = 90\n"
+    "sc.children.append(d)\n"
+    "mcrfpy.current_scene = sc\n"
+)
+
+
+def t_arc_pixels(page):
+    return with_scene_viewport(page, lambda: _arc_pixels(page))
+
+
+def _arc_pixels(page, scene_src=ARC_SCENE_SRC):
+    # #542: mcrfpy.Arc draws through RenderTarget::draw(const Vertex*, ...) (a triangle
+    # strip), which was an empty stub on SDL2 until #539. See ARC_SCENE_SRC for the scene.
+    out = rp(page, scene_src)
+    if out.strip():
+        return _expect(False, f"building the arc scene printed/raised: {out!r}")
+    img = canvas_image(page)
+    px = lambda x, y: img.getpixel((round(x), round(y)))
+
+    def on_circle(cx, cy, r, deg):
+        a = math.radians(deg)
+        return cx + r * math.cos(a), cy + r * math.sin(a)
+
+    bad = []
+
+    def expect(label, xy, want):
+        got = px(*xy)
+        if got != want:
+            bad.append(f"{label} at {tuple(round(v) for v in xy)}: {got} != {want}")
+
+    GREY, BLACK = (100, 100, 100, 255), (0, 0, 0, 255)
+
+    def check_arc(name, c, r, lo, hi, colour, bg):
+        """colour on the band between angles lo..hi, bg just inside and just outside the
+        band's edges (r -+ 5, sampled 2 px beyond, on diagonals as well as an axis so an
+        offset in either axis moves a sample off the band), at the centre, and 5 degrees
+        before lo and past hi (the band is a few px wide, so 5 degrees is 7 px at r 80)."""
+        span = hi - lo
+        for deg in (lo + 0.1 * span, lo + 0.3 * span, lo + 0.5 * span, lo + 0.7 * span,
+                    lo + 0.9 * span):
+            expect(f"{name} band {deg:g} deg", on_circle(*c, r, deg), colour)
+            expect(f"{name} inside edge {deg:g} deg", on_circle(*c, r - 7, deg), bg)
+            expect(f"{name} outside edge {deg:g} deg", on_circle(*c, r + 7, deg), bg)
+        expect(f"{name} just inside start {lo + 3:g} deg", on_circle(*c, r, lo + 3), colour)
+        expect(f"{name} just inside end {hi - 3:g} deg", on_circle(*c, r, hi - 3), colour)
+        expect(f"{name} 5 deg before start {lo - 5:g}", on_circle(*c, r, lo - 5), bg)
+        expect(f"{name} 5 deg past end {hi + 5:g}", on_circle(*c, r, hi + 5), bg)
+        expect(f"{name} centre", c, bg)
+
+    # A: scene child. Sweep is 0..180; the diagonals 45 and 135 are among the samples.
+    check_arc("A", (300, 300), 100, 0, 180, (200, 100, 50, 255), GREY)
+    # B: white at alpha 128 over grey 100, by the blend equation
+    #   result = src * a + dst * (1 - a), a = 128 / 255   ->   177.8, i.e. 178.
+    # Additive blending would give 228; ignoring alpha, 255; replacing the colour, 128.
+    a = 128 / 255
+    blended = round(255 * a + 100 * (1 - a))
+    check_arc("B", (700, 300), 100, 270, 360, (blended, blended, blended, 255), GREY)
+    # C: inside a Frame at (100, 450); local centre (150, 100) is scene (250, 550).
+    check_arc("C", (250, 550), 60, 0, 270, (50, 200, 100, 255), BLACK)
+    # D: rotated 90 about its own centre; 0..90 appears as 90..180.
+    check_arc("D", (700, 550), 80, 90, 180, (220, 40, 200, 255), GREY)
+    return _expect(not bad, "; ".join(bad) or "arc colour on every band, background elsewhere")
+
+
 TESTS = [
     ("basic_eval", t_basic_eval),
     ("print_stdout", t_print_stdout),
@@ -221,6 +364,7 @@ TESTS = [
     ("reset_environment", t_reset_environment),
     ("utf8_text", t_utf8_text),
     ("text_baseline", t_text_baseline),
+    ("arc_pixels", t_arc_pixels),
 ]
 
 
