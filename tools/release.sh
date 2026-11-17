@@ -107,7 +107,7 @@ step test "full suite and snippet check"
 # --- 4. docs -------------------------------------------------------------------------
 step docs "docs, manifest, snippet stamps and shots"
 "${WITH_DISPLAY[@]}" make docs
-make stamp-snippets
+"${WITH_DISPLAY[@]}" make stamp-snippets
 "${WITH_DISPLAY[@]}" make snippet-shots
 [ "$(python3 -c 'import json; m = json.load(open("api/manifest.json")); print(m["version"], m["commit"])')" = "$VERSION None" ] \
     || die "api/manifest.json should say version $VERSION with commit null"
