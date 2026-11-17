@@ -1,23 +1,29 @@
-# mcrf: objects=[Easing,Grid,Scene,Timer] verified=0.3.6-dev status=ok
+# mcrf: objects=[Color,ColorLayer,Easing,Grid,Scene,Timer] verified=0.3.6-dev status=ok
 # Screen shake manager with presets, and a directional shake built on it
 import mcrfpy
 
 scene = mcrfpy.Scene("demo")
 mcrfpy.current_scene = scene
 
+# A grid larger than the view (16 x 12 cells at zoom 4), with the camera in its middle, so
+# a shake never shows the edge of the world
 grid = mcrfpy.Grid(
-    grid_size=(16, 12),
+    grid_size=(32, 24),
     texture=mcrfpy.default_texture,
     pos=(0, 0),
     size=(1024, 768),
     zoom=4.0
 )
 scene.children.append(grid)
+grid.center = (256, 192)
 
-# Give the camera something to shake: a checkerboard of two tile sprites
-for y in range(12):
-    for x in range(16):
-        grid.at(x, y).tilesprite = 48 + (x + y) % 2
+# Give the camera something to shake: a two-colour checkerboard
+checker = mcrfpy.ColorLayer(z_index=1, name="checker")
+grid.add_layer(checker)
+for y in range(24):
+    for x in range(32):
+        shade = 70 if (x + y) % 2 else 110
+        checker.set((x, y), mcrfpy.Color(shade, shade + 15, shade + 40))
 
 # region: manager
 import mcrfpy
@@ -145,16 +151,17 @@ class ScreenShakeManager:
 # Setup
 shaker = ScreenShakeManager(grid, mode="camera")
 
-# Usage
-shaker.light_hit()   # Small impact
-shaker.heavy_hit()   # Bigger impact
-shaker.explosion()   # Boom!
-shaker.earthquake()  # Environmental effect
-shaker.death()       # Dramatic moment
-
 # After player moves, update origin so shakes return to correct position
 grid.center = (grid.center[0] + 32, grid.center[1])  # e.g. the camera follows the player
 shaker.update_origin()
+
+# Usage: a shake started while another is running is ignored (is_shaking), so each
+# preset is started after the previous one has finished
+shaker.light_hit()   # Small impact
+mcrfpy.Timer("hit_heavy", lambda t, rt: shaker.heavy_hit(), 300, once=True)       # Bigger impact
+mcrfpy.Timer("hit_boom", lambda t, rt: shaker.explosion(), 650, once=True)        # Boom!
+mcrfpy.Timer("hit_quake", lambda t, rt: shaker.earthquake(), 1150, once=True)     # Environmental effect
+mcrfpy.Timer("hit_death", lambda t, rt: shaker.death(), 2300, once=True)          # Dramatic moment
 # endregion
 
 # region: directional

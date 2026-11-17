@@ -49,6 +49,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import snippet_regions  # noqa: E402
+import snippet_run  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SNIPPET_DIR = os.path.join(ROOT, "tests", "snippets")
@@ -56,6 +57,11 @@ HARNESS = os.path.join(SNIPPET_DIR, "_harness.py")
 MANIFEST = os.path.join(ROOT, "api", "manifest.json")
 BUILD_DIR = os.environ.get("MCRF_BUILD_DIR", os.path.join(ROOT, "build"))
 MCROGUEFACE = os.path.join(BUILD_DIR, "mcrogueface")
+
+# Each run gets its own scratch working directory: the engine writes files into its cwd
+# (a `save/` directory, imgui.ini), and agents running this concurrently against one shared
+# build directory would otherwise write into -- and race on -- that directory.
+SCRATCH = None  # set by main(): a per-run working directory (tools/snippet_run.py)
 
 HEADER_RE = re.compile(r"^#\s*mcrf:\s*(.*)$")
 TIMEOUT = 30
@@ -133,7 +139,7 @@ def run_snippet(path):
     try:
         proc = subprocess.run(
             [MCROGUEFACE, "--headless", "--exec", path, "--exec", HARNESS],
-            capture_output=True, text=True, timeout=TIMEOUT, cwd=BUILD_DIR, env=env,
+            capture_output=True, text=True, timeout=TIMEOUT, cwd=SCRATCH, env=env,
         )
     except subprocess.TimeoutExpired:
         return "fail", "timeout"
@@ -206,7 +212,9 @@ def main():
     args = ap.parse_args()
 
     if not os.path.exists(MCROGUEFACE):
-        sys.exit(f"{MCROGUEFACE} not found -- run `make` first")
+        sys.exit(f"{MCROGUEFACE} not found -- run `make` first (or set MCRF_BUILD_DIR)")
+    global SCRATCH
+    SCRATCH = snippet_run.scratch_cwd(BUILD_DIR, "mcrf-stamp-")
 
     version, commit, known = load_manifest()
     paths = select_paths(snippet_paths(), args.only)
