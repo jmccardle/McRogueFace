@@ -518,6 +518,12 @@ void GameEngine::run()
 
 void GameEngine::doFrame()
 {
+    // #529: callbacks run in here; a screenshot they take shows the previous frame.
+    struct FrameScope {
+        bool& flag;
+        explicit FrameScope(bool& f) : flag(f) { flag = true; }
+        ~FrameScope() { flag = false; }
+    } frameScope(in_frame);
     // #341: simulation metrics belong to this frame's sim pass; render counters are
     // cleared/published around the render pass below.
     metrics.beginSimFrame();
@@ -620,6 +626,8 @@ void GameEngine::doFrame()
         window->display();
         Py_END_ALLOW_THREADS
     }
+    frame_rendered = true;  // #529
+    render_stale = false;
 
     // #219 - Safe window for background threads to modify UI
     // This runs AFTER display() but BEFORE the next frame's processing
@@ -1193,6 +1201,12 @@ float GameEngine::step(float dt) {
 // exactly), while `dt_seconds` is the value the frame reports to animations and
 // Scene.update() -- step(float) still passes through the caller's own float unchanged.
 float GameEngine::runSimFrame(int ms, float actual_dt) {
+    // #529: timer callbacks run in here; a screenshot they take shows the last render.
+    struct FrameScope {
+        bool& flag;
+        explicit FrameScope(bool& f) : flag(f) { flag = true; }
+        ~FrameScope() { flag = false; }
+    } frameScope(in_frame);
     simulation_time += ms;
 
     // #350: step() is a full SIMULATION frame -- everything doFrame() does except
@@ -1260,6 +1274,7 @@ float GameEngine::runSimFrame(int ms, float actual_dt) {
     }
 
     currentFrame++;
+    render_stale = true;  // #529: this frame is complete but undrawn; a screenshot draws it
 
     return actual_dt;
 }
@@ -1338,8 +1353,23 @@ void GameEngine::renderScene() {
 
     metrics.endRender();
 
-    // For RenderTexture (headless), we need to call display()
+    // Present, as doFrame() does, so the buffer a screenshot reads is a complete frame.
     if (headless && headless_renderer) {
         headless_renderer->display();
+    } else if (window) {
+        window->display();
+    }
+
+    frame_rendered = true;
+    render_stale = false;
+}
+
+// #529: see GameEngine.h. The one place that decides whether a screenshot needs a render.
+void GameEngine::presentForCapture() {
+    getRenderTarget();  // raises NoDisplayError here, before any state is touched
+    const bool no_frame_yet = !frame_rendered;
+    const bool headless_step_pending = headless && render_stale && !in_frame;
+    if (no_frame_yet || headless_step_pending) {
+        renderScene();
     }
 }

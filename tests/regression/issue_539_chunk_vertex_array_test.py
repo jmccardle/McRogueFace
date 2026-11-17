@@ -126,6 +126,7 @@ def expected(tiles, colors, px, py, cell_w, cell_h):
 def compare(label, shot, tiles, colors, cell_w, cell_h, view_w, view_h, zoom=1, left=0, top=0):
     """Screen pixel (px, py) shows world pixel (left + px // zoom, top + py // zoom); `left` /
     `top` are the integer "spritepixels" origin of the view."""
+    mcrfpy.step(0)  # the screenshot shows the last complete frame; draw this one (#529)
     automation.screenshot(shot)
     w, h, ch, px = read_png(shot)
     bad = 0

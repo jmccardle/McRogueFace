@@ -28,6 +28,7 @@ def check(label, got, want):
 
 
 def repainted():
+    mcrfpy.step(0)  # the screenshot shows the last complete frame; draw this one (#529)
     automation.screenshot(SHOT)
     return mcrfpy.get_metrics()["grid_chunks_repainted"]
 

@@ -374,6 +374,7 @@ PyObject* PyWindow::screenshot(PyWindowObject* self, PyObject* args, PyObject* k
     // Get the render target (#451: a headless one is created here, which needs a display)
     if (!mcrf::require_display_py("Window.screenshot()")) return NULL;
     sf::RenderTarget* target = &game->getRenderTarget();
+    game->presentForCapture();  // #529: same rule as automation.screenshot()
     
     sf::Image screenshot;
     
@@ -629,7 +630,7 @@ PyMethodDef PyWindow::methods[] = {
          MCRF_ARGS_START
          MCRF_ARG("filename", "Optional path to save screenshot. If omitted, returns raw RGBA bytes.")
          MCRF_RETURNS("bytes | None: Raw RGBA pixel data if no filename given, otherwise None after saving")
-         MCRF_NOTE("Screenshot is taken at the actual window resolution. Use after render loop update for current frame.")
+         MCRF_NOTE("Taken at the actual window resolution. Captures the last complete frame (what is on screen), never a mid-frame render: a second call after changing objects, with no frame in between, returns the same image. If no frame has been rendered yet in this process, the first call renders one (a static scene needs no frame loop). Headless, a step() or advance() that finished since the last render is drawn first. In a Timer callback, you get the previous frame.")
      )},
     {NULL}
 };

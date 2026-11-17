@@ -257,6 +257,11 @@ private:
     bool running = true;
     bool paused = false;
     int currentFrame = 0;
+    // #529: display-buffer bookkeeping, written only by renderScene(), doFrame() and
+    // runSimFrame(); read only by presentForCapture().
+    bool frame_rendered = false;  // a complete frame has been rendered into the display buffer
+    bool render_stale = false;    // headless: a simulation frame finished after the last render
+    bool in_frame = false;        // inside doFrame()/runSimFrame(): timers and callbacks run here
     sf::View visible;
     sf::Clock clock;
     float frameTime;
@@ -431,7 +436,16 @@ public:
     // an interval. Returns the milliseconds actually advanced (0 in windowed mode).
     int advance(int ms);
     int getSimulationTime() const { return simulation_time; }
-    void renderScene();  // Force render current scene (for synchronous screenshot)
+    void renderScene();  // Render the current scene into the display buffer; zero simulation time
+    // #529: THE choke point every screenshot passes through before it reads the display
+    // buffer. Renders only when the buffer holds no complete frame to show: (1) none has
+    // ever been rendered (the first-frame "static rendering shortcut"), or (2) headless,
+    // where step()/advance() run frames without drawing (they must work with no display,
+    // #451), and a step has completed since the last render. Never renders from inside a
+    // frame (a Timer callback sees the previous complete frame), except case (1), which has
+    // no previous frame to show. Throws mcrf::NoDisplayError without a display.
+    void presentForCapture();
+    bool hasRenderedFrame() const { return frame_rendered; }
 
     // #219 - Thread synchronization for background threads
     FrameLock& getFrameLock() { return frameLock; }

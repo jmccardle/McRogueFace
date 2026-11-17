@@ -86,6 +86,7 @@ def read_png(path):
 
 def shot(name):
     path = os.path.join(TMPDIR, name + ".png")
+    mcrfpy.step(0)  # the screenshot shows the last complete frame; draw this one (#529)
     automation.screenshot(path)
     return read_png(path)
 

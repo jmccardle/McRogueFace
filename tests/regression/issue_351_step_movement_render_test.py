@@ -27,6 +27,7 @@ def shot():
     global _n
     p = os.path.join(TMPDIR, "s%d.png" % _n)
     _n += 1
+    mcrfpy.step(0)  # the screenshot shows the last complete frame; draw this one (#529)
     automation.screenshot(p)
     with open(p, "rb") as f:
         return f.read()
