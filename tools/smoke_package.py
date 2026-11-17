@@ -4,7 +4,10 @@
 Each archive is unpacked into a fresh directory outside the source tree and run from
 there, so nothing resolves against the build tree:
 
-  *-Linux.tar.gz     ./mcrogueface --headless
+  *-Linux.tar.gz     ./mcrogueface --headless; then, in clean Debian 13 and Ubuntu 24.04
+                     containers with only CLEAN_DISTRO_PACKAGES installed, the same probe
+                     run directly (no run.sh, no LD_LIBRARY_PATH) and `ldd` finding every
+                     dependency of every ELF in the package (#525; needs podman or docker, --no-clean-distro skips it)
   *-Windows.zip      wine mcrogueface.exe --headless   (needs wine)
   *-WASM.zip         index.html at the zip root, then tests/wasm/run_wasm_tests.py in
                      headless Chromium (needs the .venv-wasmtest Playwright venv)
@@ -27,6 +30,42 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WASM_VENV_PY = ROOT / ".venv-wasmtest" / "bin" / "python"
+
+# The Linux floor (#525): Debian 13 / Ubuntu 24.04 and newer (glibc >= 2.38). Every image
+# is a clean install plus exactly these packages, which README.md documents: the first list
+# is what the engine needs to start, the second what some stdlib modules need (the Python
+# extension modules under lib/Python/). The package ships everything else, libFLAC included.
+CLEAN_DISTRO_IMAGES = ("docker.io/library/debian:13-slim", "docker.io/library/ubuntu:24.04")
+ENGINE_PACKAGES = ("libopenal1 libvorbisfile3 libvorbisenc2 libfreetype6 libx11-6 libxrandr2 "
+                   "libxcursor1 libudev1 libopengl0 libgl1")
+STDLIB_PACKAGES = ("libsqlite3-0 libssl3t64 libffi8 libreadline8t64 libgdbm6t64 libncursesw6 "
+                   "libuuid1 libbz2-1.0 liblzma5 libzstd1")
+# Test-only, installed after the dependency check: the probe builds a Grid, which needs a
+# display (#451), so it runs under Xvfb.
+TEST_PACKAGES = "xvfb libgl1-mesa-dri"
+CONTAINER_TOOLS = ("podman", "docker")
+
+# Runs inside the container, in the unpacked package (mounted read-only at /pkg). The
+# documented packages are installed first and alone, so the ldd check proves they suffice.
+CLEAN_DISTRO_SCRIPT = """set -e
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq >/dev/null || {{ echo "APT-FAILED update"; exit 5; }}
+apt-get install -y -qq --no-install-recommends {packages} >/dev/null \\
+    || {{ echo "APT-FAILED install of the documented packages"; exit 5; }}
+cd /pkg
+missing=$(for f in mcrogueface $(find lib -type f \\( -name '*.so' -o -name '*.so.*' \\)); do ldd "$f" 2>&1 | grep 'not found' | sed "s|^|$f: |"; done)
+if [ -n "$missing" ]; then echo "DEPS-NOT-FOUND"; echo "$missing"; exit 3; fi
+echo "DEPS-OK"
+apt-get install -y -qq --no-install-recommends {test_packages} >/dev/null \\
+    || {{ echo "APT-FAILED install of the test-only packages"; exit 5; }}
+Xvfb :99 -nolisten tcp >/dev/null 2>&1 &
+for i in $(seq 100); do [ -e /tmp/.X11-unix/X99 ] && break; sleep 0.1; done
+[ -e /tmp/.X11-unix/X99 ] || {{ echo "XVFB-FAILED"; exit 4; }}
+rc=0
+DISPLAY=:99 ALSOFT_DRIVERS=null timeout 120 ./mcrogueface --headless -c "$PROBE" || rc=$?
+kill %1 2>/dev/null || true
+exit $rc
+"""
 
 PROBE = (
     "import mcrfpy, sys, ssl, socket, asyncio, selectors, sqlite3, pydoc, sysconfig, venv, ensurepip\n"
@@ -63,7 +102,37 @@ def check_probe(label, out, rc, version):
           "import, FOV runs" % (label, got, py, plat))
 
 
-def smoke_linux(archive, version, work):
+def container_tool():
+    for tool in CONTAINER_TOOLS:
+        if shutil.which(tool):
+            return tool
+    fail("neither podman nor docker found; the Linux package is tested in clean containers "
+         "(pass --no-clean-distro to skip, for development only)")
+
+
+def smoke_clean_distro(archive, pkg, version):
+    tool = container_tool()
+    script = CLEAN_DISTRO_SCRIPT.format(packages=ENGINE_PACKAGES + " " + STDLIB_PACKAGES,
+                                         test_packages=TEST_PACKAGES)
+    for image in CLEAN_DISTRO_IMAGES:
+        label = "%s on %s" % (archive.name, image.rsplit("/", 1)[-1])
+        try:
+            r = subprocess.run([tool, "run", "--rm", "-v", "%s:/pkg:ro" % pkg,
+                                "-e", "PROBE=" + PROBE, image, "bash", "-c", script],
+                               capture_output=True, text=True, timeout=900)
+        except subprocess.TimeoutExpired:
+            fail("%s: container run exceeded 900s" % label)
+        out = r.stdout + r.stderr
+        if "DEPS-NOT-FOUND" in out:
+            fail("%s: unresolved dependencies (run directly, no LD_LIBRARY_PATH):\n%s"
+                 % (label, out.split("DEPS-NOT-FOUND", 1)[1][:1500]))
+        if "APT-FAILED" in out or "DEPS-OK" not in out:
+            fail("%s: container setup failed (image pull or apt-get, not the package) (rc %d):\n%s"
+                 % (label, r.returncode, out[-1500:]))
+        check_probe(label, out, r.returncode, version)
+
+
+def smoke_linux(archive, version, work, clean_distro=True):
     with tarfile.open(archive) as tf:
         # Our own archive; the "data" filter (Python 3.12+, and 3.11.4+) also checks it
         # holds nothing outside its folder.
@@ -73,6 +142,8 @@ def smoke_linux(archive, version, work):
     r = subprocess.run(["./mcrogueface", "--headless", "-c", PROBE], cwd=pkg, env=env,
                        capture_output=True, text=True, timeout=120)
     check_probe(archive.name, r.stdout + r.stderr, r.returncode, version)
+    if clean_distro:
+        smoke_clean_distro(archive, pkg, version)
 
 
 def smoke_windows(archive, version, work):
@@ -112,6 +183,9 @@ def smoke_wasm(archive, version, work):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--version", required=True, help="the version every package must report")
+    ap.add_argument("--no-clean-distro", action="store_true",
+                    help="skip the clean-container run of the Linux package (development only; "
+                         "tools/release.sh never passes it)")
     ap.add_argument("archives", nargs="+", type=Path)
     a = ap.parse_args()
     for archive in a.archives:
@@ -123,7 +197,7 @@ def main():
             fail("%s is not named for version %s" % (name, a.version))
         with tempfile.TemporaryDirectory(prefix="mcrf-smoke-") as work:
             if name.endswith("-Linux.tar.gz"):
-                smoke_linux(archive, a.version, work)
+                smoke_linux(archive, a.version, work, not a.no_clean_distro)
             elif name.endswith("-Windows.zip"):
                 smoke_windows(archive, a.version, work)
             elif name.endswith("-WASM.zip"):

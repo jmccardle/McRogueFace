@@ -14,6 +14,7 @@ import fnmatch
 import json
 import os
 import shutil
+import struct
 import sys
 import tarfile
 import zipfile
@@ -27,7 +28,8 @@ STDLIB_EXCLUDED_DIRS = ("test", "tests", "idlelib", "tkinter", "turtledemo", "py
                         "lib2to3", "_pyrepl", "__pycache__")
 STDLIB_EXCLUDED_FILES = ("*.pyc", "*.pyo", "test_*.py", "*_test.py")
 # Left out of the extension modules (Linux).
-EXTENSION_EXCLUDED = ("*test*", "xxlimited*", "_ctypes_test*", "_xxtestfuzz*")
+# (_tkinter: the tkinter package is excluded above, and its Tcl/Tk libraries are not shipped.)
+EXTENSION_EXCLUDED = ("*test*", "xxlimited*", "_ctypes_test*", "_xxtestfuzz*", "_tkinter*")
 
 SFML_MODULES = ("graphics", "window", "system", "audio")
 
@@ -49,6 +51,55 @@ exec "$SCRIPT_DIR/mcrogueface" "$@"
 """
 
 PLATFORM_TITLES = {"linux": "Linux", "windows": "Windows"}
+
+
+def elf_needed(path):
+    """The DT_NEEDED names of a 64-bit little-endian ELF shared object, in order.
+
+    Read here, not with readelf: this runs on end-user machines under the engine's own
+    Python, in `mcrf_project dist`.
+    """
+    data = Path(path).read_bytes()
+    try:
+        return _elf_needed(path, data)
+    except (struct.error, ValueError, IndexError) as e:
+        raise ProjectError("%s is a truncated or corrupt ELF file (%s)" % (path, e))
+
+
+def _elf_needed(path, data):
+    if data[:4] != b"\x7fELF" or data[4] != 2 or data[5] != 1:
+        raise ProjectError("%s is not a 64-bit little-endian ELF file" % path)
+    phoff, = struct.unpack_from("<Q", data, 0x20)
+    phentsize, phnum = struct.unpack_from("<HH", data, 0x36)
+    loads, dynamic = [], None
+    for i in range(phnum):
+        p_type, _, p_offset, p_vaddr, _, p_filesz, _, _ = struct.unpack_from(
+            "<IIQQQQQQ", data, phoff + i * phentsize)
+        if p_type == 1:      # PT_LOAD
+            loads.append((p_vaddr, p_offset, p_filesz))
+        elif p_type == 2:    # PT_DYNAMIC
+            dynamic = (p_offset, p_filesz)
+    if dynamic is None:
+        raise ProjectError("%s has no dynamic section" % path)
+
+    needed, strtab = [], None
+    for off in range(dynamic[0], dynamic[0] + dynamic[1], 16):
+        tag, val = struct.unpack_from("<qQ", data, off)
+        if tag == 0:         # DT_NULL
+            break
+        if tag == 1:         # DT_NEEDED: offset into the string table
+            needed.append(val)
+        elif tag == 5:       # DT_STRTAB: a virtual address
+            strtab = val
+    if strtab is None:
+        raise ProjectError("%s has no string table" % path)
+    for vaddr, offset, size in loads:
+        if vaddr <= strtab < vaddr + size:
+            base = offset + strtab - vaddr
+            break
+    else:
+        raise ProjectError("%s: string table is outside every loadable segment" % path)
+    return [data[base + n:data.index(b"\0", base + n)].decode() for n in needed]
 
 
 def _one(paths, what, where):
@@ -175,8 +226,20 @@ class Runtime:
             full = _one(lib.glob("libsfml-%s.so.*.*.*" % module), "libsfml-%s" % module, lib).name
             major_minor = full.rsplit(".", 1)[0]
             real.append(full)
+            if module == "audio":
+                audio = full
             links[major_minor[:major_minor.rindex(".so") + 3]] = full
             links[major_minor] = full
+        # SFML's audio library records the libFLAC it was linked against, whose soname
+        # differs between distros, so it ships with the package, under the name recorded.
+        # Build time put it next to the SFML libraries (tools/build_deps.sh). It is found
+        # by that name and nothing else is bundled: openal, vorbis, ogg, X11, GL and
+        # freetype are the host's (#525).
+        flac = [n for n in elf_needed(lib / audio) if fnmatch.fnmatch(n, "libFLAC.so.*")]
+        if len(flac) != 1:
+            raise ProjectError("%s records %d libFLAC dependencies (%s), expected 1"
+                               % (lib / audio, len(flac), ", ".join(flac)))
+        real.append(flac[0])
         for name in real:
             if not (lib / name).exists():
                 raise ProjectError("missing runtime library %s" % (lib / name))

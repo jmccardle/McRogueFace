@@ -18,6 +18,26 @@ A Python-powered 2D game engine for creating roguelike games, built with C++ and
 
 Extract and run `mcrogueface` (or `mcrogueface.exe` on Windows) to see the demo game.
 
+The Linux package needs Debian 13 / Ubuntu 24.04 or newer (glibc 2.38+). It ships its own
+Python, libtcod, SFML and libFLAC; the rest comes from the system. To start the engine:
+
+```bash
+sudo apt install libopenal1 libvorbisfile3 libvorbisenc2 libfreetype6 libx11-6 \
+    libxrandr2 libxcursor1 libudev1 libopengl0 libgl1
+```
+
+Some of Python's standard-library modules (sqlite3, ssl, readline, curses, dbm.gnu, uuid,
+bz2, lzma, ctypes, ...) load extension modules that need more:
+
+```bash
+sudo apt install libsqlite3-0 libssl3t64 libffi8 libreadline8t64 libgdbm6t64 libncursesw6 \
+    libuuid1 libbz2-1.0 liblzma5 libzstd1
+```
+
+The release gate installs exactly these on clean Debian 13 and Ubuntu 24.04 containers and
+checks that every ELF in the package resolves its libraries, then runs `./mcrogueface`
+directly.
+
 ### Your First Game
 
 Create `scripts/game.py` (or edit the existing one):
@@ -101,7 +121,7 @@ make
 
 ### System Requirements
 
-- **Linux**: Debian/Ubuntu tested; other distros should work
+- **Linux**: Debian 13 / Ubuntu 24.04 or newer for the binary package (glibc 2.38+); other distros should work when built from source
 - **Windows**: Supported (see build guide for details)
 - **macOS**: Untested
 

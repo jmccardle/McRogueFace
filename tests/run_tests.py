@@ -117,6 +117,7 @@ SLOW_TESTS = {
     "integration/venv_pip_end_to_end_test.py": 90,
     "regression/issue_505_python_mode_test.py": 40,
     "packaging/venv_packaged_test.py": 240,
+    "packaging/issue_525_linux_closure_packaged_test.py": 240,  # builds the package (170s cap)
 }
 
 
