@@ -49,7 +49,9 @@ static bool parseOptionalPos(PyObject* pos_obj, int* out_x, int* out_y, const ch
     return PyPosition_FromObjectInt(pos_obj, out_x, out_y, param_name);
 }
 
-// Parse optional size tuple
+// Parse optional size: through the position helper, so it gets the same type / range /
+// finiteness checks as pos (and the helper's exceptions are never replaced). A successful
+// parse must still be positive.
 static bool parseOptionalSize(PyObject* size_obj, int* out_w, int* out_h, const char* param_name) {
     *out_w = -1;  // -1 means "not specified"
     *out_h = -1;
@@ -58,34 +60,17 @@ static bool parseOptionalSize(PyObject* size_obj, int* out_w, int* out_h, const 
         return true;
     }
 
-    if (PyTuple_Check(size_obj) && PyTuple_Size(size_obj) == 2) {
-        PyObject* w_obj = PyTuple_GetItem(size_obj, 0);
-        PyObject* h_obj = PyTuple_GetItem(size_obj, 1);
-        if (PyLong_Check(w_obj) && PyLong_Check(h_obj)) {
-            *out_w = (int)PyLong_AsLong(w_obj);
-            *out_h = (int)PyLong_AsLong(h_obj);
-            if (*out_w <= 0 || *out_h <= 0) {
-                PyErr_Format(PyExc_ValueError, "%s dimensions must be positive", param_name);
-                return false;
-            }
-            return true;
-        }
-    } else if (PyList_Check(size_obj) && PyList_Size(size_obj) == 2) {
-        PyObject* w_obj = PyList_GetItem(size_obj, 0);
-        PyObject* h_obj = PyList_GetItem(size_obj, 1);
-        if (PyLong_Check(w_obj) && PyLong_Check(h_obj)) {
-            *out_w = (int)PyLong_AsLong(w_obj);
-            *out_h = (int)PyLong_AsLong(h_obj);
-            if (*out_w <= 0 || *out_h <= 0) {
-                PyErr_Format(PyExc_ValueError, "%s dimensions must be positive", param_name);
-                return false;
-            }
-            return true;
-        }
+    int w, h;
+    if (!PyPosition_FromObjectInt(size_obj, &w, &h, param_name)) {
+        return false;
     }
-
-    PyErr_Format(PyExc_TypeError, "%s must be a (width, height) tuple or list", param_name);
-    return false;
+    if (w <= 0 || h <= 0) {
+        PyErr_Format(PyExc_ValueError, "%s dimensions must be positive", param_name);
+        return false;
+    }
+    *out_w = w;
+    *out_h = h;
+    return true;
 }
 
 // Parse region parameters for binary operations (two heightmaps)
@@ -2592,6 +2577,23 @@ static bool collectBSPNodes(
     return true;
 }
 
+// The cells of a BSP node's region on a w x h map, for add_bsp / multiply_bsp. All arithmetic
+// is int64 (offset + shrink + node extents can exceed int) and BOTH ends are clamped to the map
+// before narrowing. False when the region is empty or entirely off the map.
+static bool bspNodeRegion(const TCOD_bsp_t* node, long long off_x, long long off_y, int shrink,
+                          int map_w, int map_h, int* x1, int* y1, int* x2, int* y2) {
+    auto clamp = [](long long v, long long hi) { return v < 0 ? 0LL : (v > hi ? hi : v); };
+    long long lx1 = node->x + off_x + (long long)shrink;
+    long long ly1 = node->y + off_y + (long long)shrink;
+    long long lx2 = node->x + off_x + node->w - (long long)shrink;
+    long long ly2 = node->y + off_y + node->h - (long long)shrink;
+    lx1 = clamp(lx1, map_w); lx2 = clamp(lx2, map_w);
+    ly1 = clamp(ly1, map_h); ly2 = clamp(ly2, map_h);
+    if (lx1 >= lx2 || ly1 >= ly2) return false;
+    *x1 = (int)lx1; *y1 = (int)ly1; *x2 = (int)lx2; *y2 = (int)ly2;
+    return true;
+}
+
 // Method: add_bsp(bsp, *, pos=None, select='leaves', nodes=None, shrink=0, value=1.0) -> HeightMap
 PyObject* PyHeightMap::add_bsp(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
 {
@@ -2631,19 +2633,19 @@ PyObject* PyHeightMap::add_bsp(PyHeightMapObject* self, PyObject* args, PyObject
     // Calculate offset for BSP coordinates
     // Default (pos=None): origin-relative like to_heightmap (-bsp.orig_x, -bsp.orig_y)
     // pos=(x, y): offset so BSP origin maps to (x, y) in heightmap
-    int offset_x, offset_y;
+    long long offset_x, offset_y;
     if (!pos_obj || pos_obj == Py_None) {
         // Origin-relative: translate BSP to (0, 0)
-        offset_x = -bsp->orig_x;
-        offset_y = -bsp->orig_y;
+        offset_x = -(long long)bsp->orig_x;
+        offset_y = -(long long)bsp->orig_y;
     } else {
         // Custom position
         int pos_x, pos_y;
         if (!parseOptionalPos(pos_obj, &pos_x, &pos_y, "pos")) {
             return nullptr;
         }
-        offset_x = pos_x - bsp->orig_x;
-        offset_y = pos_y - bsp->orig_y;
+        offset_x = (long long)pos_x - bsp->orig_x;
+        offset_y = (long long)pos_y - bsp->orig_y;
     }
 
     // Collect nodes
@@ -2654,19 +2656,9 @@ PyObject* PyHeightMap::add_bsp(PyHeightMapObject* self, PyObject* args, PyObject
 
     // Add value to each node's region (with offset)
     for (TCOD_bsp_t* node : nodes) {
-        int x1 = node->x + offset_x + shrink;
-        int y1 = node->y + offset_y + shrink;
-        int x2 = node->x + offset_x + node->w - shrink;
-        int y2 = node->y + offset_y + node->h - shrink;
-
-        // Clamp to heightmap bounds and skip if shrunk to nothing
-        if (x1 >= x2 || y1 >= y2) continue;
-        if (x1 < 0) x1 = 0;
-        if (y1 < 0) y1 = 0;
-        if (x2 > self->heightmap->w) x2 = self->heightmap->w;
-        if (y2 > self->heightmap->h) y2 = self->heightmap->h;
-        if (x1 >= self->heightmap->w || y1 >= self->heightmap->h) continue;
-        if (x2 <= 0 || y2 <= 0) continue;
+        int x1, y1, x2, y2;
+        if (!bspNodeRegion(node, offset_x, offset_y, shrink, self->heightmap->w, self->heightmap->h,
+                           &x1, &y1, &x2, &y2)) continue;
 
         for (int y = y1; y < y2; y++) {
             for (int x = x1; x < x2; x++) {
@@ -2717,18 +2709,18 @@ PyObject* PyHeightMap::multiply_bsp(PyHeightMapObject* self, PyObject* args, PyO
     }
 
     // Calculate offset for BSP coordinates
-    int offset_x, offset_y;
+    long long offset_x, offset_y;
     if (!pos_obj || pos_obj == Py_None) {
         // Origin-relative: translate BSP to (0, 0)
-        offset_x = -bsp->orig_x;
-        offset_y = -bsp->orig_y;
+        offset_x = -(long long)bsp->orig_x;
+        offset_y = -(long long)bsp->orig_y;
     } else {
         int pos_x, pos_y;
         if (!parseOptionalPos(pos_obj, &pos_x, &pos_y, "pos")) {
             return nullptr;
         }
-        offset_x = pos_x - bsp->orig_x;
-        offset_y = pos_y - bsp->orig_y;
+        offset_x = (long long)pos_x - bsp->orig_x;
+        offset_y = (long long)pos_y - bsp->orig_y;
     }
 
     // Collect nodes
@@ -2741,19 +2733,9 @@ PyObject* PyHeightMap::multiply_bsp(PyHeightMapObject* self, PyObject* args, PyO
     std::vector<bool> in_region(self->heightmap->w * self->heightmap->h, false);
 
     for (TCOD_bsp_t* node : nodes) {
-        int x1 = node->x + offset_x + shrink;
-        int y1 = node->y + offset_y + shrink;
-        int x2 = node->x + offset_x + node->w - shrink;
-        int y2 = node->y + offset_y + node->h - shrink;
-
-        // Clamp and skip if invalid
-        if (x1 >= x2 || y1 >= y2) continue;
-        if (x1 < 0) x1 = 0;
-        if (y1 < 0) y1 = 0;
-        if (x2 > self->heightmap->w) x2 = self->heightmap->w;
-        if (y2 > self->heightmap->h) y2 = self->heightmap->h;
-        if (x1 >= self->heightmap->w || y1 >= self->heightmap->h) continue;
-        if (x2 <= 0 || y2 <= 0) continue;
+        int x1, y1, x2, y2;
+        if (!bspNodeRegion(node, offset_x, offset_y, shrink, self->heightmap->w, self->heightmap->h,
+                           &x1, &y1, &x2, &y2)) continue;
 
         for (int y = y1; y < y2; y++) {
             for (int x = x1; x < x2; x++) {
