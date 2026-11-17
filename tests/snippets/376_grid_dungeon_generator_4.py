@@ -1,12 +1,49 @@
-"""McRogueFace - Room and Corridor Generator (basic)
+# mcrf: objects=[Grid,Scene] verified=0.3.6-dev status=ok
+import mcrfpy
+import random
 
-Documentation: https://mcrogueface.github.io/cookbook/grid_dungeon_generator
-Repository: https://github.com/jmccardle/McRogueFace/blob/master/docs/cookbook/grid/grid_dungeon_generator_basic.py
+TILE_WALL = 1
 
-This code is extracted from the McRogueFace documentation and can be
-run directly with: ./mcrogueface path/to/this/file.py
-"""
 
+class Room:
+    """Represents a rectangular room in the dungeon."""
+
+    def __init__(self, x, y, width, height):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+
+    @property
+    def center(self):
+        return (self.x + self.width // 2, self.y + self.height // 2)
+
+
+def carve_room(grid, room):
+    """Make every tile of the room floor."""
+    for rx in range(room.x, room.x + room.width):
+        for ry in range(room.y, room.y + room.height):
+            point = grid.at(rx, ry)
+            point.tilesprite = 0
+            point.walkable = True
+            point.transparent = True
+
+
+def connect_points(grid, a, b):
+    """Dig an L-shaped tunnel between two points."""
+    for tx in range(min(a[0], b[0]), max(a[0], b[0]) + 1):
+        carve_room(grid, Room(tx, a[1], 1, 1))
+    for ty in range(min(a[1], b[1]), max(a[1], b[1]) + 1):
+        carve_room(grid, Room(b[0], ty, 1, 1))
+
+
+scene = mcrfpy.Scene("dungeon")
+mcrfpy.current_scene = scene
+
+grid = mcrfpy.Grid(grid_size=(60, 40), texture=mcrfpy.default_texture, pos=(0, 0), size=(960, 640))
+scene.children.append(grid)
+
+# region: bsp
 class BSPNode:
     """Node in a BSP tree for dungeon generation."""
 
@@ -87,7 +124,7 @@ class BSPNode:
 
 def generate_bsp_dungeon(grid, iterations=4):
     """Generate a BSP-based dungeon."""
-    grid_w, grid_h = grid.grid_size
+    grid_w, grid_h = int(grid.grid_size.x), int(grid.grid_size.y)
 
     # Fill with walls
     for x in range(grid_w):
@@ -123,3 +160,8 @@ def generate_bsp_dungeon(grid, iterations=4):
 
     collect_rooms(root)
     return rooms
+# endregion
+
+random.seed(42)
+rooms = generate_bsp_dungeon(grid)
+print(f"BSP dungeon with {len(rooms)} rooms")

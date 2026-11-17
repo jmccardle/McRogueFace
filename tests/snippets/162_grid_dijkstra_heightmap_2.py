@@ -1,4 +1,4 @@
-# mcrf: objects=[Color,ColorLayer,Grid,Scene] verified=0.3.5 status=ok
+# mcrf: objects=[Color,ColorLayer,Grid,Scene] verified=0.3.6-dev status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("dijkstra_gradient")
@@ -14,6 +14,7 @@ color_layer = mcrfpy.ColorLayer(z_index=1, name="dijkstra_vis")
 grid.add_layer(color_layer)
 
 
+# region: visualize
 def visualize_dijkstra(grid, color_layer, source):
     """Render dijkstra distances as a color gradient."""
     dijkstra = grid.get_dijkstra_map(source)
@@ -49,6 +50,7 @@ def visualize_dijkstra(grid, color_layer, source):
                 color = mcrfpy.Color(r, g, b)
 
             color_layer.set((x, y), color)
+# endregion
 
 
 visualize_dijkstra(grid, color_layer, (10, 10))
