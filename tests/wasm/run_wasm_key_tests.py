@@ -20,7 +20,8 @@ import json
 import sys
 from pathlib import Path
 
-from run_wasm_tests import DEFAULT_BUILD_DIR, _Server, _free_port, rp
+from run_wasm_tests import (DEFAULT_BUILD_DIR, RUNTIME_READY_INIT_SCRIPT, _Server, _free_port, rp,
+                            wait_runtime_ready)
 
 SETUP = r'''
 import json, mcrfpy
@@ -196,12 +197,10 @@ def run(url, headed, timeout_ms, verbose):
         browser = p.chromium.launch(headless=not headed)
         page = browser.new_page()
         page.on("pageerror", lambda e: page_errors.append(str(e)))
+        page.add_init_script(RUNTIME_READY_INIT_SCRIPT)
         page.goto(url, timeout=timeout_ms, wait_until="load")
         try:
-            page.wait_for_function(
-                "() => typeof Module !== 'undefined' && Module.calledRun"
-                " && Module.ccall('get_python_state', 'string', [], []) === 'OK'",
-                timeout=timeout_ms)
+            wait_runtime_ready(page, timeout_ms)
         except Exception as e:
             print(f"[key-test] FATAL: runtime never became ready: {e}", file=sys.stderr)
             browser.close()

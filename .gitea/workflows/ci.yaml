@@ -15,7 +15,7 @@ on:
 env:
   ALSOFT_DRIVERS: "null"
   APT_PACKAGES: >-
-    build-essential cmake git xvfb
+    build-essential cmake git rsync xvfb
     zlib1g-dev libx11-dev libxrandr-dev libxcursor-dev libxi-dev
     libfreetype-dev libudev-dev libvorbis-dev libflac-dev libogg-dev
     libgl-dev libopenal-dev libzstd-dev uuid-dev
