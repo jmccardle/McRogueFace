@@ -41,13 +41,19 @@ import os
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import snippet_run  # noqa: E402
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SNIPPET_DIR = os.path.join(ROOT, "tests", "snippets")
-BUILD_DIR = os.path.join(ROOT, "build")
+BUILD_DIR = os.environ.get("MCRF_BUILD_DIR", os.path.join(ROOT, "build"))
 MCROGUEFACE = os.path.join(BUILD_DIR, "mcrogueface")
 SEED = os.path.join(SNIPPET_DIR, "_seed.py")
 SCREENSHOT = os.path.join(SNIPPET_DIR, "_screenshot.py")
 SHOT_DIR = os.path.join(ROOT, "snippet-shots")
+
+# Per-run scratch working directory (the engine writes into its cwd; see stamp_snippets.py).
+SCRATCH = None  # set by main(): a per-run working directory (tools/snippet_run.py)
 
 DEFAULT_SETUP_STEPS = 3
 TIMEOUT = 30
@@ -123,7 +129,7 @@ def capture(path, env_base):
         proc = subprocess.run(
             [MCROGUEFACE, "--headless",
              "--exec", SEED, "--exec", path, "--exec", SCREENSHOT],
-            capture_output=True, text=True, timeout=TIMEOUT, cwd=BUILD_DIR, env=env,
+            capture_output=True, text=True, timeout=TIMEOUT, cwd=SCRATCH, env=env,
         )
     except subprocess.TimeoutExpired:
         return "fail", "timeout"
@@ -148,8 +154,23 @@ def main():
                     help="capture only these snippet numbers (e.g. 086 224)")
     args = ap.parse_args()
 
+    # Validate the request before anything else: a typo'd number must not look like
+    # "0 captured, 0 failed".
+    wanted = None
+    if args.only:
+        for x in args.only:
+            if not x.isdigit():
+                sys.exit(f"{x!r} is not a snippet number")
+        wanted = {int(x) for x in args.only}
+        known = {number_of(p) for p in snippet_paths()}
+        unknown = sorted(wanted - known)
+        if unknown:
+            sys.exit(f"no snippet numbered {', '.join(str(n) for n in unknown)} in {SNIPPET_DIR}")
+
     if not os.path.exists(MCROGUEFACE):
-        sys.exit(f"engine not built: {MCROGUEFACE} (run `make` first)")
+        sys.exit(f"engine not built: {MCROGUEFACE} (run `make` first, or set MCRF_BUILD_DIR)")
+    global SCRATCH
+    SCRATCH = snippet_run.scratch_cwd(BUILD_DIR, "mcrf-shots-")
 
     os.makedirs(SHOT_DIR, exist_ok=True)
     env_base = os.environ.copy()
@@ -158,7 +179,6 @@ def main():
         p for p in (lib, env_base.get("LD_LIBRARY_PATH", "")) if p
     )
 
-    wanted = {int(x) for x in args.only} if args.only else None
     paths = [p for p in snippet_paths()
              if wanted is None or number_of(p) in wanted]
 
@@ -176,6 +196,11 @@ def main():
 
     print(f"\nsnippet-shots: {captured} captured, {skipped} skipped (noshot), "
           f"{len(failed)} failed -> {SHOT_DIR}")
+    if wanted is not None and captured < len(wanted):
+        # A snippet listed in OVERRIDES as noshot is skipped, and asking for it by number
+        # is asking for something that cannot be produced.
+        print(f"requested {len(wanted)} snippet(s), captured {captured}")
+        sys.exit(1)
     sys.exit(1 if failed else 0)
 
 

@@ -6,6 +6,17 @@ Plain python3, standard library only. Run from the project root:
 
     python3 tools/stamp_snippets.py            # run, restamp headers in place
     python3 tools/stamp_snippets.py --check    # verify stamps are current; touch nothing
+    python3 tools/stamp_snippets.py --only 076,188   # just these snippets (by number)
+
+`--only` takes snippet numbers (leading digits of the file name), comma separated and/or
+repeated; an unknown number is an error. It exists so that someone adding one snippet does
+not restamp (and so churn) the other 280. It composes with --check.
+
+`# region: NAME` / `# endregion` markers (tools/snippet_regions.py) are validated in every
+snippet this script looks at; a malformed one fails the run with file:line before any
+snippet is executed.
+
+MCRF_BUILD_DIR overrides the build directory (default: ./build), as in tests/run_tests.py.
 
 Each snippet in tests/snippets/ carries a machine-readable provenance header:
 
@@ -36,12 +47,21 @@ import re
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import snippet_regions  # noqa: E402
+import snippet_run  # noqa: E402
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SNIPPET_DIR = os.path.join(ROOT, "tests", "snippets")
 HARNESS = os.path.join(SNIPPET_DIR, "_harness.py")
 MANIFEST = os.path.join(ROOT, "api", "manifest.json")
-BUILD_DIR = os.path.join(ROOT, "build")
+BUILD_DIR = os.environ.get("MCRF_BUILD_DIR", os.path.join(ROOT, "build"))
 MCROGUEFACE = os.path.join(BUILD_DIR, "mcrogueface")
+
+# Each run gets its own scratch working directory: the engine writes files into its cwd
+# (a `save/` directory, imgui.ini), and agents running this concurrently against one shared
+# build directory would otherwise write into -- and race on -- that directory.
+SCRATCH = None  # set by main(): a per-run working directory (tools/snippet_run.py)
 
 HEADER_RE = re.compile(r"^#\s*mcrf:\s*(.*)$")
 TIMEOUT = 30
@@ -66,6 +86,49 @@ def snippet_paths():
     return [os.path.join(SNIPPET_DIR, n) for n in names]
 
 
+def select_paths(paths, only):
+    """Restrict `paths` to the snippet numbers in `only` (list of strings, may hold
+    comma-separated values). None means all. An unknown number is an error."""
+    if not only:
+        return paths
+    wanted = []
+    for item in only:
+        for tok in item.split(","):
+            tok = tok.strip()
+            if not tok:
+                continue
+            if not tok.isdigit():
+                sys.exit(f"--only: {tok!r} is not a snippet number")
+            wanted.append(int(tok))
+    if not wanted:
+        sys.exit("--only given but names no snippet numbers")
+    by_number = {}
+    for p in paths:
+        head = os.path.basename(p).split("_", 1)[0]
+        if head.isdigit():
+            by_number.setdefault(int(head), []).append(p)
+    out = []
+    for n in wanted:
+        if n not in by_number:
+            sys.exit(f"--only: no snippet numbered {n} in {SNIPPET_DIR}")
+        out.extend(by_number[n])
+    return sorted(set(out))
+
+
+def validate_regions(paths):
+    """Return a list of 'file:line: message' for malformed region markers."""
+    problems = []
+    for path in paths:
+        with open(path, encoding="utf-8") as f:
+            src = f.read()
+        try:
+            snippet_regions.parse(src)
+        except snippet_regions.RegionError as e:
+            rel = os.path.relpath(path, ROOT)
+            problems.extend(f"{rel}:{n}: {msg}" for n, msg in e.problems)
+    return problems
+
+
 def run_snippet(path):
     """Run one snippet through the harness. Returns (status, detail)."""
     env = os.environ.copy()
@@ -76,7 +139,7 @@ def run_snippet(path):
     try:
         proc = subprocess.run(
             [MCROGUEFACE, "--headless", "--exec", path, "--exec", HARNESS],
-            capture_output=True, text=True, timeout=TIMEOUT, cwd=BUILD_DIR, env=env,
+            capture_output=True, text=True, timeout=TIMEOUT, cwd=SCRATCH, env=env,
         )
     except subprocess.TimeoutExpired:
         return "fail", "timeout"
@@ -144,13 +207,23 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true",
                     help="fail if any stamp is out of date; write nothing")
+    ap.add_argument("--only", action="append", metavar="NNN[,NNN...]",
+                    help="only these snippet numbers (e.g. --only 076,188); repeatable")
     args = ap.parse_args()
 
     if not os.path.exists(MCROGUEFACE):
-        sys.exit(f"{MCROGUEFACE} not found -- run `make` first")
+        sys.exit(f"{MCROGUEFACE} not found -- run `make` first (or set MCRF_BUILD_DIR)")
+    global SCRATCH
+    SCRATCH = snippet_run.scratch_cwd(BUILD_DIR, "mcrf-stamp-")
 
     version, commit, known = load_manifest()
-    paths = snippet_paths()
+    paths = select_paths(snippet_paths(), args.only)
+    region_problems = validate_regions(paths)
+    if region_problems:
+        print("malformed snippet regions:")
+        for line in region_problems:
+            print(f"  {line}")
+        return 1
     print(f"stamping {len(paths)} snippets against {version}@{commit}\n")
 
     failed, stale = [], []

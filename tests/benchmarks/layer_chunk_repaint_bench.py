@@ -71,6 +71,7 @@ def measure(grid, layer, dirty):
             # Something must change or the view re-blits its cached raster (no layer work
             # at all); a 1 px pan redraws from clean chunk textures.
             grid.center = (grid.center.x + (1 if i % 2 else -1), grid.center.y)
+        mcrfpy.step(0.016)  # a finished step is what makes the screenshot render (#529)
         t0 = time.perf_counter()
         automation.screenshot(SHOT)
         dt = (time.perf_counter() - t0) * 1000.0

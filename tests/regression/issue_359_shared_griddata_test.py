@@ -50,10 +50,11 @@ _counter = 0
 
 def shot():
     """Render the active scene to PNG and return its bytes (headless
-    screenshot is synchronous -- see #351's test for the same pattern)."""
+    screenshot draws the scene after a step, #529 -- see #351's test for the same pattern)."""
     global _counter
     path = os.path.join(TMPDIR, "s%d.png" % _counter)
     _counter += 1
+    mcrfpy.step(0)  # the screenshot shows the last complete frame; draw this one (#529)
     automation.screenshot(path)
     with open(path, "rb") as f:
         return f.read()

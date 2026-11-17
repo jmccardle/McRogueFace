@@ -249,8 +249,8 @@ bool McRFPy_Automation::charToKeyStroke(Py_UCS4 ch, sf::Keyboard::Key* key, bool
     return false;
 }
 
-// Screenshot implementation
-// #153 - In headless mode, this is now SYNCHRONOUS: renders scene then captures
+// Screenshot implementation. #529: captures the display buffer, i.e. the last complete
+// frame; GameEngine::beginCapture() renders first only when there is none to show.
 PyObject* McRFPy_Automation::_screenshot(PyObject* self, PyObject* args) {
     const char* filename;
     if (!PyArg_ParseTuple(args, "s", &filename)) {
@@ -266,6 +266,8 @@ PyObject* McRFPy_Automation::_screenshot(PyObject* self, PyObject* args) {
     // Get the render target (#451: a headless one is created here, which needs a display)
     if (!mcrf::require_display_py("automation.screenshot()")) return NULL;
     sf::RenderTarget* target = &engine->getRenderTarget();
+    GameEngine::CaptureScope capture(*engine);
+    if (!capture.ok) return NULL;
 
     // For RenderWindow (windowed mode), capture the current buffer
     if (auto* window = dynamic_cast<sf::RenderWindow*>(target)) {
@@ -280,12 +282,8 @@ PyObject* McRFPy_Automation::_screenshot(PyObject* self, PyObject* args) {
             Py_RETURN_FALSE;
         }
     }
-    // For RenderTexture (headless mode) - SYNCHRONOUS render then capture
+    // For RenderTexture (headless mode)
     else if (auto* renderTexture = dynamic_cast<sf::RenderTexture*>(target)) {
-        // #153 - Force a synchronous render before capturing
-        // This ensures we capture the CURRENT state, not the previous frame
-        engine->renderScene();
-
         if (renderTexture->getTexture().copyToImage().saveToFile(filename)) {
             Py_RETURN_TRUE;
         } else {
@@ -953,11 +951,12 @@ static PyMethodDef automationMethods[] = {
     {"screenshot", McRFPy_Automation::_screenshot, METH_VARARGS,
      MCRF_METHOD(automation, screenshot,
          MCRF_SIG("(filename: str)", "bool"),
-         MCRF_DESC("Save a screenshot of the current render target to the specified file."),
+         MCRF_DESC("Save the last complete frame to the specified file."),
          MCRF_ARGS_START
          MCRF_ARG("filename", "Path to the output image file (PNG, JPG, etc.)")
          MCRF_RETURNS("True if the file was saved successfully, False otherwise")
          MCRF_RAISES("RuntimeError", "If the game engine or render target is not initialized")
+         MCRF_NOTE("Captures the last complete frame, never a mid-frame render: a second call after changing objects, with no frame in between, returns the same image, and in a Timer callback you get the previous frame. If no frame has been rendered yet in this process, the first call renders one, so a script that builds a scene and shoots at once gets the scene. Headless step() and advance() do not draw: a headless screenshot after a step draws the scene as it is at the time of the shot, and further calls with no step in between return that image again. Raises RuntimeError if called while a frame is being rendered (e.g. from a warnings hook): there is no complete frame yet.")
      )},
 
     {"position", McRFPy_Automation::_position, METH_NOARGS,

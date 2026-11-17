@@ -62,11 +62,13 @@ def bench(view_count, tmpdir):
     # Warmup: a few screenshots so any first-time texture loads / shader
     # compilations are amortised away.
     for i in range(WARMUP_FRAMES):
+        mcrfpy.step(0.016)  # a finished step is what makes the screenshot render (#529)
         automation.screenshot(os.path.join(tmpdir, f"warm_{view_count}_{i}.png"))
 
     times = []
     for i in range(N_FRAMES):
         path = os.path.join(tmpdir, f"frame_{view_count}_{i}.png")
+        mcrfpy.step(0.016)
         t0 = time.perf_counter()
         automation.screenshot(path)
         times.append(time.perf_counter() - t0)

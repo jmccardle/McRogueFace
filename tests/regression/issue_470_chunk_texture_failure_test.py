@@ -15,6 +15,7 @@ mcrfpy.current_scene = scene
 with warnings.catch_warnings(record=True) as w:
     warnings.simplefilter("always")
     for i in range(5):
+        mcrfpy.step(0)  # a finished frame is what a screenshot shows (#529)
         automation.screenshot("/tmp/t470_%d.png" % i)
     got = [x for x in w if issubclass(x.category, mcrfpy.TextureWarning)
            and "RenderTexture" in str(x.message)]

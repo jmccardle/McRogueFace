@@ -70,6 +70,7 @@ def capture_demo(module_path, output_name, category):
 
         # Take screenshot
         output_path = os.path.join(SCREENSHOT_BASE, category, f"{output_name}.png")
+        mcrfpy.step(0)  # a finished frame is what a screenshot shows (#529)
         automation.screenshot(output_path)
         print(f"  OK: {output_path}")
         return True
@@ -131,5 +132,6 @@ def main():
 
 
 if __name__ == "__main__":
-    # Use a timer to ensure the scene system is ready
-    mcrfpy.Timer("run_capture", lambda rt: main(), 50)
+    # Headless: no timer needed. main() steps before each screenshot (#529), which is what
+    # makes the shot draw the demo it just activated.
+    main()

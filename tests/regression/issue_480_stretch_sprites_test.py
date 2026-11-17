@@ -98,6 +98,7 @@ def read_png(path):
 class Shot:
     def __init__(self, name):
         path = os.path.join(TMPDIR, name + ".png")
+        mcrfpy.step(0)  # the screenshot shows the last complete frame; draw this one (#529)
         automation.screenshot(path)
         self.w, self.h, self.ch, self.px = read_png(path)
 

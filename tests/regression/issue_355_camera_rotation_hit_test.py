@@ -144,7 +144,8 @@ def run_case(rotation):
     grid.on_cell_click = lambda pos, button, action: clicks.append((int(pos.x), int(pos.y)))
 
     path = os.path.join(TMPDIR, "rot%d.png" % int(rotation))
-    automation.screenshot(path)  # headless screenshot is synchronous (#153)
+    mcrfpy.step(0)  # the screenshot shows the last complete frame; draw this one (#529)
+    automation.screenshot(path)  # headless: step() above makes the shot draw the current scene (#529)
 
     c = red_centroid(path)
     check(c is not None, "[rot=%s] red marker cell was not rendered at all" % rotation)

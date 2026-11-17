@@ -93,6 +93,7 @@ def screenshot_health_bar():
 
     scene.activate()
     output_path = os.path.join(OUTPUT_DIR, "ui_health_bar.png")
+    mcrfpy.step(0)  # a finished frame is what a screenshot shows (#529)
     automation.screenshot(output_path)
     print(f"  -> {output_path}")
 
@@ -158,6 +159,7 @@ def screenshot_fog_of_war():
 
     scene.activate()
     output_path = os.path.join(OUTPUT_DIR, "grid_fog_of_war.png")
+    mcrfpy.step(0)  # a finished frame is what a screenshot shows (#529)
     automation.screenshot(output_path)
     print(f"  -> {output_path}")
 
@@ -237,6 +239,7 @@ def screenshot_combat_melee():
 
     scene.activate()
     output_path = os.path.join(OUTPUT_DIR, "combat_melee.png")
+    mcrfpy.step(0)  # a finished frame is what a screenshot shows (#529)
     automation.screenshot(output_path)
     print(f"  -> {output_path}")
 
@@ -323,6 +326,7 @@ def screenshot_dungeon_generator():
 
     scene.activate()
     output_path = os.path.join(OUTPUT_DIR, "grid_dungeon_generator.png")
+    mcrfpy.step(0)  # a finished frame is what a screenshot shows (#529)
     automation.screenshot(output_path)
     print(f"  -> {output_path}")
 
@@ -399,6 +403,7 @@ def screenshot_floating_text():
 
     scene.activate()
     output_path = os.path.join(OUTPUT_DIR, "effects_floating_text.png")
+    mcrfpy.step(0)  # a finished frame is what a screenshot shows (#529)
     automation.screenshot(output_path)
     print(f"  -> {output_path}")
 
@@ -460,6 +465,7 @@ def screenshot_message_log():
 
     scene.activate()
     output_path = os.path.join(OUTPUT_DIR, "ui_message_log.png")
+    mcrfpy.step(0)  # a finished frame is what a screenshot shows (#529)
     automation.screenshot(output_path)
     print(f"  -> {output_path}")
 

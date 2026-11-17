@@ -71,18 +71,21 @@ silently skipped and `decimal` drops to the slow pure-Python implementation.
 
 ### Windows and WebAssembly targets
 
-Cross-builds need their own CPython runtime; `make deps` does not stage them.
+Cross-builds need their own libraries; `make deps` does not stage them. `make windows`
+still needs `make deps` first (the build copies the Linux CPython's stdlib), and
+`make package-windows` needs `make linux`: packaging runs on the Linux interpreter.
 
 ```bash
-make python-windows   # tools/fetch_windows_python.sh: python.org embeddable 3.15 -> __lib_windows/
-make windows          # MinGW-w64 cross-build (needs curl, unzip, mingw objdump/dlltool)
+make deps-windows     # tools/build_deps_windows.sh: CPython (python.org embeddable, sha256-pinned),
+                      # SFML and libtcod (built from the submodules with MinGW) -> __lib_windows/
+make windows          # MinGW-w64 cross-build (needs g++-mingw-w64-x86-64-posix, curl, unzip)
 
 source ~/emsdk/emsdk_env.sh
 make python-wasm      # tools/build_python_wasm.sh: cross-builds modules/cpython for Emscripten
 make wasm-game        # or: make wasm / make playground
 ```
 
-`make python-windows` needs the `modules/cpython` submodule (it reads the pinned
+`make python-windows` (the CPython step of `deps-windows`) needs the `modules/cpython` submodule (it reads the pinned
 version from `Include/patchlevel.h`), so the DLL and headers always match.
 
 ---

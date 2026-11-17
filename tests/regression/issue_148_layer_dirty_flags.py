@@ -58,6 +58,7 @@ def render_hash():
     == the dirty flag was not set.
     """
     _shot_n[0] += 1
+    mcrfpy.step(0)  # a finished frame is what a screenshot shows (#529)
     path = os.path.join(tempfile.gettempdir(), f"issue148_{_shot_n[0]}.png")
     automation.screenshot(path)
     with open(path, "rb") as f:

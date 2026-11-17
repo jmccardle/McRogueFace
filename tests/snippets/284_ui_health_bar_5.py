@@ -1,12 +1,5 @@
-"""McRogueFace - Health Bar Widget (enhanced)
-
-Documentation: https://mcrogueface.github.io/cookbook/ui_health_bar
-Repository: https://github.com/jmccardle/McRogueFace/blob/master/docs/cookbook/ui/ui_health_bar_enhanced.py
-
-This code is extracted from the McRogueFace documentation and can be
-run directly with: ./mcrogueface path/to/this/file.py
-"""
-
+# mcrf: objects=[Caption,Color,Frame,InputState,Key,Scene,Timer] verified=0.3.6-dev status=ok
+# Complete health bar example: two bars, a combat timer and test keys
 import mcrfpy
 
 class EnhancedHealthBar:
@@ -29,7 +22,7 @@ class EnhancedHealthBar:
         }
 
         # Background frame with dark fill
-        self.background = mcrfpy.Frame(x, y, w, h)
+        self.background = mcrfpy.Frame(pos=(x, y), size=(w, h))
         self.background.fill_color = mcrfpy.Color(30, 30, 30)
         self.background.outline = 2
         self.background.outline_color = mcrfpy.Color(100, 100, 100)
@@ -37,10 +30,8 @@ class EnhancedHealthBar:
         # Fill frame (nested inside background conceptually)
         padding = 2
         self.fill = mcrfpy.Frame(
-            x + padding,
-            y + padding,
-            w - padding * 2,
-            h - padding * 2
+            pos=(x + padding, y + padding),
+            size=(w - padding * 2, h - padding * 2)
         )
         self.fill.outline = 0
 
@@ -48,10 +39,9 @@ class EnhancedHealthBar:
         self.label = None
         if show_text:
             self.label = mcrfpy.Caption(
-                "",
-                mcrfpy.default_font,
-                x + w / 2 - 20,
-                y + h / 2 - 8
+                text="",
+                x=x + w / 2 - 20,
+                y=y + h / 2 - 8
             )
             self.label.fill_color = mcrfpy.Color(255, 255, 255)
             self.label.outline = 1
@@ -108,16 +98,38 @@ class EnhancedHealthBar:
             ui.append(self.label)
 
 
-# Usage
-mcrfpy.createScene("demo")
-mcrfpy.setScene("demo")
-ui = mcrfpy.sceneUI("demo")
+# region: example
+import mcrfpy
+import random
 
-# Create enhanced health bar
-hp = EnhancedHealthBar(50, 50, 250, 25, current=100, maximum=100)
-hp.add_to_scene(ui)
+scene = mcrfpy.Scene("game")
 
-# Simulate damage
-hp.damage(30)  # Now 70/100, shows green
-hp.damage(25)  # Now 45/100, shows orange
-hp.damage(20)  # Now 25/100, shows red
+# Player health bar at top
+player_hp = EnhancedHealthBar(10, 10, 300, 30, 100, 100)
+player_hp.add_to_scene(scene.children)
+
+# Enemy health bar
+enemy_hp = EnhancedHealthBar(400, 10, 200, 20, 50, 50)
+enemy_hp.add_to_scene(scene.children)
+
+# Simulate combat
+def combat_tick(timer, runtime):
+    if random.random() < 0.3:
+        player_hp.damage(random.randint(5, 15))
+    if random.random() < 0.4:
+        enemy_hp.damage(random.randint(3, 8))
+
+combat_timer = mcrfpy.Timer("combat", combat_tick, 1000)
+
+# Keyboard controls for testing
+def on_key(key, state):
+    if state != mcrfpy.InputState.PRESSED:
+        return
+    if key == mcrfpy.Key.H:
+        player_hp.heal(20)
+    elif key == mcrfpy.Key.D:
+        player_hp.damage(10)
+
+scene.on_key = on_key
+scene.activate()
+# endregion

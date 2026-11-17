@@ -11,7 +11,7 @@ This test moves an entity with a WAYPOINT behavior via grid.step() and asserts
 the rendered frame actually changes. It fails (identical before/after frames)
 against the pre-fix build and passes once step() invalidates the view.
 
-Headless screenshots are synchronous (#153) -- no Timer needed.
+A step() before each screenshot makes it draw the current scene (#529) -- no Timer needed.
 """
 import mcrfpy
 from mcrfpy import automation
@@ -27,6 +27,7 @@ def shot():
     global _n
     p = os.path.join(TMPDIR, "s%d.png" % _n)
     _n += 1
+    mcrfpy.step(0)  # the screenshot shows the last complete frame; draw this one (#529)
     automation.screenshot(p)
     with open(p, "rb") as f:
         return f.read()

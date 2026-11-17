@@ -111,11 +111,20 @@ EXTERNAL_INPUTS = {
 # Timeouts here are a per-test budget, not a flake mask: each is still bounded.
 SLOW_TESTS = {
     "regression/issue_478_caption_baseline_test.py": 40,
+    "regression/issue_529_first_frame_screenshot_test.py": 120,  # 20 child engines, half windowed: 19 s idle, ~55 s with all 8 cores busy
     "integration/mcrf_project_test.py": 40,
     "integration/issue_509_deps_keeps_foreign_venv_test.py": 40,
     "integration/issue_517_console_scripts_test.py": 40,
     "integration/venv_pip_end_to_end_test.py": 90,
     "regression/issue_505_python_mode_test.py": 40,
+    # FrameLock tests (#535): each runs in well under a second, but its hang detector
+    # (30 s, or 20 s per child process) must be able to fire, and say "deadlock/hang",
+    # before the runner's own timeout does. The tests scale their detectors by the same
+    # MCRF_TIMEOUT_MULTIPLIER this table is multiplied by.
+    "regression/issue_410_framelock_readmission_test.py": 120,
+    "integration/frame_lock_hold_ordering_test.py": 120,
+    "integration/frame_lock_stress_test.py": 120,
+    "integration/frame_lock_soak_test.py": 120,
     "packaging/venv_packaged_test.py": 240,
     "packaging/issue_525_linux_closure_packaged_test.py": 240,  # builds the package (170s cap)
 }
@@ -133,7 +142,6 @@ _SAN_STDERR = ("asserts nothing on stderr, but LSan prints its \"Suppressions us
                "child engines also run the debug Python (3.15d)")
 _SAN_DEPS = ("`mcrf_project deps` needs a packaging-capable engine, but the sanitizer engine "
              "is a Python 3.15d build; plus the stderr noise (see issue_505)")
-_SAN_TIMING = "timing budget; ASan's slowdown breaks it (#535)"
 SANITIZER_VARIANTS = ("asan", "tsan")
 SANITIZER_SKIPS = {
     "asan": {
@@ -143,8 +151,6 @@ SANITIZER_SKIPS = {
         "integration/issue_509_deps_keeps_foreign_venv_test.py": _SAN_DEPS,
         "unit/grid_observe_mask_test.py": "RSS-growth budget (4 MB over 5000 projections); ASan's quarantine grows RSS by ~200 MB",
         "regression/issue_421_frame_pointer_test.py": "times out (50 s) under ASan; it measures Release frame pointers, not memory safety",
-        "regression/issue_410_framelock_readmission_test.py": _SAN_TIMING,
-        "integration/frame_lock_hold_budget_test.py": _SAN_TIMING,
     },
     "tsan": {},
 }
