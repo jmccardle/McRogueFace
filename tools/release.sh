@@ -5,7 +5,8 @@
 # releases master says "0.3.1-dev", the release commit says "0.3.1", and the tag is
 # applied LAST, so a tag only ever marks a commit that passed everything below.
 #
-#   1. check   clean master, tag free, the tools each step needs are present
+#   1. check   clean master, tag free, the tools each step needs are present, and the
+#              site's cookbook fences equal their engine snippets (inject_snippets.py --check, #541)
 #   2. bump    header -> VERSION, build
 #   3. test    full suite + check-snippets
 #   4. docs    docs + manifest, stamp snippets (verified=VERSION), snippet shots
@@ -82,6 +83,12 @@ command -v wine >/dev/null || die "wine not found: it runs the Windows package's
 [ -d "$SITE_DIR" ] || die "SITE_DIR not found: $SITE_DIR"
 [ -z "$(git -C "$SITE_DIR" status --porcelain)" ] \
     || die "the site repo ($SITE_DIR) has uncommitted changes; the release rebuilds it, so commit or discard them first"
+# #541: every marked cookbook fence must equal the engine snippet it is injected from,
+# and no page may have grown ungated python fences. Drift fails the release here, before
+# a build, not after the tag.
+[ -f "$SITE_DIR/tools/inject_snippets.py" ] || die "$SITE_DIR has no tools/inject_snippets.py (#541); update the site checkout"
+python3 "$SITE_DIR/tools/inject_snippets.py" --check --engine "$ROOT" \
+    || die "cookbook fences have drifted from tests/snippets (above): run tools/inject_snippets.py in $SITE_DIR and commit the site"
 if [ -n "${DISPLAY:-}" ]; then
     WITH_DISPLAY=()
 elif command -v xvfb-run >/dev/null; then
