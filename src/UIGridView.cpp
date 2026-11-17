@@ -99,6 +99,8 @@ void UIGridView::resize(float w, float h)
 void UIGridView::applySize(float w, float h)
 {
     box.setSize(sf::Vector2f(w, h));
+    // #532 (#530 residual): the default camera keeps cell (0,0) at the top-left for the new size.
+    if (camera_is_default) applyDefaultCamera();
 
     // #364: aligned children re-anchor against the widget's new bounds. This ran in
     // PyGridData::resize before children moved to the view; it belongs here now.
