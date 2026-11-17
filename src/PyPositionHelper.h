@@ -133,27 +133,44 @@ private:
     }
 
     // For a generic sequence: true if it has exactly two items. False WITHOUT an error when it
-    // is not a pair (wrong length, or no __len__ at all: a TypeError from len() means "not a
-    // sized sequence", i.e. not a position). False WITH an error when __len__ itself failed for
-    // any other reason (MemoryError, a bug in the user's class): that propagates (#540 item 14).
+    // is not a pair: a wrong length, or a type with no length slot at all (decided by the type
+    // slots, so no len() call is made and no error is cleared). False WITH an error when
+    // __len__ itself failed, whatever the exception: it propagates (#540 item 14).
     static bool sequence_is_pair(PyObject* obj) {
-        Py_ssize_t len = PySequence_Size(obj);
-        if (len < 0) {
-            if (PyErr_ExceptionMatches(PyExc_TypeError)) PyErr_Clear();
-            return false;
-        }
+        PyTypeObject* t = Py_TYPE(obj);
+        bool sized = (t->tp_as_sequence && t->tp_as_sequence->sq_length) ||
+                     (t->tp_as_mapping && t->tp_as_mapping->mp_length);
+        if (!sized) return false;
+        Py_ssize_t len = PyObject_Length(obj);
+        if (len < 0) return false;
         return len == 2;
+    }
+
+    // The argument being parsed, for error messages (nullptr: unnamed). Set by the named entry
+    // points (FromObject / FromObjectInt) for the duration of the parse, so a nested parse from
+    // a user's __len__ / __index__ restores the outer name on the way out.
+    inline static thread_local const char* what_ = nullptr;
+    struct WhatScope {
+        const char* saved;
+        explicit WhatScope(const char* w) : saved(what_) { what_ = w; }
+        ~WhatScope() { what_ = saved; }
+    };
+
+    // OverflowError / ValueError for a bad component, naming the argument when there is one.
+    static void set_error(PyObject* exc, const char* msg) {
+        if (what_) PyErr_Format(exc, "%s: %s", what_, msg);
+        else PyErr_SetString(exc, msg);
     }
 
     // A float Vector/tuple component for a position: nan/inf are not positions (ValueError),
     // and a finite double that does not fit a float is an OverflowError.
     static bool vector_to_float(double v, float* out) {
         if (!std::isfinite(v)) {
-            PyErr_SetString(PyExc_ValueError, "position component must be finite");
+            set_error(PyExc_ValueError, "position component must be finite");
             return false;
         }
         if (std::fabs(v) > static_cast<double>(FLT_MAX)) {
-            PyErr_SetString(PyExc_OverflowError, "position component out of range for a float");
+            set_error(PyExc_OverflowError, "position component out of range for a float");
             return false;
         }
         *out = static_cast<float>(v);
@@ -177,7 +194,12 @@ private:
         if (!idx) return false;
         long v = PyLong_AsLong(idx);
         Py_DECREF(idx);
-        if (v == -1 && PyErr_Occurred()) return false;
+        if (v == -1 && PyErr_Occurred()) {
+            // idx is an exact int, so the only failure is OverflowError: say it our way.
+            PyErr_Clear();
+            set_error(PyExc_OverflowError, "position component out of range for a C int");
+            return false;
+        }
         *out = v;
         return true;
     }
@@ -197,7 +219,11 @@ private:
         if (!idx) return false;
         double d = PyLong_AsDouble(idx);
         Py_DECREF(idx);
-        if (d == -1.0 && PyErr_Occurred()) return false;  // beyond even a double: OverflowError
+        if (d == -1.0 && PyErr_Occurred()) {  // beyond even a double (exact int: OverflowError)
+            PyErr_Clear();
+            set_error(PyExc_OverflowError, "position component out of range for a float");
+            return false;
+        }
         return vector_to_float(d, out);
     }
 
@@ -205,11 +231,11 @@ private:
     // Truncates toward zero; sets the Python error and returns false on failure.
     static bool float_to_int(double v, int* out) {
         if (!std::isfinite(v)) {
-            PyErr_SetString(PyExc_ValueError, "position component must be finite");
+            set_error(PyExc_ValueError, "position component must be finite");
             return false;
         }
         if (!(v > static_cast<double>(INT_MIN) - 1.0 && v < static_cast<double>(INT_MAX) + 1.0)) {
-            PyErr_SetString(PyExc_OverflowError, "position component out of range for a C int");
+            set_error(PyExc_OverflowError, "position component out of range for a C int");
             return false;
         }
         *out = static_cast<int>(v);
@@ -226,7 +252,7 @@ private:
         bool intlike;
         if (as_long(obj, &v, &intlike)) {
             if (v < INT_MIN || v > INT_MAX) {
-                PyErr_SetString(PyExc_OverflowError, "position component out of range for a C int");
+                set_error(PyExc_OverflowError, "position component out of range for a C int");
                 return false;
             }
             *out = static_cast<int>(v);
@@ -258,6 +284,7 @@ public:
     // object that is not a position then says "<what> must be ...". A component that is a number
     // but unusable (OverflowError / ValueError) is never replaced: callers just propagate.
     static bool FromObject(PyObject* obj, float* out_x, float* out_y, const char* what = nullptr) {
+        WhatScope scope(what);
         if (extract_from_iterable(obj, out_x, out_y)) {
             return true;
         }
@@ -276,6 +303,7 @@ public:
     // Sets Python error and returns false on failure
     // `what`: see FromObject.
     static bool FromObjectInt(PyObject* obj, int* out_x, int* out_y, const char* what = nullptr) {
+        WhatScope scope(what);
         if (extract_from_iterable_int(obj, out_x, out_y)) {
             return true;
         }
@@ -298,6 +326,7 @@ public:
     // Supports: func(x, y) or func((x, y)) or func(Vector) or func(iterable)
     // Sets Python error and returns false on failure
     static bool ParseFloat(PyObject* args, PyObject* kwds, float* out_x, float* out_y) {
+        WhatScope scope(nullptr);
         // First try keyword arguments
         if (kwds) {
             PyObject* x_obj = PyDict_GetItemString(kwds, "x");
@@ -350,6 +379,7 @@ public:
     // Supports: func(x, y) or func((x, y)) or func(Vector) or func(iterable)
     // Sets Python error and returns false on failure
     static bool ParseInt(PyObject* args, PyObject* kwds, int* out_x, int* out_y) {
+        WhatScope scope(nullptr);
         // First try keyword arguments
         if (kwds) {
             PyObject* x_obj = PyDict_GetItemString(kwds, "x");

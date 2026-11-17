@@ -1240,24 +1240,11 @@ PyObject* PyGridLayerAPI::ColorLayer_fill(PyColorLayerObject* self, PyObject* ar
     Py_RETURN_NONE;
 }
 
-// fill_rect's pos/size: the shared position parser, with the argument named in the
-// error. The exception type is preserved (TypeError for a wrong shape, OverflowError /
-// ValueError for a bad number) and the helper's detail is kept after the name.
+// fill_rect's pos/size: the shared position parser, which names the argument in its own
+// errors. Whatever it raises (including a user's exception from __len__ / __getitem__)
+// propagates untouched.
 static bool ParseRectArg(PyObject* obj, const char* name, int* a, int* b) {
-    if (PyPosition_FromObjectInt(obj, a, b)) return true;
-    PyObject* exc = PyErr_GetRaisedException();
-    PyObject* msg = PyObject_Str(exc);
-    if (msg) {
-        PyErr_Format((PyObject*)Py_TYPE(exc), "%s: %U", name, msg);
-        Py_DECREF(msg);
-    } else {
-        // str(exc) failed (an exception that cannot print itself): report the helper's own
-        // exception unprefixed; the error str() raised is discarded.
-        PyErr_SetRaisedException(exc);
-        return false;
-    }
-    Py_DECREF(exc);
-    return false;
+    return PyPosition_FromObjectInt(obj, a, b, name);
 }
 
 PyObject* PyGridLayerAPI::ColorLayer_fill_rect(PyColorLayerObject* self, PyObject* args, PyObject* kwds) {
