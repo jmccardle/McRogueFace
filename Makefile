@@ -18,6 +18,7 @@
 #   make python-debug - pydebug (3.Xd) into __lib_debug/  (for debug/asan/fuzz)
 #   make python-tsan  - free-threaded pydebug + TSan (3.Xtd) into __lib_tsan/ (for tsan)
 #   make python-windows - Fetch python.org's embeddable 3.X into __lib_windows/ (for windows)
+#   make deps-windows - CPython + SFML + libtcod for MinGW into __lib_windows/ (for windows)
 #   make python-wasm  - Cross-build modules/cpython for Emscripten (for wasm; needs emsdk_env.sh)
 #   make free-threaded - Build McRogueFace against __lib_ft/ in build-ft/
 #
@@ -47,7 +48,7 @@
 #     (tools/release.sh, #475). Never pushes or publishes.
 
 .PHONY: all linux windows windows-debug clean clean-windows clean-dist run
-.PHONY: deps deps-ft python python-ft python-debug python-tsan python-windows python-wasm free-threaded
+.PHONY: deps deps-ft python python-ft python-debug python-tsan python-windows deps-windows python-wasm free-threaded
 .PHONY: wasm wasm-game wasm-debug playground playground-debug serve serve-game serve-dev serve-playground deploy-playground clean-wasm
 .PHONY: package-windows package-linux package-all package-web
 .PHONY: release
@@ -87,6 +88,9 @@ python-tsan:
 
 python-windows:
 	@./tools/fetch_windows_python.sh
+
+deps-windows:
+	@./tools/build_deps_windows.sh
 
 python-wasm:
 	@./tools/build_python_wasm.sh
