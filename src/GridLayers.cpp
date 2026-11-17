@@ -193,8 +193,12 @@ void GridLayer::getChunkBounds(int chunk_x, int chunk_y, int& start_x, int& star
 }
 
 // #539: the vertices of the chunk being repainted. One buffer for every layer: a chunk
-// is built and drawn before the next one starts, and painting is main-thread only. Its
-// capacity tops out at one full chunk (CHUNK_SIZE^2 cells x 6 vertices).
+// is built and drawn before the next one starts. Painting runs on whichever thread
+// renders: the main thread each frame, but also the calling thread of automation.screenshot()
+// (which repaints dirty chunks). Nothing here enforces the thread. A screenshot from another
+// thread is safe only while holding mcrfpy.lock() (the main thread is then parked between
+// frames); without it, it races this buffer exactly as it already raced the GL context and
+// the chunk state. Its capacity tops out at one full chunk (CHUNK_SIZE^2 cells x 6 vertices).
 static std::vector<sf::Vertex>& chunkVertexScratch() {
     static std::vector<sf::Vertex> verts;
     return verts;

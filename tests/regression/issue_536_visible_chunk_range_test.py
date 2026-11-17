@@ -86,6 +86,33 @@ grid.zoom = 0.25
 grid.center = (128 * 16, 128 * 16)
 check("16 chunks per layer", repainted(), 16 * n)
 
+print("7. camera entirely off the layer: nothing is in view, so no chunk may repaint")
+# view is 40x22 cells; the visible cell range is [left_edge, left_edge + 40 + 2) clamped to
+# the layer. Centres are in pixels (16 px cells); layer is 256x256 cells (4096 px).
+# "Just off" cases matter most: (x_limit - 1) / 64 truncates toward zero, so a limit in
+# [-62, 0] still names chunk 0 and only the `limit <= 0` early return keeps it from being
+# painted. (Far off the layer the loop is empty anyway.) Width 40, height 22 cells: the
+# right/bottom limit is left_edge + 42 / top_edge + 24 ... i.e. centre_cells + 22 / + 13.
+for label, center in (
+    ("just left (limit -8)", (-30 * 16, 11 * 16)),
+    ("just left (limit 0)", (-22 * 16, 11 * 16)),
+    ("just above (limit -6)", (20 * 16, -19 * 16)),
+    ("just above (limit 0)", (20 * 16, -13 * 16)),
+    ("just left and above", (-30 * 16, -19 * 16)),
+    ("fully left", (-100 * 16, 96 * 16)),
+    ("fully above", (96 * 16, -100 * 16)),
+    ("fully left and above", (-100 * 16, -100 * 16)),
+    ("fully right", (356 * 16, 96 * 16)),
+    ("fully below", (96 * 16, 356 * 16)),
+    ("fully right and below", (356 * 16, 356 * 16)),
+):
+    for layers_kw in (("tile",), ("color",)):
+        grid, layers, n = make((640, 352), layers=layers_kw)
+        grid.center = center
+        check(f"{label} ({layers_kw[0]}): nothing repainted", repainted(), 0)
+        grid.center = (20 * 16, 11 * 16)  # back in view (inside chunk 0): the layer was not left dirty
+        check(f"{label} ({layers_kw[0]}): back in view repaints its chunk", repainted(), 1 * n)
+
 if failures:
     print("FAIL:", failures)
     sys.exit(1)
