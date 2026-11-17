@@ -884,7 +884,7 @@ PyMethodDef PyGridLayerAPI::ColorLayer_methods[] = {
          MCRF_SIG("(pos: tuple | Vector) or (x: int, y: int)", "Color"),
          MCRF_DESC("Get the color at a cell position.")
          MCRF_ARGS_START
-         MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector; or pass x and y separately")
+         MCRF_ARG("pos", "Cell as (x, y) tuple, list, or Vector (fractions are floored); or pass x and y separately")
          MCRF_RETURNS("Color at the specified cell")
          MCRF_RAISES("IndexError", "If coordinates are out of bounds")
      )},
@@ -893,7 +893,7 @@ PyMethodDef PyGridLayerAPI::ColorLayer_methods[] = {
          MCRF_SIG("(pos, color: Color)", "None"),
          MCRF_DESC("Set the color at a cell position.")
          MCRF_ARGS_START
-         MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector")
+         MCRF_ARG("pos", "Cell as (x, y) tuple, list, or Vector (fractions are floored)")
          MCRF_ARG("color", "Color object or (r, g, b[, a]) tuple")
          MCRF_RAISES("IndexError", "If coordinates are out of bounds")
      )},
@@ -1891,7 +1891,7 @@ PyMethodDef PyGridLayerAPI::TileLayer_methods[] = {
          MCRF_SIG("(pos: tuple | Vector) or (x: int, y: int)", "int"),
          MCRF_DESC("Get the tile index at a cell position. Returns -1 if no tile is set.")
          MCRF_ARGS_START
-         MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector; or pass x and y separately")
+         MCRF_ARG("pos", "Cell as (x, y) tuple, list, or Vector (fractions are floored); or pass x and y separately")
          MCRF_RETURNS("Tile index at the specified cell, or -1 if empty")
          MCRF_RAISES("IndexError", "If coordinates are out of bounds")
      )},
@@ -1900,7 +1900,7 @@ PyMethodDef PyGridLayerAPI::TileLayer_methods[] = {
          MCRF_SIG("(pos, index: int)", "None"),
          MCRF_DESC("Set the tile index at a cell position. Use -1 to clear the tile.")
          MCRF_ARGS_START
-         MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector")
+         MCRF_ARG("pos", "Cell as (x, y) tuple, list, or Vector (fractions are floored)")
          MCRF_ARG("index", "Tile index (-1 for no tile)")
          MCRF_RAISES("IndexError", "If coordinates are out of bounds")
          MCRF_NOTE("Any int is stored. An index outside 0 to sprite_count-1 is not rendered (like -1); one above the highest sprite index of a known texture also warns (TextureWarning).")

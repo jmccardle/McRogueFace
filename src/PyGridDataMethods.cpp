@@ -1034,7 +1034,7 @@ PyMethodDef PyGridData_all_methods[] = {
          MCRF_SIG("(pos, radius: int = 0, light_walls: bool = True, algorithm: FOV | int = FOV.BASIC)", "None"),
          MCRF_DESC("Compute field of view from a position. Updates the internal FOV state; use is_in_fov() to query visibility."),
          MCRF_ARGS_START
-         MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector")
+         MCRF_ARG("pos", "Cell as (x, y) tuple, list, or Vector (fractions are floored)")
          MCRF_ARG("radius", "Maximum view distance (0 = unlimited)")
          MCRF_ARG("light_walls", "Whether walls are lit when visible")
          MCRF_ARG("algorithm", "FOV algorithm to use (FOV.BASIC, FOV.DIAMOND, FOV.SHADOW, FOV.PERMISSIVE_0-8)")

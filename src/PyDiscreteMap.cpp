@@ -179,7 +179,7 @@ PyMethodDef PyDiscreteMap::methods[] = {
          MCRF_SIG("(x, y) or (pos)", "int | Enum"),
          MCRF_DESC("Get the value at integer coordinates."),
          MCRF_ARGS_START
-         MCRF_ARG("x, y", "Position as two ints, tuple, list, or Vector")
+         MCRF_ARG("x, y", "Cell as two numbers, tuple, list, or Vector (fractions are floored)")
          MCRF_RETURNS("int or enum member if enum_type is set")
          MCRF_RAISES("IndexError", "Position is out of bounds")
      )},

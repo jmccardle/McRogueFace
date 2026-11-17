@@ -89,3 +89,19 @@ to `grid`.
   `mcrfpy.Frame.children.__doc__`) for the API-level statement of this contract.
 - `Entity.draw_pos` / `Entity.cell_pos` for the cell-vs-pixel distinction on the
   entity side of the same coordinate system.
+
+## Integer (cell) positions and non-finite numbers (#540)
+
+Methods that take a **cell** (`grid.at(...)`, `layer.set(...)`, `fill_rect`, `compute_fov`,
+`HeightMap.add(pos=...)`, `BSP(pos=...)`, and so on) accept a tuple, list, `Vector`, any
+two-item sequence, or two separate numbers. Fractional components are **floored** (toward
+negative infinity, not truncated), whatever the input shape: `(2.7, 3.2)` and
+`Vector(2.7, 3.2)` are cell `(2, 3)`, and `Vector(-0.5, 1)` is cell `(-1, 1)`, which then fails the
+caller's own bounds check like any other out-of-range cell. The same rule applies where an
+argument is a size rather than a position, so `size=(2.5, 2)` means `(2, 2)`.
+`bytes`, `bytearray`, `memoryview`, `range` and `str` are not positions.
+
+`nan` and `inf` raise `ValueError` wherever a position, size or float property is set,
+whether by constructor, property assignment, `move()`/`resize()` or an animation target
+(`Frame(pos=(float("inf"), 0))`, `frame.x = float("nan")`, `frame.animate("x", float("inf"), 1)`).
+A value outside the range of a C `int` (after flooring) or `float` raises `OverflowError`.
