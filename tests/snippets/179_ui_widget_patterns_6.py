@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,InputState,Key,Scene] verified=0.3.5 status=ok
+# mcrf: objects=[Caption,Color,Frame,InputState,Key,Scene] verified=0.3.6-dev status=ok
 # Hotbar / Quick Slots pattern - number keys (1-9) mapped to inventory slots.
 import mcrfpy
 
@@ -12,6 +12,7 @@ root.outline = 2
 ui.append(root)
 
 
+# region: hotbar
 class Hotbar:
     def __init__(self, parent, pos, slot_count=9):
         self.slots = []
@@ -71,5 +72,6 @@ def handle_key(key, action):
 
 
 scene.on_key = handle_key
+# endregion
 
 mcrfpy.current_scene = scene

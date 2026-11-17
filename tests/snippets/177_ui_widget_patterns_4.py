@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,InputState,Key,Scene] verified=0.3.5 status=ok
+# mcrf: objects=[Caption,Color,Frame,InputState,Key,Scene] verified=0.3.6-dev status=ok
 # Vertical Menu pattern - a list of selectable options with keyboard navigation.
 import mcrfpy
 
@@ -12,6 +12,7 @@ root.outline = 2
 ui.append(root)
 
 
+# region: menu
 class VerticalMenu:
     def __init__(self, parent, pos, options, on_select):
         """
@@ -82,5 +83,6 @@ def handle_key(key, action):
 
 
 scene.on_key = handle_key
+# endregion
 
 mcrfpy.current_scene = scene

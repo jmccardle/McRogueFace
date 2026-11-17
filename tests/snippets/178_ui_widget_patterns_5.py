@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,InputState,Key,Scene] verified=0.3.5 status=ok
+# mcrf: objects=[Caption,Color,Frame,InputState,Key,Scene] verified=0.3.6-dev status=ok
 # Modal Dialog pattern - a dialog that captures all input until dismissed.
 import mcrfpy
 
@@ -12,6 +12,7 @@ root.outline = 2
 ui.append(root)
 
 
+# region: modal
 class ModalDialog:
     def __init__(self, scene, message, on_dismiss=None):
         self.scene = scene
@@ -71,5 +72,6 @@ class ModalDialog:
 
 # Usage
 dialog = ModalDialog(scene, "Game saved successfully!")
+# endregion
 
 mcrfpy.current_scene = scene
