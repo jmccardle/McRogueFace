@@ -1,10 +1,10 @@
+# mcrf: objects=[Caption,Color,ColorLayer,Grid,HeightMap,Scene] verified=0.3.6-dev status=ok
 """HeightMap Hills and Craters Demo
 
 Demonstrates: add_hill, dig_hill
 Creates volcanic terrain with mountains and craters using ColorLayer visualization.
 """
 import mcrfpy
-from mcrfpy import automation
 
 # Full screen grid: 60x48 tiles at 16x16 = 960x768
 GRID_WIDTH, GRID_HEIGHT = 64, 48
@@ -41,7 +41,8 @@ grid = mcrfpy.Grid(
     layers={}
 )
 grid.fill_color = mcrfpy.Color(0, 0, 0)
-color_layer = grid.add_layer("color", z_index=-1)
+color_layer = mcrfpy.ColorLayer(z_index=-1, name="color")
+grid.add_layer(color_layer)
 scene.children.append(grid)
 
 # Create heightmap
@@ -83,7 +84,3 @@ title.outline_color = mcrfpy.Color(0, 0, 0)
 scene.children.append(title)
 
 scene.activate()
-
-# Take screenshot directly (works in headless mode)
-automation.screenshot("procgen_01_heightmap_hills.png")
-print("Screenshot saved: procgen_01_heightmap_hills.png")
