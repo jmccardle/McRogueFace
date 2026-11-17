@@ -164,7 +164,18 @@ int visit_callable(const std::unique_ptr<Callable>& c, visitproc visit, void* ar
 // Read a Vector, or anything Vector() accepts, into `out` without leaking.
 // Vectors and 2-sequences of numbers take a fast path with no allocation.
 // Returns false with a Python error set (TypeError naming `what`) on failure.
+// A nan or infinite component is a ValueError (#540 item 12): this is the choke point for every
+// Vector-valued position / size / center / origin property and constructor argument.
 bool to_vector2f(PyObject* arg, sf::Vector2f& out, const char* what);
+
+// ValueError "<what> must be finite (got nan|inf|-inf)" unless `value` is finite (#540 item 12).
+// For a float that has already been converted (constructor arguments parsed with "f").
+bool require_finite(double value, const char* what);
+
+// An int or float property value as a float: TypeError "<what> must be a number" for anything
+// else, ValueError for nan/inf, OverflowError for an int or float beyond float range. The one
+// converter for scalar float setters (x, y, w, h, rotation, radius, thickness, ...).
+bool to_float(PyObject* value, float& out, const char* what);
 
 // Owns one new reference for the lifetime of the full expression or scope:
 //     _click(self, PyRef(PyTuple_New(0)).get(), kwargs);

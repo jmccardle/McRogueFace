@@ -297,19 +297,7 @@ int UIFrame::set_float_member(PyUIFrameObject* self, PyObject* value, void* clos
 {
     float val;
     auto member_ptr = reinterpret_cast<intptr_t>(closure);
-    if (PyFloat_Check(value))
-    {
-        val = PyFloat_AsDouble(value);
-    }
-    else if (PyLong_Check(value))
-    {
-        val = PyLong_AsLong(value);
-    }
-    else
-    {
-        PyErr_SetString(PyExc_TypeError, "Value must be a number (int or float)");
-        return -1;
-    }
+    if (!mcrf::to_float(value, val, "Value")) return -1;
     if (member_ptr == 0) { //x
         self->data->box.setPosition(val, self->data->box.getPosition().y);
         self->data->markDirty();
@@ -639,51 +627,26 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
         return -1;
     }
     
-    // Handle position argument (can be tuple, Vector, or use x/y keywords)
+    // pos / size: the checked converter (Vector, (x, y) pair, ...; nan/inf and out-of-range
+    // are errors, #540 item 12). Without pos / size, the x / y / w / h keywords are used.
     if (pos_obj) {
-        PyVectorObject* vec = PyVector::from_arg(pos_obj);
-        if (vec) {
-            x = vec->data.x;
-            y = vec->data.y;
-            Py_DECREF(vec);
-        } else {
-            PyErr_Clear();
-            if (PyTuple_Check(pos_obj) && PyTuple_Size(pos_obj) == 2) {
-                PyObject* x_val = PyTuple_GetItem(pos_obj, 0);
-                PyObject* y_val = PyTuple_GetItem(pos_obj, 1);
-                if ((PyFloat_Check(x_val) || PyLong_Check(x_val)) &&
-                    (PyFloat_Check(y_val) || PyLong_Check(y_val))) {
-                    x = PyFloat_Check(x_val) ? PyFloat_AsDouble(x_val) : PyLong_AsLong(x_val);
-                    y = PyFloat_Check(y_val) ? PyFloat_AsDouble(y_val) : PyLong_AsLong(y_val);
-                } else {
-                    PyErr_SetString(PyExc_TypeError, "pos tuple must contain numbers");
-                    return -1;
-                }
-            } else {
-                PyErr_SetString(PyExc_TypeError, "pos must be a tuple (x, y) or Vector");
-                return -1;
-            }
-        }
+        sf::Vector2f v;
+        if (!mcrf::to_vector2f(pos_obj, v, "pos")) return -1;
+        x = v.x;
+        y = v.y;
     }
-    // If no pos_obj but x/y keywords were provided, they're already in x, y variables
-    
-    // Handle size argument (can be tuple or use w/h keywords)
     if (size_obj) {
-        if (PyTuple_Check(size_obj) && PyTuple_Size(size_obj) == 2) {
-            PyObject* w_val = PyTuple_GetItem(size_obj, 0);
-            PyObject* h_val = PyTuple_GetItem(size_obj, 1);
-            if ((PyFloat_Check(w_val) || PyLong_Check(w_val)) &&
-                (PyFloat_Check(h_val) || PyLong_Check(h_val))) {
-                w = PyFloat_Check(w_val) ? PyFloat_AsDouble(w_val) : PyLong_AsLong(w_val);
-                h = PyFloat_Check(h_val) ? PyFloat_AsDouble(h_val) : PyLong_AsLong(h_val);
-            } else {
-                PyErr_SetString(PyExc_TypeError, "size tuple must contain numbers");
-                return -1;
-            }
-        } else {
-            PyErr_SetString(PyExc_TypeError, "size must be a tuple (w, h)");
-            return -1;
-        }
+        sf::Vector2f v;
+        if (!mcrf::to_vector2f(size_obj, v, "size")) return -1;
+        w = v.x;
+        h = v.y;
+    }
+    if (!mcrf::require_finite(x, "x") || !mcrf::require_finite(y, "y") ||
+        !mcrf::require_finite(w, "w") || !mcrf::require_finite(h, "h") ||
+        !mcrf::require_finite(outline, "outline") || !mcrf::require_finite(opacity, "opacity") ||
+        !mcrf::require_finite(margin, "margin") || !mcrf::require_finite(horiz_margin, "horiz_margin") ||
+        !mcrf::require_finite(vert_margin, "vert_margin")) {
+        return -1;
     }
     // If no size_obj but w/h keywords were provided, they're already in w, h variables
 

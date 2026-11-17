@@ -56,8 +56,13 @@ bool animation_target(PyObject* value, AnimKind kind, const char* property, Anim
     switch (kind) {
         case AnimKind::Float:
             if (!is_number(value)) break;
-            out = static_cast<float>(PyFloat_AsDouble(value));
-            return !PyErr_Occurred();
+            {
+                // #540 item 12: a nan / inf target is an error, as for assignment
+                float f;
+                if (!to_float(value, f, property)) return false;
+                out = f;
+            }
+            return true;
 
         case AnimKind::Int:
             if (PyLong_Check(value)) {

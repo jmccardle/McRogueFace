@@ -1,4 +1,5 @@
 #include "PyAnimation.h"
+#include "PyWrap.h"
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
 #include "PyEasing.h"
@@ -50,7 +51,9 @@ int PyAnimation::init(PyAnimationObject* self, PyObject* args, PyObject* kwds) {
     AnimationValue animValue;
     
     if (PyFloat_Check(target_value)) {
-        animValue = static_cast<float>(PyFloat_AsDouble(target_value));
+        float f;
+        if (!mcrf::to_float(target_value, f, "target_value")) return -1;  // #540 item 12
+        animValue = f;
     }
     else if (PyLong_Check(target_value)) {
         animValue = static_cast<int>(PyLong_AsLong(target_value));
@@ -74,8 +77,9 @@ int PyAnimation::init(PyAnimationObject* self, PyObject* args, PyObject* kwds) {
         Py_ssize_t size = PyTuple_Size(target_value);
         if (size == 2) {
             // Vector2f
-            float x = PyFloat_AsDouble(PyTuple_GetItem(target_value, 0));
-            float y = PyFloat_AsDouble(PyTuple_GetItem(target_value, 1));
+            float x, y;
+            if (!mcrf::to_float(PyTuple_GetItem(target_value, 0), x, "target_value[0]") ||
+                !mcrf::to_float(PyTuple_GetItem(target_value, 1), y, "target_value[1]")) return -1;  // #540 item 12
             animValue = sf::Vector2f(x, y);
         }
         else if (size == 3 || size == 4) {

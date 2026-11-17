@@ -235,19 +235,7 @@ int UICaption::set_float_member(PyUICaptionObject* self, PyObject* value, void* 
 {
     float val;
     auto member_ptr = reinterpret_cast<intptr_t>(closure);
-    if (PyFloat_Check(value))
-    {
-        val = PyFloat_AsDouble(value);
-    }
-    else if (PyLong_Check(value))
-    {
-        val = PyLong_AsLong(value);
-    }
-    else
-    {
-        PyErr_SetString(PyExc_TypeError, "Value must be a number (int or float)");
-        return -1;
-    }
+    if (!mcrf::to_float(value, val, "Value")) return -1;
     if (member_ptr == 0) { //x
         self->data->text.setPosition(val, self->data->text.getPosition().y);
         self->data->markCompositeDirty(); // #289: position change invalidates parent cache
@@ -659,33 +647,19 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
         return -1;
     }
     
-    // Handle position argument (can be tuple, Vector, or use x/y keywords)
+    // pos: the checked converter (#540 item 12); without it the x / y keywords are used.
     if (pos_obj) {
-        PyVectorObject* vec = PyVector::from_arg(pos_obj);
-        if (vec) {
-            x = vec->data.x;
-            y = vec->data.y;
-            Py_DECREF(vec);
-        } else {
-            PyErr_Clear();
-            if (PyTuple_Check(pos_obj) && PyTuple_Size(pos_obj) == 2) {
-                PyObject* x_val = PyTuple_GetItem(pos_obj, 0);
-                PyObject* y_val = PyTuple_GetItem(pos_obj, 1);
-                if ((PyFloat_Check(x_val) || PyLong_Check(x_val)) &&
-                    (PyFloat_Check(y_val) || PyLong_Check(y_val))) {
-                    x = PyFloat_Check(x_val) ? PyFloat_AsDouble(x_val) : PyLong_AsLong(x_val);
-                    y = PyFloat_Check(y_val) ? PyFloat_AsDouble(y_val) : PyLong_AsLong(y_val);
-                } else {
-                    PyErr_SetString(PyExc_TypeError, "pos tuple must contain numbers");
-                    return -1;
-                }
-            } else {
-                PyErr_SetString(PyExc_TypeError, "pos must be a tuple (x, y) or Vector");
-                return -1;
-            }
-        }
+        sf::Vector2f v;
+        if (!mcrf::to_vector2f(pos_obj, v, "pos")) return -1;
+        x = v.x;
+        y = v.y;
     }
-    
+    if (!mcrf::require_finite(x, "x") || !mcrf::require_finite(y, "y") ||
+        !mcrf::require_finite(opacity, "opacity") || !mcrf::require_finite(margin, "margin") ||
+        !mcrf::require_finite(horiz_margin, "horiz_margin") || !mcrf::require_finite(vert_margin, "vert_margin")) {
+        return -1;
+    }
+
     // Handle font argument
     std::shared_ptr<PyFont> pyfont = nullptr;
     if (font && font != Py_None) {

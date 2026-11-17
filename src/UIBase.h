@@ -2,6 +2,7 @@
 #include "Python.h"
 #include "McRFPy_Doc.h"
 #include "PyPositionHelper.h"
+#include "PyWrap.h"
 #include <memory>
 
 class UIEntity;
@@ -214,14 +215,7 @@ template<typename T>
 static int UIDrawable_set_opacity(T* self, PyObject* value, void* closure)
 {
     float opacity;
-    if (PyFloat_Check(value)) {
-        opacity = PyFloat_AsDouble(value);
-    } else if (PyLong_Check(value)) {
-        opacity = PyLong_AsDouble(value);
-    } else {
-        PyErr_SetString(PyExc_TypeError, "opacity must be a number");
-        return -1;
-    }
+    if (!mcrf::to_float(value, opacity, "opacity")) return -1;  // #540 item 12
     
     self->data->assignOpacity(opacity);  // #426: clamps; shared with animation
     return 0;

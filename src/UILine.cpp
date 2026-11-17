@@ -367,14 +367,7 @@ PyObject* UILine::get_thickness(PyUILineObject* self, void* closure) {
 
 int UILine::set_thickness(PyUILineObject* self, PyObject* value, void* closure) {
     float thickness;
-    if (PyFloat_Check(value)) {
-        thickness = PyFloat_AsDouble(value);
-    } else if (PyLong_Check(value)) {
-        thickness = PyLong_AsLong(value);
-    } else {
-        PyErr_SetString(PyExc_TypeError, "thickness must be a number");
-        return -1;
-    }
+    if (!mcrf::to_float(value, thickness, "thickness")) return -1;
 
     if (thickness < 0.0f) {
         PyErr_SetString(PyExc_ValueError, "thickness must be non-negative");
@@ -483,6 +476,13 @@ int UILine::init(PyUILineObject* self, PyObject* args, PyObject* kwds) {
                                      &click_handler, &visible, &opacity, &z_index, &name,
                                      &align_obj, &margin, &horiz_margin, &vert_margin,
                                      &parent_obj)) {
+        return -1;
+    }
+
+    // #540 item 12: nan / inf are errors for every float argument (start / end are checked below)
+    if (!mcrf::require_finite(thickness, "thickness") || !mcrf::require_finite(opacity, "opacity") ||
+        !mcrf::require_finite(margin, "margin") || !mcrf::require_finite(horiz_margin, "horiz_margin") ||
+        !mcrf::require_finite(vert_margin, "vert_margin")) {
         return -1;
     }
 

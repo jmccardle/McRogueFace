@@ -2,6 +2,7 @@
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
 #include "PyPositionHelper.h"
+#include "PyWrap.h"
 
 // Click property getter
 static PyObject* PyDrawable_get_click(PyDrawableObject* self, void* closure)
@@ -82,14 +83,7 @@ static PyObject* PyDrawable_get_opacity(PyDrawableObject* self, void* closure)
 static int PyDrawable_set_opacity(PyDrawableObject* self, PyObject* value, void* closure)
 {
     float val;
-    if (PyFloat_Check(value)) {
-        val = PyFloat_AsDouble(value);
-    } else if (PyLong_Check(value)) {
-        val = PyLong_AsLong(value);
-    } else {
-        PyErr_SetString(PyExc_TypeError, "opacity must be a number");
-        return -1;
-    }
+    if (!mcrf::to_float(value, val, "opacity")) return -1;
 
     // Clamp to valid range
     if (val < 0.0f) val = 0.0f;

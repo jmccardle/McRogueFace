@@ -3,6 +3,7 @@
 #include <atomic>
 #include <climits>
 #include <cmath>
+#include <cfloat>
 #include "PyVector.h"
 #include "UIDrawable.h"
 #include "UIEntity.h"
@@ -114,24 +115,53 @@ static bool number_pair(PyObject* seq, sf::Vector2f& out)
     return true;
 }
 
+bool require_finite(double value, const char* what)
+{
+    if (!std::isfinite(value)) {
+        PyErr_Format(PyExc_ValueError, "%s must be finite (got %s)", what,
+                     std::isnan(value) ? "nan" : (value > 0 ? "inf" : "-inf"));
+        return false;
+    }
+    return true;
+}
+
+bool to_float(PyObject* value, float& out, const char* what)
+{
+    // Anything real-valued: float, int, bool, numpy scalars, Decimal-like (__float__ / __index__).
+    if (!PyNumber_Check(value) && !PyIndex_Check(value)) {
+        PyErr_Format(PyExc_TypeError, "%s must be a number (int or float)", what);
+        return false;
+    }
+    double d = PyFloat_AsDouble(value);
+    if (d == -1.0 && PyErr_Occurred()) return false;
+    if (!require_finite(d, what)) return false;
+    if (std::fabs(d) > static_cast<double>(FLT_MAX)) {
+        PyErr_Format(PyExc_OverflowError, "%s is out of range for a float", what);
+        return false;
+    }
+    out = static_cast<float>(d);
+    return true;
+}
+
 bool to_vector2f(PyObject* arg, sf::Vector2f& out, const char* what)
 {
     if (PyObject_TypeCheck(arg, &mcrfpydef::PyVectorType)) {
         out = ((PyVectorObject*)arg)->data;
-        return true;
-    }
-    if (number_pair(arg, out)) return true;
-    // Anything else Vector() accepts, with Vector()'s own validation.
-    PyVectorObject* vec = PyVector::from_arg(arg);
-    if (!vec) {
-        if (!PyErr_Occurred() || PyErr_ExceptionMatches(PyExc_TypeError)) {
-            PyErr_Format(PyExc_TypeError, "%s must be a Vector or a (x, y) pair", what);
+    } else if (!number_pair(arg, out)) {
+        // Anything else Vector() accepts, with Vector()'s own validation.
+        PyVectorObject* vec = PyVector::from_arg(arg);
+        if (!vec) {
+            if (!PyErr_Occurred() || PyErr_ExceptionMatches(PyExc_TypeError)) {
+                PyErr_Format(PyExc_TypeError, "%s must be a Vector or a (x, y) pair", what);
+            }
+            return false;
         }
-        return false;
+        out = vec->data;
+        Py_DECREF(vec);
     }
-    out = vec->data;
-    Py_DECREF(vec);
-    return true;
+    // #540 item 12: a position / size / center is never nan or inf (a Vector may hold one;
+    // storing it in a drawable is what breaks layout and rendering).
+    return require_finite(out.x, what) && require_finite(out.y, what);
 }
 
 bool to_int(double value, int& out, const char* what)

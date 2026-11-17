@@ -405,15 +405,9 @@ static int PySceneClass_set_opacity(PySceneObject* self, PyObject* value, void* 
         return -1;
     }
 
-    double opacity;
-    if (PyFloat_Check(value)) {
-        opacity = PyFloat_AsDouble(value);
-    } else if (PyLong_Check(value)) {
-        opacity = PyLong_AsDouble(value);
-    } else {
-        PyErr_SetString(PyExc_TypeError, "opacity must be a number");
-        return -1;
-    }
+    float opacity_f = 0.0f;
+    if (!mcrf::to_float(value, opacity_f, "opacity")) return -1;
+    double opacity = opacity_f;
 
     // Clamp to valid range
     if (opacity < 0.0) opacity = 0.0;

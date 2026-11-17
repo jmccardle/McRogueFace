@@ -623,14 +623,7 @@ int UIDrawable::set_float_member(PyObject* self, PyObject* value, void* closure)
     if (!drawable) return -1;
 
     float val = 0.0f;
-    if (PyFloat_Check(value)) {
-        val = PyFloat_AsDouble(value);
-    } else if (PyLong_Check(value)) {
-        val = static_cast<float>(PyLong_AsLong(value));
-    } else {
-        PyErr_SetString(PyExc_TypeError, "Value must be a number (int or float)");
-        return -1;
-    }
+    if (!mcrf::to_float(value, val, "Value")) return -1;
     
     // #426: the same setters the animation system uses
     const sf::Vector2f p = drawable->position;
@@ -701,14 +694,7 @@ int UIDrawable::set_rotation(PyObject* self, PyObject* value, void* closure) {
     if (!drawable) return -1;
 
     float val = 0.0f;
-    if (PyFloat_Check(value)) {
-        val = PyFloat_AsDouble(value);
-    } else if (PyLong_Check(value)) {
-        val = static_cast<float>(PyLong_AsLong(value));
-    } else {
-        PyErr_SetString(PyExc_TypeError, "rotation must be a number (int or float)");
-        return -1;
-    }
+    if (!mcrf::to_float(value, val, "rotation")) return -1;
 
     drawable->assignRotation(val);
     return 0;
@@ -2247,14 +2233,7 @@ int UIDrawable::set_margin(PyObject* self, PyObject* value, void* closure) {
     if (!drawable) return -1;
 
     float margin = 0.0f;
-    if (PyFloat_Check(value)) {
-        margin = static_cast<float>(PyFloat_AsDouble(value));
-    } else if (PyLong_Check(value)) {
-        margin = static_cast<float>(PyLong_AsLong(value));
-    } else {
-        PyErr_SetString(PyExc_TypeError, "margin must be a number");
-        return -1;
-    }
+    if (!mcrf::to_float(value, margin, "margin")) return -1;
 
     // Validate margins for current alignment
     if (drawable->align_type != AlignmentType::NONE) {
@@ -2286,14 +2265,7 @@ int UIDrawable::set_horiz_margin(PyObject* self, PyObject* value, void* closure)
     if (!drawable) return -1;
 
     float horiz_margin = 0.0f;
-    if (PyFloat_Check(value)) {
-        horiz_margin = static_cast<float>(PyFloat_AsDouble(value));
-    } else if (PyLong_Check(value)) {
-        horiz_margin = static_cast<float>(PyLong_AsLong(value));
-    } else {
-        PyErr_SetString(PyExc_TypeError, "horiz_margin must be a number");
-        return -1;
-    }
+    if (!mcrf::to_float(value, horiz_margin, "horiz_margin")) return -1;
 
     // Validate margins for current alignment
     if (drawable->align_type != AlignmentType::NONE) {
@@ -2325,14 +2297,7 @@ int UIDrawable::set_vert_margin(PyObject* self, PyObject* value, void* closure) 
     if (!drawable) return -1;
 
     float vert_margin = 0.0f;
-    if (PyFloat_Check(value)) {
-        vert_margin = static_cast<float>(PyFloat_AsDouble(value));
-    } else if (PyLong_Check(value)) {
-        vert_margin = static_cast<float>(PyLong_AsLong(value));
-    } else {
-        PyErr_SetString(PyExc_TypeError, "vert_margin must be a number");
-        return -1;
-    }
+    if (!mcrf::to_float(value, vert_margin, "vert_margin")) return -1;
 
     // Validate margins for current alignment
     if (drawable->align_type != AlignmentType::NONE) {

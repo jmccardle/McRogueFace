@@ -283,11 +283,9 @@ PyObject* UICircle::get_radius(PyUICircleObject* self, void* closure) {
 }
 
 int UICircle::set_radius(PyUICircleObject* self, PyObject* value, void* closure) {
-    if (!PyNumber_Check(value)) {
-        PyErr_SetString(PyExc_TypeError, "radius must be a number");
-        return -1;
-    }
-    self->data->setRadius(static_cast<float>(PyFloat_AsDouble(value)));
+    float v_ = 0.0f;
+    if (!mcrf::to_float(value, v_, "radius")) return -1;
+    self->data->setRadius(v_);
     self->data->markDirty(); // #291: visual change
     return 0;
 }
@@ -342,11 +340,9 @@ PyObject* UICircle::get_outline(PyUICircleObject* self, void* closure) {
 }
 
 int UICircle::set_outline(PyUICircleObject* self, PyObject* value, void* closure) {
-    if (!PyNumber_Check(value)) {
-        PyErr_SetString(PyExc_TypeError, "outline must be a number");
-        return -1;
-    }
-    self->data->setOutline(static_cast<float>(PyFloat_AsDouble(value)));
+    float v_ = 0.0f;
+    if (!mcrf::to_float(value, v_, "outline")) return -1;
+    self->data->setOutline(v_);
     self->data->markDirty(); // #291: visual change
     return 0;
 }
@@ -440,6 +436,13 @@ int UICircle::init(PyUICircleObject* self, PyObject* args, PyObject* kwds) {
             &click_obj, &visible, &opacity_val, &z_index, &name,
             &align_obj, &margin, &horiz_margin, &vert_margin,
             &parent_obj)) {
+        return -1;
+    }
+
+    // #540 item 12: nan / inf are errors for every float argument (center is checked below)
+    if (!mcrf::require_finite(radius, "radius") || !mcrf::require_finite(outline, "outline") ||
+        !mcrf::require_finite(opacity_val, "opacity") || !mcrf::require_finite(margin, "margin") ||
+        !mcrf::require_finite(horiz_margin, "horiz_margin") || !mcrf::require_finite(vert_margin, "vert_margin")) {
         return -1;
     }
 

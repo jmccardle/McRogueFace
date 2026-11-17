@@ -298,23 +298,16 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
         return -1;
     }
     
-    // Handle grid position argument (can be tuple or use x/y keywords)
+    // grid_pos: the checked converter (#540 item 12); without it the x / y keywords are used.
     if (grid_pos_obj) {
-        if (PyTuple_Check(grid_pos_obj) && PyTuple_Size(grid_pos_obj) == 2) {
-            PyObject* x_val = PyTuple_GetItem(grid_pos_obj, 0);
-            PyObject* y_val = PyTuple_GetItem(grid_pos_obj, 1);
-            if ((PyFloat_Check(x_val) || PyLong_Check(x_val)) &&
-                (PyFloat_Check(y_val) || PyLong_Check(y_val))) {
-                x = PyFloat_Check(x_val) ? PyFloat_AsDouble(x_val) : PyLong_AsLong(x_val);
-                y = PyFloat_Check(y_val) ? PyFloat_AsDouble(y_val) : PyLong_AsLong(y_val);
-            } else {
-                PyErr_SetString(PyExc_TypeError, "grid_pos tuple must contain numbers");
-                return -1;
-            }
-        } else {
-            PyErr_SetString(PyExc_TypeError, "grid_pos must be a tuple (x, y)");
-            return -1;
-        }
+        sf::Vector2f v;
+        if (!mcrf::to_vector2f(grid_pos_obj, v, "grid_pos")) return -1;
+        x = v.x;
+        y = v.y;
+    }
+    if (!mcrf::require_finite(x, "x") || !mcrf::require_finite(y, "y") ||
+        !mcrf::require_finite(opacity, "opacity")) {
+        return -1;
     }
 
     // Handle texture argument
@@ -670,14 +663,7 @@ int UIEntity::set_pixel_member(PyUIEntityObject* self, PyObject* value, void* cl
     }
 
     float val;
-    if (PyFloat_Check(value)) {
-        val = PyFloat_AsDouble(value);
-    } else if (PyLong_Check(value)) {
-        val = PyLong_AsLong(value);
-    } else {
-        PyErr_SetString(PyExc_TypeError, "Position must be a number (int or float)");
-        return -1;
-    }
+    if (!mcrf::to_float(value, val, "Position")) return -1;
 
     sf::Vector2f tiles = self->data->position;
     if (reinterpret_cast<intptr_t>(closure) == 0) // x
@@ -777,14 +763,7 @@ PyObject* UIEntity::get_sprite_offset_member(PyUIEntityObject* self, void* closu
 
 int UIEntity::set_sprite_offset_member(PyUIEntityObject* self, PyObject* value, void* closure) {
     float val;
-    if (PyFloat_Check(value))
-        val = PyFloat_AsDouble(value);
-    else if (PyLong_Check(value))
-        val = PyLong_AsLong(value);
-    else {
-        PyErr_SetString(PyExc_TypeError, "sprite_offset component must be a number");
-        return -1;
-    }
+    if (!mcrf::to_float(value, val, "sprite_offset component")) return -1;
     sf::Vector2f offset = self->data->sprite_offset;
     if (reinterpret_cast<intptr_t>(closure) == 0)
         offset.x = val;
@@ -1376,8 +1355,8 @@ PyObject* UIEntity::get_move_speed(PyUIEntityObject* self, void* closure) {
 }
 
 int UIEntity::set_move_speed(PyUIEntityObject* self, PyObject* value, void* closure) {
-    double val = PyFloat_AsDouble(value);
-    if (val == -1.0 && PyErr_Occurred()) return -1;
+    float val = 0.0f;
+    if (!mcrf::to_float(value, val, "value")) return -1;
     self->data->move_speed = static_cast<float>(val);
     return 0;
 }

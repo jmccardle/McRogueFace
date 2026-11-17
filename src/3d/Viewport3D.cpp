@@ -1366,11 +1366,9 @@ static PyObject* Viewport3D_get_x(PyViewport3DObject* self, void* closure) {
 }
 
 static int Viewport3D_set_x(PyViewport3DObject* self, PyObject* value, void* closure) {
-    if (!PyNumber_Check(value)) {
-        PyErr_SetString(PyExc_TypeError, "x must be a number");
-        return -1;
-    }
-    self->data->assignPosition({static_cast<float>(PyFloat_AsDouble(value)), self->data->position.y});
+    float v_ = 0.0f;
+    if (!mcrf::to_float(value, v_, "x")) return -1;
+    self->data->assignPosition({v_, self->data->position.y});
     return 0;
 }
 
@@ -1379,11 +1377,9 @@ static PyObject* Viewport3D_get_y(PyViewport3DObject* self, void* closure) {
 }
 
 static int Viewport3D_set_y(PyViewport3DObject* self, PyObject* value, void* closure) {
-    if (!PyNumber_Check(value)) {
-        PyErr_SetString(PyExc_TypeError, "y must be a number");
-        return -1;
-    }
-    self->data->assignPosition({self->data->position.x, static_cast<float>(PyFloat_AsDouble(value))});
+    float v_ = 0.0f;
+    if (!mcrf::to_float(value, v_, "y")) return -1;
+    self->data->assignPosition({self->data->position.x, v_});
     return 0;
 }
 
@@ -1393,11 +1389,9 @@ static PyObject* Viewport3D_get_w(PyViewport3DObject* self, void* closure) {
 }
 
 static int Viewport3D_set_w(PyViewport3DObject* self, PyObject* value, void* closure) {
-    if (!PyNumber_Check(value)) {
-        PyErr_SetString(PyExc_TypeError, "w must be a number");
-        return -1;
-    }
-    self->data->assignSize({static_cast<float>(PyFloat_AsDouble(value)), self->data->getHeight()});
+    float v_ = 0.0f;
+    if (!mcrf::to_float(value, v_, "w")) return -1;
+    self->data->assignSize({v_, self->data->getHeight()});
     return 0;
 }
 
@@ -1406,11 +1400,9 @@ static PyObject* Viewport3D_get_h(PyViewport3DObject* self, void* closure) {
 }
 
 static int Viewport3D_set_h(PyViewport3DObject* self, PyObject* value, void* closure) {
-    if (!PyNumber_Check(value)) {
-        PyErr_SetString(PyExc_TypeError, "h must be a number");
-        return -1;
-    }
-    self->data->assignSize({self->data->getWidth(), static_cast<float>(PyFloat_AsDouble(value))});
+    float v_ = 0.0f;
+    if (!mcrf::to_float(value, v_, "h")) return -1;
+    self->data->assignSize({self->data->getWidth(), v_});
     return 0;
 }
 

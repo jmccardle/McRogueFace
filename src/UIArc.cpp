@@ -348,11 +348,9 @@ PyObject* UIArc::get_radius(PyUIArcObject* self, void* closure) {
 }
 
 int UIArc::set_radius(PyUIArcObject* self, PyObject* value, void* closure) {
-    if (!PyNumber_Check(value)) {
-        PyErr_SetString(PyExc_TypeError, "radius must be a number");
-        return -1;
-    }
-    self->data->setRadius(static_cast<float>(PyFloat_AsDouble(value)));
+    float v_ = 0.0f;
+    if (!mcrf::to_float(value, v_, "radius")) return -1;
+    self->data->setRadius(v_);
     self->data->markDirty(); // #291: visual change
     return 0;
 }
@@ -362,11 +360,9 @@ PyObject* UIArc::get_start_angle(PyUIArcObject* self, void* closure) {
 }
 
 int UIArc::set_start_angle(PyUIArcObject* self, PyObject* value, void* closure) {
-    if (!PyNumber_Check(value)) {
-        PyErr_SetString(PyExc_TypeError, "start_angle must be a number");
-        return -1;
-    }
-    self->data->setStartAngle(static_cast<float>(PyFloat_AsDouble(value)));
+    float v_ = 0.0f;
+    if (!mcrf::to_float(value, v_, "start_angle")) return -1;
+    self->data->setStartAngle(v_);
     self->data->markDirty(); // #291: visual change
     return 0;
 }
@@ -376,11 +372,9 @@ PyObject* UIArc::get_end_angle(PyUIArcObject* self, void* closure) {
 }
 
 int UIArc::set_end_angle(PyUIArcObject* self, PyObject* value, void* closure) {
-    if (!PyNumber_Check(value)) {
-        PyErr_SetString(PyExc_TypeError, "end_angle must be a number");
-        return -1;
-    }
-    self->data->setEndAngle(static_cast<float>(PyFloat_AsDouble(value)));
+    float v_ = 0.0f;
+    if (!mcrf::to_float(value, v_, "end_angle")) return -1;
+    self->data->setEndAngle(v_);
     self->data->markDirty(); // #291: visual change
     return 0;
 }
@@ -407,11 +401,9 @@ PyObject* UIArc::get_thickness(PyUIArcObject* self, void* closure) {
 }
 
 int UIArc::set_thickness(PyUIArcObject* self, PyObject* value, void* closure) {
-    if (!PyNumber_Check(value)) {
-        PyErr_SetString(PyExc_TypeError, "thickness must be a number");
-        return -1;
-    }
-    self->data->setThickness(static_cast<float>(PyFloat_AsDouble(value)));
+    float v_ = 0.0f;
+    if (!mcrf::to_float(value, v_, "thickness")) return -1;
+    self->data->setThickness(v_);
     self->data->markDirty(); // #291: visual change
     return 0;
 }
@@ -512,6 +504,14 @@ int UIArc::init(PyUIArcObject* self, PyObject* args, PyObject* kwds) {
                                      &click_handler, &visible, &opacity, &z_index, &name,
                                      &align_obj, &margin, &horiz_margin, &vert_margin,
                                      &parent_obj)) {
+        return -1;
+    }
+
+    // #540 item 12: nan / inf are errors for every float argument (center is checked below)
+    if (!mcrf::require_finite(radius, "radius") || !mcrf::require_finite(start_angle, "start_angle") ||
+        !mcrf::require_finite(end_angle, "end_angle") || !mcrf::require_finite(thickness, "thickness") ||
+        !mcrf::require_finite(opacity, "opacity") || !mcrf::require_finite(margin, "margin") ||
+        !mcrf::require_finite(horiz_margin, "horiz_margin") || !mcrf::require_finite(vert_margin, "vert_margin")) {
         return -1;
     }
 
