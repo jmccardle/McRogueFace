@@ -1588,11 +1588,23 @@ PyObject* PyHeightMap::dig_bezier(PyHeightMapObject* self, PyObject* args, PyObj
 
     int px[4], py[4];
     for (int i = 0; i < 4; i++) {
-        PyObject* point = PyTuple_Check(points_obj) ? PyTuple_GetItem(points_obj, i) : PyList_GetItem(points_obj, i);
+        // Hold the point across the parse: converting a component can run user code that
+        // mutates points_obj (#543 class). PySequence_GetItem returns a new reference.
+        PyObject* point = PySequence_GetItem(points_obj, i);
+        if (!point) return nullptr;
         int x, y;
         char what[32];
         snprintf(what, sizeof what, "control point %d", i);
-        if (!PyPosition_FromObjectInt(point, &x, &y, what)) {
+        bool parsed = PyPosition_FromObjectInt(point, &x, &y, what);
+        Py_DECREF(point);
+        if (!parsed) return nullptr;
+        // libtcod computes 3 * px[i] in int (heightmap_c.c:257-258), then sums floats whose
+        // magnitude is bounded by max |coordinate| (a Bezier is a convex combination), so
+        // |coordinate| <= INT_MAX / 3 keeps both the product and the (int) cast in range.
+        const int bezier_limit = INT_MAX / 3;
+        if (x < -bezier_limit || x > bezier_limit || y < -bezier_limit || y > bezier_limit) {
+            PyErr_Format(PyExc_ValueError,
+                "%s: coordinates must be within +/-%d (got (%d, %d))", what, bezier_limit, x, y);
             return nullptr;
         }
         px[i] = x;

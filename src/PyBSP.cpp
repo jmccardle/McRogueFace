@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <algorithm>  // #210: For std::min, std::max
+#include <climits>
 
 // Static storage for Traversal enum
 PyObject* PyTraversal::traversal_enum_class = nullptr;
@@ -460,6 +461,14 @@ int PyBSP::init(PyBSPObject* self, PyObject* args, PyObject* kwds)
         return -1;
     }
 
+    // libtcod's BSP computes x + w and y + h in int (bsp_c.c: new_intern, contains, resize):
+    // the far edges must fit (#540 E). The near edges are the ints just parsed.
+    if ((long long)x + w > INT_MAX || (long long)y + h > INT_MAX) {
+        PyErr_Format(PyExc_ValueError,
+            "pos + size must fit in a C int (pos=(%d, %d), size=(%d, %d))", x, y, w, h);
+        return -1;
+    }
+
     // Clean up any existing BSP
     if (self->root) {
         TCOD_bsp_delete(self->root);
@@ -608,6 +617,21 @@ PyObject* PyBSP::split_once(PyBSPObject* self, PyObject* args, PyObject* kwds)
         return nullptr;
     }
 
+    // libtcod's new_intern computes position - x (left child), x + w - position (right child)
+    // and the y forms in int (bsp_c.c:66-74): both must fit (#540 E).
+    {
+        const long long lo = horizontal ? self->root->y : self->root->x;
+        const long long extent = horizontal ? self->root->h : self->root->w;
+        const long long first = (long long)position - lo;
+        const long long second = lo + extent - position;
+        if (first < INT_MIN || first > INT_MAX || second < INT_MIN || second > INT_MAX) {
+            PyErr_Format(PyExc_ValueError,
+                "position %d is too far from the BSP's %s edge: the child sizes must fit in a C int",
+                position, horizontal ? "y" : "x");
+            return nullptr;
+        }
+    }
+
     // Increment generation to invalidate adjacency cache and stale BSPNode references
     // The tree structure changes, so any cached adjacency graph is now invalid
     self->generation++;
@@ -658,6 +682,32 @@ PyObject* PyBSP::split_recursive(PyBSPObject* self, PyObject* args, PyObject* kw
     if (min_w <= 0 || min_h <= 0) {
         PyErr_SetString(PyExc_ValueError, "min_size values must be positive");
         return nullptr;
+    }
+
+    // libtcod's split_recursive (bsp_c.c:163-176) computes 2*min, x + min and x + w - min in int
+    // and draws the split position from [x + w - min, x + min] (reversed when min > w / 2;
+    // TCOD_random_get_i then computes max - min + 1). So a split edge lies within `min` of the
+    // hull of its parent's edges, and after `depth` levels every edge is inside
+    //   [x - (depth + 1) * min, x + w + (depth + 1) * min]
+    // (one extra level for the x + min probe). That hull must fit in int and be narrower than
+    // INT_MAX, per axis with that axis's min size. Real invariant, no magic bound (#540 E).
+    {
+        const long long levels = (long long)depth + 1;
+        struct Axis { const char* name; long long lo, extent, min; };
+        const Axis axes[2] = {{"x", self->root->x, self->root->w, min_w},
+                              {"y", self->root->y, self->root->h, min_h}};
+        for (const Axis& a : axes) {
+            const long long pad = levels * a.min;
+            const long long hull_lo = a.lo - pad;
+            const long long hull_hi = a.lo + a.extent + pad;
+            if (hull_lo < INT_MIN || hull_hi > INT_MAX || hull_hi - hull_lo > INT_MAX - 1) {
+                PyErr_Format(PyExc_ValueError,
+                    "min_size is too large for this BSP: (depth + 1) * min_size on the %s axis "
+                    "would overflow a C int (depth=%d, min_size=%d)",
+                    a.name, depth, (int)a.min);
+                return nullptr;
+            }
+        }
     }
 
     // Create random generator if seed provided

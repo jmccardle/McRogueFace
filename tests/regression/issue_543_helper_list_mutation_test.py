@@ -66,6 +66,18 @@ try:
 except Exception as e:
     fails.append(f"ParseInt/Grid.at: raised {type(e).__name__}: {e}")
 
+# dig_bezier iterates a list of points and parses each: a point whose component conversion
+# clears the points list must not be freed mid-parse (same class, caller side)
+hm = mcrfpy.HeightMap((8, 8))
+points = [None, (1, 1), (2, 2), (3, 3)]
+points[0] = [make_x(points, clear), Y(1)]
+try:
+    hm.dig_bezier(points, 1.0, 1.0, 0.0, 0.0)
+except Exception as e:
+    # points shrank to 0 items while being read; any ordinary exception is fine, a crash is not
+    if not isinstance(e, (IndexError, ValueError, TypeError)):
+        fails.append(f"dig_bezier: raised {type(e).__name__}: {e}")
+
 for f in fails:
     print("FAIL:", f)
 print("FAIL" if fails else "PASS")
