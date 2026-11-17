@@ -62,7 +62,7 @@ jobs:
         run: make linux
 
       - name: Run tests (Release)
-        run: cd tests && xvfb-run -a python3 run_tests.py -v
+        run: cd tests && xvfb-run -a -s "-noreset" python3 run_tests.py -v
 
       - name: Test run left the tree clean
         run: |
@@ -101,7 +101,7 @@ jobs:
           ls __lib_debug/libpython3.*d.so.1.0 >/dev/null 2>&1 || make python-debug
 
       - name: Build and test (debug Python)
-        run: xvfb-run -a make debug-test
+        run: xvfb-run -a -s "-noreset" make debug-test
 
   asan-test:
     runs-on: ubuntu-latest
@@ -133,7 +133,7 @@ jobs:
           ls __lib_debug/libpython3.*d.so.1.0 >/dev/null 2>&1 || make python-debug
 
       - name: Build and test (ASan + UBSan)
-        run: xvfb-run -a make asan-test
+        run: xvfb-run -a -s "-noreset" make asan-test
 
   valgrind-test:
     runs-on: ubuntu-latest
@@ -165,5 +165,5 @@ jobs:
           ls __lib_debug/libpython3.*d.so.1.0 >/dev/null 2>&1 || make python-debug
 
       - name: Build and test (Valgrind memcheck)
-        run: xvfb-run -a make valgrind-test
+        run: xvfb-run -a -s "-noreset" make valgrind-test
         timeout-minutes: 30

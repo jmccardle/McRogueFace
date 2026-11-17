@@ -85,7 +85,7 @@ command -v wine >/dev/null || die "wine not found: it runs the Windows package's
 if [ -n "${DISPLAY:-}" ]; then
     WITH_DISPLAY=()
 elif command -v xvfb-run >/dev/null; then
-    WITH_DISPLAY=(xvfb-run -a)
+    WITH_DISPLAY=(xvfb-run -a -s "-noreset")
 else
     die "rendering tests need a display: set DISPLAY or install xvfb-run"
 fi

@@ -584,7 +584,7 @@ tests/
 # Run the full test suite (from tests/ directory). Rendering in the SFML build needs a
 # display even with --headless (GL resources are created on first use, and raise
 # RuntimeError with no display, #451); ALSOFT_DRIVERS=null stands in for a missing audio device.
-cd tests && ALSOFT_DRIVERS=null xvfb-run -a python3 run_tests.py
+cd tests && ALSOFT_DRIVERS=null xvfb-run -a -s "-noreset" python3 run_tests.py
 
 # Run a specific test
 cd build && ./mcrogueface --headless --exec ../tests/unit/some_test.py
