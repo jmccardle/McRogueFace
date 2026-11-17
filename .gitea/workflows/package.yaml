@@ -53,9 +53,15 @@ jobs:
           $SUDO apt-get update
           $SUDO apt-get install -y $APT_PACKAGES
 
+      # Keys are computed into variables first: with `shell: bash` (-e -o pipefail) a failing
+      # input command fails the step, instead of hashing less and silently weakening the key.
       - name: Dependency cache key
         id: deps-key
-        run: echo "key=$(git ls-tree HEAD modules/ | cat - tools/build_deps.sh tools/build_python.sh /etc/os-release | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+        shell: bash
+        run: |
+          tree=$(git ls-tree HEAD modules/)
+          files=$(cat tools/build_deps.sh tools/build_python.sh /etc/os-release)
+          echo "key=$(printf '%s\n' "$tree" "$files" | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
 
       - name: Cache built dependencies
         uses: actions/cache@v4
@@ -109,11 +115,18 @@ jobs:
           $SUDO apt-get update
           $SUDO apt-get install -y $APT_PACKAGES
 
+      # Keys are computed into variables first: with `shell: bash` (-e -o pipefail) a failing
+      # input command fails the step, instead of hashing less and silently weakening the key.
       - name: Dependency cache keys
         id: deps-key
+        shell: bash
         run: |
-          echo "key=$(git ls-tree HEAD modules/ | cat - tools/build_deps.sh tools/build_python.sh /etc/os-release | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
-          echo "wasm=$(git ls-tree HEAD modules/cpython modules/libtcod-headless | cat - tools/build_deps_wasm.sh tools/build_python_wasm.sh /etc/os-release | sha256sum | cut -c1-16)-$EMSDK_VERSION" >> "$GITHUB_OUTPUT"
+          tree=$(git ls-tree HEAD modules/)
+          files=$(cat tools/build_deps.sh tools/build_python.sh /etc/os-release)
+          echo "key=$(printf '%s\n' "$tree" "$files" | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+          wasm_tree=$(git ls-tree HEAD modules/cpython modules/libtcod-headless)
+          wasm_files=$(cat tools/build_deps_wasm.sh tools/build_python_wasm.sh /etc/os-release)
+          echo "wasm=$(printf '%s\n' "$wasm_tree" "$wasm_files" | sha256sum | cut -c1-16)-$EMSDK_VERSION" >> "$GITHUB_OUTPUT"
 
       # Restore and save are separate steps so that a build which gets this far
       # is cached even when a later step fails.
@@ -189,8 +202,6 @@ jobs:
           if-no-files-found: warn
 
   windows:
-    # Pinned: Wine and MinGW-w64 come from this release's repositories, and the
-    # dependency cache is keyed on them.
     runs-on: [docker, ubuntu]
     steps:
       - name: Checkout
@@ -204,11 +215,21 @@ jobs:
           $SUDO apt-get update
           $SUDO apt-get install -y $APT_PACKAGES $WINDOWS_APT_PACKAGES
 
+      # Keys are computed into variables first: with `shell: bash` (-e -o pipefail) a failing
+      # input command fails the step, instead of hashing less and silently weakening the key.
       - name: Dependency cache keys
         id: deps-key
+        shell: bash
         run: |
-          echo "key=$(git ls-tree HEAD modules/ | cat - tools/build_deps.sh tools/build_python.sh /etc/os-release | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
-          echo "windows=$(git ls-tree HEAD modules/SFML modules/libtcod-headless modules/cpython | cat - tools/build_deps_windows.sh tools/fetch_windows_python.sh cmake/toolchains/mingw-w64-x86_64.cmake /etc/os-release | sha256sum | cut -c1-16)-$(dpkg-query -W -f='${Version}' gcc-mingw-w64-x86-64-posix)" >> "$GITHUB_OUTPUT"
+          tree=$(git ls-tree HEAD modules/)
+          files=$(cat tools/build_deps.sh tools/build_python.sh /etc/os-release)
+          echo "key=$(printf '%s\n' "$tree" "$files" | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+          win_tree=$(git ls-tree HEAD modules/SFML modules/libtcod-headless modules/cpython)
+          win_files=$(cat tools/build_deps_windows.sh tools/fetch_windows_python.sh cmake/toolchains/mingw-w64-x86_64.cmake /etc/os-release)
+          # The compilers, headers and import libraries the dependencies are built with.
+          win_tools=$(dpkg-query -W -f='${Package} ${Version}\n' g++-mingw-w64-x86-64-posix gcc-mingw-w64-x86-64-posix mingw-w64-x86-64-dev binutils-mingw-w64-x86-64)
+          win_cmake=$(cmake --version)
+          echo "windows=$(printf '%s\n' "$win_tree" "$win_files" "$win_tools" "$win_cmake" | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
 
       - name: Restore built dependencies
         id: deps-cache
