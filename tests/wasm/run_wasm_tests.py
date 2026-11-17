@@ -34,6 +34,7 @@ Exit code 0 = all tests passed, 1 = a test failed, 2 = harness/setup error.
 """
 import argparse
 import functools
+import math
 import http.server
 import socket
 import socketserver
@@ -208,6 +209,109 @@ def t_text_baseline(page):
     return _expect(out == want, f"line tops, baseline_y, metrics, default -> {out!r}")
 
 
+def canvas_image(page):
+    """The WebGL canvas as the browser composited it, as a PIL RGBA image.
+
+    Playwright's element screenshot reads the compositor output, so it needs no
+    preserveDrawingBuffer and sees exactly what a player sees. Two animation frames
+    first: the engine draws from requestAnimationFrame, so the scene a test just set
+    has been drawn once the second callback runs. The shot must be 1:1 with the
+    canvas backing store, or pixel coordinates would not be engine coordinates.
+    The engine letterboxes its 1024x768 scene into the canvas, which follows the
+    viewport, so a test wanting scene coordinates sizes the viewport to 1024x768
+    first (see with_scene_viewport).
+    """
+    import io
+    from PIL import Image
+    # The playground shell lays the canvas out at a CSS size smaller than its backing
+    # store; pin it to backing-store size at the page origin for the shot, then restore.
+    old_css = page.evaluate("""() => {
+        const c = Module.canvas, old = c.style.cssText;
+        c.style.cssText = `position: fixed; left: 0; top: 0; z-index: 2147483647;
+            width: ${c.width}px; height: ${c.height}px; margin: 0; padding: 0; border: 0`;
+        return old;
+    }""")
+    try:
+        page.evaluate("new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))")
+        png = page.locator("#canvas").screenshot()
+    finally:
+        page.evaluate("(css) => { Module.canvas.style.cssText = css; }", old_css)
+    img = Image.open(io.BytesIO(png)).convert("RGBA")
+    backing = tuple(page.evaluate("[Module.canvas.width, Module.canvas.height]"))
+    if img.size != backing:
+        raise RuntimeError(f"canvas shot is {img.size}, backing store is {backing}")
+    return img
+
+
+def with_scene_viewport(page, fn):
+    """Run fn() with the viewport (and so the canvas) exactly the 1024x768 scene size,
+    where one scene unit is one canvas pixel; restore the viewport afterwards."""
+    old = page.viewport_size
+    page.set_viewport_size({"width": 1024, "height": 768})
+    try:
+        page.wait_for_function(
+            "() => Module.canvas.width === 1024 && Module.canvas.height === 768", timeout=10000)
+        return fn()
+    finally:
+        page.set_viewport_size(old)
+
+
+def t_arc_pixels(page):
+    return with_scene_viewport(page, lambda: _arc_pixels(page))
+
+
+def _arc_pixels(page):
+    # #542: mcrfpy.Arc draws through RenderTarget::draw(const Vertex*, ...) (a triangle
+    # strip), which was an empty stub on SDL2 until #539. Arc A is the lower half
+    # (angles 0..180 run clockwise on screen, y down) of a 10 px band at radius 100,
+    # opaque, on a black Frame. Arc B is the same band, white at alpha 128, 90 degrees
+    # (270..360, upper right) around another centre.
+    rp(page, (
+        "import mcrfpy\n"
+        "sc = mcrfpy.Scene('arc542')\n"
+        "sc.children.append(mcrfpy.Frame(pos=(0, 0), size=(1024, 768),"
+        " fill_color=mcrfpy.Color(0, 0, 0)))\n"
+        "sc.children.append(mcrfpy.Arc(center=(300, 300), radius=100, start_angle=0,"
+        " end_angle=180, color=mcrfpy.Color(200, 100, 50), thickness=10))\n"
+        "sc.children.append(mcrfpy.Arc(center=(700, 300), radius=100, start_angle=270,"
+        " end_angle=360, color=mcrfpy.Color(255, 255, 255, 128), thickness=10))\n"
+        "mcrfpy.current_scene = sc\n"))
+    img = canvas_image(page)
+    px = lambda x, y: img.getpixel((round(x), round(y)))
+
+    def on_circle(cx, cy, r, deg):
+        a = math.radians(deg)
+        return cx + r * math.cos(a), cy + r * math.sin(a)
+
+    bad = []
+
+    def expect(label, xy, want):
+        got = px(*xy)
+        if got != want:
+            bad.append(f"{label} at {tuple(round(v) for v in xy)}: {got} != {want}")
+
+    ARC, BLACK = (200, 100, 50, 255), (0, 0, 0, 255)
+    # Arc A: colour exactly along the band, from near the start to near the end angle.
+    for deg in (5, 45, 90, 135, 175):
+        expect(f"A band {deg} deg", on_circle(300, 300, 100, deg), ARC)
+    # Absent: centre, inside and outside the band, the unswept half, just past each end.
+    expect("A centre", (300, 300), BLACK)
+    for deg in (45, 90, 135):
+        expect(f"A inside band {deg} deg", on_circle(300, 300, 85, deg), BLACK)
+        expect(f"A outside band {deg} deg", on_circle(300, 300, 115, deg), BLACK)
+    for deg in (200, 270, 340):
+        expect(f"A unswept {deg} deg", on_circle(300, 300, 100, deg), BLACK)
+    # Arc B: blended with the black behind it, so half white; same absences.
+    for deg in (275, 315, 355):
+        got = px(*on_circle(700, 300, 100, deg))
+        if not (got[0] == got[1] == got[2] == 128 and got[3] == 255):
+            bad.append(f"B band {deg} deg: {got}, want 128 grey")
+    expect("B centre", (700, 300), BLACK)
+    expect("B unswept 90 deg", on_circle(700, 300, 100, 90), BLACK)
+    expect("B outside band", on_circle(700, 300, 115, 315), BLACK)
+    return _expect(not bad, "; ".join(bad) or "arc colour on the band, black elsewhere")
+
+
 TESTS = [
     ("basic_eval", t_basic_eval),
     ("print_stdout", t_print_stdout),
@@ -221,6 +325,7 @@ TESTS = [
     ("reset_environment", t_reset_environment),
     ("utf8_text", t_utf8_text),
     ("text_baseline", t_text_baseline),
+    ("arc_pixels", t_arc_pixels),
 ]
 
 
