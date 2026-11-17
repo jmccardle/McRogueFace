@@ -221,6 +221,7 @@ release-docs: docs stamp-snippets snippet-shots
 	@echo ""
 	@echo "=== Regenerating the site against this engine (SITE_DIR=$(SITE_DIR)) ==="
 	@test -d "$(SITE_DIR)" || { echo "SITE_DIR not found: $(SITE_DIR)"; exit 1; }
+	@cd "$(SITE_DIR)" && python3 tools/inject_snippets.py --check --engine "$(CURDIR)"
 	@cd "$(SITE_DIR)" && python3 tools/build_reference.py
 	@cd "$(SITE_DIR)" && python3 tools/build_library.py --ref $(RELEASE_REF)
 	@echo ""
