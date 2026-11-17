@@ -288,6 +288,25 @@ Packaging tools:
 - `tools/version.sh` - prints `MCRFPY_VERSION` from `src/McRogueFaceVersion.h`, the only
   source of truth for the version, `-dev` included (#475). Nothing reads git tags for it.
 
+#### Linux package: bundled FLAC and the clean-distro gate (#525)
+
+`libsfml-audio` records the libFLAC soname of its build host (`.8`, `.12`, `.14`), so the
+package ships that library: `tools/build_deps.sh` stages the host's FLAC into `__lib/` next to
+SFML, and `runtime.py` copies the one `libsfml-audio`'s DT_NEEDED names (read from the ELF,
+never written down; a missing one is a `ProjectError`). SFML is built with `RUNPATH=$ORIGIN`,
+because a RUNPATH is not used for dependencies of dependencies. Only FLAC is bundled; openal,
+vorbis, ogg, X11, GL and freetype are the host's (list in README.md). The floor is
+Debian 13 / Ubuntu 24.04 (glibc 2.38). `tools/smoke_package.py` runs the unpacked package in
+clean `debian:13-slim` and `ubuntu:24.04` containers (podman or docker; `--no-clean-distro` is
+a developer opt-out that `tools/release.sh` never passes). It installs ONLY the packages
+README.md documents (`ENGINE_PACKAGES` + `STDLIB_PACKAGES` in that file), requires `ldd` to
+find every dependency of the binary and of every ELF under `lib/` (extension modules
+included), and only then installs Xvfb and runs the probe, directly, with no `run.sh`.
+`tests/packaging/issue_525_linux_closure_packaged_test.py` checks, without containers, that the
+FLAC is shipped, that everything needing a sibling library carries an `$ORIGIN` RUNPATH (none
+absolute), and that README.md lists every package the gate installs. `_tkinter` is not
+shipped (its package is excluded).
+
 #### Networking / async guarantee
 
 The **`make package-linux`** package is the named, gated one for embedders

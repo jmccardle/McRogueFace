@@ -67,15 +67,57 @@ git -C modules/libtcod-headless submodule update --init --depth 1 src/vendor/utf
 mkdir -p "$LIB_DIR"
 
 # --- SFML -------------------------------------------------------------------
-if [ "$CLEAN" -eq 1 ] || ! ls "$LIB_DIR"/libsfml-graphics.so.* >/dev/null 2>&1; then
+# Also re-run for a checkout staged before #525: no libFLAC, or SFML with a RUNPATH that is
+# not $ORIGIN (the build tree's), which packaging can't use.
+sfml_staged() {
+    ls "$LIB_DIR"/libsfml-graphics.so.* >/dev/null 2>&1 || return 1
+    ls "$LIB_DIR"/libFLAC.so.* >/dev/null 2>&1 || return 1
+    local m
+    for m in "$LIB_DIR"/libsfml-*.so.?.?.?; do
+        [ "$(sfml_runpath "$m")" = '$ORIGIN' ] || return 1
+    done
+}
+sfml_runpath() { readelf -d "$1" | sed -n 's/.*(\(RUNPATH\|RPATH\)).*\[\(.*\)\]/\2/p'; }
+
+if [ "$CLEAN" -eq 1 ] || ! sfml_staged; then
     log "SFML"
     B="$PROJECT_ROOT/modules/SFML/build"
     [ "$CLEAN" -eq 1 ] && rm -rf "$B"
+    # RUNPATH=$ORIGIN, not the build tree: a RUNPATH is not searched for the dependencies of
+    # dependencies, so what SFML needs (libFLAC, staged below) is found next to it, in lib/,
+    # wherever the package is unpacked (#525).
     cmake -S modules/SFML -B "$B" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON \
-        -DSFML_BUILD_NETWORK=OFF "${SYSROOT_CMAKE[@]}" > /dev/null
+        -DSFML_BUILD_NETWORK=OFF \
+        -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DCMAKE_INSTALL_RPATH='$ORIGIN' \
+        "${SYSROOT_CMAKE[@]}" > /dev/null
     cmake --build "$B" -j"$JOBS" > "$B/build.log" 2>&1 || { tail -30 "$B/build.log"; exit 1; }
-    rm -f "$LIB_DIR"/libsfml-*.so*
+    # libFLAC goes too: the new SFML would resolve it from here, and a stale one from
+    # another host must be replaced, not kept.
+    rm -f "$LIB_DIR"/libsfml-*.so* "$LIB_DIR"/libFLAC.so*
     cp -a "$B"/lib/libsfml-*.so* "$LIB_DIR/"
+    for m in "$LIB_DIR"/libsfml-*.so.?.?.?; do
+        if [ "$(sfml_runpath "$m")" != '$ORIGIN' ]; then
+            echo "ERROR: $m has RUNPATH '$(sfml_runpath "$m")', expected \$ORIGIN"
+            exit 1
+        fi
+    done
+    # libFLAC is the one SFML dependency the package ships: its soname differs between
+    # distros (.8, .12, .14), so a package built here can't rely on the user's. The name is
+    # whatever libsfml-audio records; the file is the one the loader resolves for it here.
+    # openal, vorbis, ogg, X11, GL and freetype stay host-provided.
+    FLAC="$(readelf -d "$LIB_DIR/libsfml-audio.so" | sed -n 's/.*Shared library: \[\(libFLAC\.so\.[0-9.]*\)\].*/\1/p')"
+    if [ -z "$FLAC" ]; then
+        echo "ERROR: libsfml-audio does not record a libFLAC dependency"
+        exit 1
+    fi
+    # Resolve it as the host would: through SFML's build-tree copy, whose RUNPATH ($ORIGIN)
+    # is the build dir, which holds no FLAC -- never through __lib/.
+    FLAC_PATH="$(ldd "$B/lib/libsfml-audio.so" | awk -v n="$FLAC" '$1 == n && $3 ~ /^\// {print $3}')"
+    if [ -z "$FLAC_PATH" ]; then
+        echo "ERROR: $FLAC (needed by libsfml-audio) does not resolve on this machine"
+        exit 1
+    fi
+    cp -L "$FLAC_PATH" "$LIB_DIR/$FLAC"
 else
     log "SFML already staged (skip)"
 fi
