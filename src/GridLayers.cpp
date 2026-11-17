@@ -429,6 +429,7 @@ void ColorLayer::renderChunkToTexture(int chunk_x, int chunk_y, int cell_width, 
 
     chunk_textures[chunk_idx]->display();
     chunk_dirty[chunk_idx] = false;
+    if (Resources::game) ++Resources::game->metrics.gridChunksRepainted;
 }
 
 // Legacy: render all chunks (used by fill, resize, etc.)
@@ -449,8 +450,11 @@ void ColorLayer::render(sf::RenderTarget& target,
     // Calculate visible chunk range
     int chunk_left = std::max(0, left_edge / CHUNK_SIZE);
     int chunk_top = std::max(0, top_edge / CHUNK_SIZE);
-    int chunk_right = std::min(chunks_x - 1, (x_limit + CHUNK_SIZE - 1) / CHUNK_SIZE);
-    int chunk_bottom = std::min(chunks_y - 1, (y_limit + CHUNK_SIZE - 1) / CHUNK_SIZE);
+    // #536: x_limit / y_limit are exclusive cell limits, so the last visible chunk holds
+    // cell (limit - 1). An empty range (limit <= 0) draws nothing.
+    if (x_limit <= 0 || y_limit <= 0) return;
+    int chunk_right = std::min(chunks_x - 1, (x_limit - 1) / CHUNK_SIZE);
+    int chunk_bottom = std::min(chunks_y - 1, (y_limit - 1) / CHUNK_SIZE);
 
     // Iterate only over visible chunks
     for (int cy = chunk_top; cy <= chunk_bottom; ++cy) {
@@ -613,6 +617,7 @@ void TileLayer::renderChunkToTexture(int chunk_x, int chunk_y, int cell_width, i
 
     chunk_textures[chunk_idx]->display();
     chunk_dirty[chunk_idx] = false;
+    if (Resources::game) ++Resources::game->metrics.gridChunksRepainted;
 }
 
 // Legacy: render all chunks (used by fill, resize, etc.)
@@ -640,8 +645,11 @@ void TileLayer::render(sf::RenderTarget& target,
     // Calculate visible chunk range
     int chunk_left = std::max(0, left_edge / CHUNK_SIZE);
     int chunk_top = std::max(0, top_edge / CHUNK_SIZE);
-    int chunk_right = std::min(chunks_x - 1, (x_limit + CHUNK_SIZE - 1) / CHUNK_SIZE);
-    int chunk_bottom = std::min(chunks_y - 1, (y_limit + CHUNK_SIZE - 1) / CHUNK_SIZE);
+    // #536: x_limit / y_limit are exclusive cell limits, so the last visible chunk holds
+    // cell (limit - 1). An empty range (limit <= 0) draws nothing.
+    if (x_limit <= 0 || y_limit <= 0) return;
+    int chunk_right = std::min(chunks_x - 1, (x_limit - 1) / CHUNK_SIZE);
+    int chunk_bottom = std::min(chunks_y - 1, (y_limit - 1) / CHUNK_SIZE);
 
     // Iterate only over visible chunks
     for (int cy = chunk_top; cy <= chunk_bottom; ++cy) {

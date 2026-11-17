@@ -566,7 +566,7 @@ static PyMethodDef mcrfpyMethods[] = {
      MCRF_METHOD(mcrfpy, get_metrics,
          MCRF_SIG("()", "dict"),
          MCRF_DESC("Get current performance metrics."),
-         MCRF_RETURNS("dict: Performance data with keys: frame_time (last frame duration in MILLISECONDS), avg_frame_time (rolling mean frame time over the last 60 frames, in milliseconds), fps (frames per second, derived from avg_frame_time -- a rolling average, not an instantaneous rate), draw_calls (number of draw calls), ui_elements (total UI element count), visible_elements (visible element count), current_frame (frame counter), runtime (WALL-CLOCK seconds since engine start), simulation_time_ms (SIMULATED milliseconds, the deterministic counter advanced only by step()/advance() and the clock headless timers run on), grid_render_time (grid rendering time in ms), entity_render_time (entity rendering time in ms), fov_overlay_time (FOV overlay rendering time in ms), python_time (Python script execution time in ms), animation_time (animation processing time in ms), grid_cells_rendered (grid cell draws this frame, counted per layer), entities_rendered (number of entities drawn this frame), total_entities (total entity count across all rendered grids), audio_sources (Sound and Music objects alive), audio_playing (those the engine is keeping alive because they are playing)")
+         MCRF_RETURNS("dict: Performance data with keys: frame_time (last frame duration in MILLISECONDS), avg_frame_time (rolling mean frame time over the last 60 frames, in milliseconds), fps (frames per second, derived from avg_frame_time -- a rolling average, not an instantaneous rate), draw_calls (number of draw calls), ui_elements (total UI element count), visible_elements (visible element count), current_frame (frame counter), runtime (WALL-CLOCK seconds since engine start), simulation_time_ms (SIMULATED milliseconds, the deterministic counter advanced only by step()/advance() and the clock headless timers run on), grid_render_time (grid rendering time in ms), entity_render_time (entity rendering time in ms), fov_overlay_time (FOV overlay rendering time in ms), python_time (Python script execution time in ms), animation_time (animation processing time in ms), grid_cells_rendered (grid cell draws this frame, counted per layer), grid_chunks_repainted (layer chunk textures repainted this frame, counted per layer), entities_rendered (number of entities drawn this frame), total_entities (total entity count across all rendered grids), audio_sources (Sound and Music objects alive), audio_playing (those the engine is keeping alive because they are playing)")
          MCRF_NOTE("All per-frame counters and timing breakdowns describe the last COMPLETED frame. "
                    "Python callbacks run before the frame is rendered, so the in-progress frame's "
                    "values are not available yet; frame_time, fps, runtime, simulation_time_ms and "
@@ -2640,6 +2640,8 @@ PyObject* McRFPy_API::_getMetrics(PyObject* self, PyObject* args) {
 
     // #144 - Add grid-specific metrics
     ok &= mcrf::dict_steal(dict, "grid_cells_rendered", PyLong_FromLong(pub.gridCellsRendered)) == 0;
+    // #536: layer chunk textures repainted (dirty and in view), summed over layers.
+    ok &= mcrf::dict_steal(dict, "grid_chunks_repainted", PyLong_FromLong(pub.gridChunksRepainted)) == 0;
     ok &= mcrf::dict_steal(dict, "entities_rendered", PyLong_FromLong(pub.entitiesRendered)) == 0;
     ok &= mcrf::dict_steal(dict, "total_entities", PyLong_FromLong(pub.totalEntities)) == 0;
 
