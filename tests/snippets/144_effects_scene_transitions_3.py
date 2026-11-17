@@ -1,4 +1,4 @@
-# mcrf: objects=[Color,Easing,Frame,Scene,Timer] verified=0.3.5 status=ok
+# mcrf: objects=[Color,Easing,Frame,Scene,Timer] verified=0.3.6-dev status=ok
 import mcrfpy
 
 
@@ -14,7 +14,8 @@ def flash_transition(current_scene, target_scene, color=(255, 255, 255), duratio
     """
     # Create colored overlay in current scene
     overlay = mcrfpy.Frame(pos=(0, 0), size=(1024, 768))
-    overlay.fill_color = mcrfpy.Color(color[0], color[1], color[2], 0)
+    overlay.fill_color = mcrfpy.Color(color[0], color[1], color[2], 255)
+    overlay.opacity = 0.0
     overlay.z_index = 9999
     current_scene.children.append(overlay)
 
