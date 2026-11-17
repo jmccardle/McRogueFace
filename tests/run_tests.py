@@ -9,7 +9,7 @@ Usage:
     python3 tests/run_tests.py -v        # Verbose output (show failure details)
     python3 tests/run_tests.py --checksums  # Show screenshot checksums
     python3 tests/run_tests.py --timeout=30  # Custom timeout
-    python3 tests/run_tests.py --sanitizer  # Detect ASan/UBSan errors in output
+    python3 tests/run_tests.py --sanitizer=asan   # Detect ASan/UBSan errors in output (or =tsan)
     python3 tests/run_tests.py --valgrind   # Run tests under Valgrind memcheck
     python3 tests/run_tests.py --exclude=packaging  # Run everything but one directory
     python3 tests/run_tests.py --no-skip    # Missing EXTERNAL_INPUTS fail instead of SKIP
@@ -120,26 +120,40 @@ SLOW_TESTS = {
     "packaging/issue_525_linux_closure_packaged_test.py": 240,  # builds the package (170s cap)
 }
 
-# Tests that do not fit a `--sanitizer` run (make asan-test / tsan-test): the test, not the
-# engine, is what the instrumented build breaks. Measured on `make asan-test` 2026-11-17
-# (#513): 737/745 with zero ASan/UBSan reports, these being the eight failures. One table,
-# one reason per test, reported as SKIP in the summary. The reasons are ASan's; the same
-# tests are skipped under tsan-test, where they were not separately measured.
+# Tests that do not fit one sanitizer variant (`--sanitizer=asan` for make asan-test,
+# `--sanitizer=tsan` for make tsan-test): the test, not the engine, is what the instrumented
+# build breaks. One table per variant, one reason per test, reported as SKIP in the summary.
+# A key that names no test file is an error at runner start (a renamed test must not
+# silently drop out of the table).
+#
+# asan: measured on `make asan-test` 2026-11-17 (#513): 737/745 with zero ASan/UBSan
+# reports, these being the eight failures. tsan: nothing is skipped; the FrameLock tests
+# are exactly the thread tests TSan exists for.
 _SAN_STDERR = ("asserts nothing on stderr, but LSan prints its \"Suppressions used\" table there; "
                "child engines also run the debug Python (3.15d)")
 _SAN_DEPS = ("`mcrf_project deps` needs a packaging-capable engine, but the sanitizer engine "
              "is a Python 3.15d build; plus the stderr noise (see issue_505)")
-_SAN_TIMING = "timing budget; the sanitizer's slowdown breaks it (#535)"
+_SAN_TIMING = "timing budget; ASan's slowdown breaks it (#535)"
+SANITIZER_VARIANTS = ("asan", "tsan")
 SANITIZER_SKIPS = {
-    "regression/issue_505_venv_prefix_test.py": _SAN_STDERR,
-    "regression/issue_505_virtual_env_ignored_test.py": _SAN_STDERR,
-    "integration/issue_517_console_scripts_test.py": _SAN_DEPS,
-    "integration/issue_509_deps_keeps_foreign_venv_test.py": _SAN_DEPS,
-    "unit/grid_observe_mask_test.py": "RSS-growth budget (4 MB over 5000 projections); ASan's quarantine grows RSS by ~200 MB",
-    "regression/issue_421_frame_pointer_test.py": "times out (50 s) under ASan; it measures Release frame pointers, not memory safety",
-    "regression/issue_410_framelock_readmission_test.py": _SAN_TIMING,
-    "integration/frame_lock_hold_budget_test.py": _SAN_TIMING,
+    "asan": {
+        "regression/issue_505_venv_prefix_test.py": _SAN_STDERR,
+        "regression/issue_505_virtual_env_ignored_test.py": _SAN_STDERR,
+        "integration/issue_517_console_scripts_test.py": _SAN_DEPS,
+        "integration/issue_509_deps_keeps_foreign_venv_test.py": _SAN_DEPS,
+        "unit/grid_observe_mask_test.py": "RSS-growth budget (4 MB over 5000 projections); ASan's quarantine grows RSS by ~200 MB",
+        "regression/issue_421_frame_pointer_test.py": "times out (50 s) under ASan; it measures Release frame pointers, not memory safety",
+        "regression/issue_410_framelock_readmission_test.py": _SAN_TIMING,
+        "integration/frame_lock_hold_budget_test.py": _SAN_TIMING,
+    },
+    "tsan": {},
 }
+
+
+def check_sanitizer_skip_tables():
+    """Every SANITIZER_SKIPS key must be an existing test file; returns the bad keys."""
+    return sorted(k for table in SANITIZER_SKIPS.values() for k in table
+                  if not (TESTS_DIR / k).is_file())
 
 
 def missing_external_inputs(test_dir, test_name):
@@ -283,7 +297,21 @@ def find_tests(directory):
 def main():
     verbose = '-v' in sys.argv or '--verbose' in sys.argv
     show_checksums = '--checksums' in sys.argv
-    sanitizer_mode = '--sanitizer' in sys.argv
+    # --sanitizer=asan|tsan. The variant picks the skip table; a bare --sanitizer or an
+    # unknown value is an error rather than a guess.
+    sanitizer_variant = None
+    for arg in sys.argv[1:]:
+        if arg == '--sanitizer' or arg.startswith('--sanitizer='):
+            value = arg.partition('=')[2]
+            if value not in SANITIZER_VARIANTS:
+                print(f"{RED}--sanitizer needs a variant: --sanitizer={'|'.join(SANITIZER_VARIANTS)}{RESET}")
+                sys.exit(2)
+            sanitizer_variant = value
+    sanitizer_mode = sanitizer_variant is not None
+    stale = check_sanitizer_skip_tables()
+    if stale:
+        print(f"{RED}SANITIZER_SKIPS names tests that do not exist (renamed?): {', '.join(stale)}{RESET}")
+        sys.exit(2)
     valgrind_mode = '--valgrind' in sys.argv
 
     # Parse --timeout=N
@@ -333,7 +361,7 @@ def main():
     # Header
     mode_str = ""
     if sanitizer_mode:
-        mode_str = f" {YELLOW}[ASan/UBSan]{RESET}"
+        mode_str = f" {YELLOW}[{'ASan/UBSan' if sanitizer_variant == 'asan' else 'TSan'}]{RESET}"
     elif valgrind_mode:
         mode_str = f" {YELLOW}[Valgrind]{RESET}"
 
@@ -378,8 +406,8 @@ def main():
                     print(f"  {YELLOW}SKIP{RESET} {test_name} ({note})")
                 continue
 
-            if sanitizer_mode and f"{test_dir}/{test_name}" in SANITIZER_SKIPS:
-                note = f"does not fit --sanitizer: {SANITIZER_SKIPS[f'{test_dir}/{test_name}']}"
+            if sanitizer_mode and f"{test_dir}/{test_name}" in SANITIZER_SKIPS[sanitizer_variant]:
+                note = f"does not fit --sanitizer={sanitizer_variant}: {SANITIZER_SKIPS[sanitizer_variant][f'{test_dir}/{test_name}']}"
                 results['skip'] += 1
                 skipped.append((test_dir, test_name, note))
                 print(f"  {YELLOW}SKIP{RESET} {test_name} ({note})")
