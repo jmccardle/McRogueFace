@@ -232,6 +232,39 @@ def t_version(expected):
     return t
 
 
+# Readiness without Module.calledRun (current emsdk no longer exposes it, #512).
+# Calling a native function before the runtime is initialised is not a safe probe: with
+# ASSERTIONS it abort()s the module for good. So the page tells us instead: before any page
+# script runs, a setter on window.Module wraps the shell's onRuntimeInitialized hook and
+# raises window.__mcrfRuntimeReady once it has run (the same moment the runtime is callable).
+RUNTIME_READY_INIT_SCRIPT = """
+(() => {
+  let mod;
+  Object.defineProperty(window, 'Module', {
+    configurable: true,
+    get() { return mod; },
+    set(v) {
+      mod = v;
+      const prev = v.onRuntimeInitialized;
+      v.onRuntimeInitialized = function () {
+        const r = prev ? prev.apply(this, arguments) : undefined;
+        window.__mcrfRuntimeReady = true;
+        return r;
+      };
+    },
+  });
+})();
+"""
+
+
+def wait_runtime_ready(page, timeout_ms):
+    """Block until the runtime has booted AND Python reports OK. Call after page.add_init_script
+    (RUNTIME_READY_INIT_SCRIPT) and before anything uses Module.ccall."""
+    page.wait_for_function("() => window.__mcrfRuntimeReady === true", timeout=timeout_ms)
+    page.wait_for_function(
+        "() => Module.ccall('get_python_state', 'string', [], []) === 'OK'", timeout=timeout_ms)
+
+
 def run(url: str, headed: bool, timeout_ms: int, verbose: bool, expect_version=None) -> int:
     try:
         from playwright.sync_api import sync_playwright
@@ -249,19 +282,16 @@ def run(url: str, headed: bool, timeout_ms: int, verbose: bool, expect_version=N
         page.on("console", lambda m: console_errors.append(m.text)
                 if m.type == "error" else None)
         page.on("pageerror", lambda e: page_errors.append(str(e)))
+        page.add_init_script(RUNTIME_READY_INIT_SCRIPT)
 
         print(f"[wasm-test] loading {url}")
         page.goto(url, timeout=timeout_ms, wait_until="load")
 
         # Wait for the emscripten runtime to boot AND Python to initialize.
-        # ccall is only safe once main() has run (Module.calledRun);
+        # ccall is only safe once the runtime is initialised (see RUNTIME_READY_INIT_SCRIPT);
         # get_python_state() returns "OK" once Py_Initialize has completed.
         try:
-            page.wait_for_function(
-                "() => typeof Module !== 'undefined' && Module.calledRun"
-                " && Module.ccall('get_python_state', 'string', [], []) === 'OK'",
-                timeout=timeout_ms,
-            )
+            wait_runtime_ready(page, timeout_ms)
         except Exception as e:
             print(f"[wasm-test] FATAL: runtime never became ready: {e}", file=sys.stderr)
             if console_errors:

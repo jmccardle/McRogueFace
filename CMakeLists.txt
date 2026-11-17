@@ -237,6 +237,13 @@ if(EMSCRIPTEN)
     set(LIBTCOD_WASM_BUILD "${CMAKE_SOURCE_DIR}/modules/libtcod-headless/build-emscripten")
     # Collect HACL crypto object files (not included in libpython${MCRF_PYTHON_VERSION}.a)
     file(GLOB PYTHON_HACL_OBJECTS "${PYTHON_WASM_BUILD}/Modules/_hacl/*.o")
+    # The glob runs at configure time: configured before `make python-wasm` finished, it
+    # matches nothing, and hashlib's hash objects silently go missing from the link (#512).
+    if(NOT EXISTS "${PYTHON_WASM_BUILD}/libpython${MCRF_PYTHON_VERSION}.a" OR NOT PYTHON_HACL_OBJECTS)
+        message(FATAL_ERROR "The WebAssembly CPython build is missing or incomplete "
+            "(${PYTHON_WASM_BUILD}: need libpython${MCRF_PYTHON_VERSION}.a and Modules/_hacl/*.o). "
+            "Run `make python-wasm` (or tools/build_deps_wasm.sh) first, then configure again.")
+    endif()
     set(LINK_LIBS
         ${PYTHON_WASM_BUILD}/libpython${MCRF_PYTHON_VERSION}.a
         ${PYTHON_HACL_OBJECTS}
@@ -526,7 +533,7 @@ if(EMSCRIPTEN)
         -fexceptions
         -sNO_DISABLE_EXCEPTION_CATCHING
         # Disable features that require dynamic linking support
-        -sERROR_ON_UNDEFINED_SYMBOLS=0
+        # Undefined symbols are link errors (the default): a missing CPython object must not become a runtime abort (#512)
         -sALLOW_UNIMPLEMENTED_SYSCALLS=1
         # Preload Python stdlib into virtual filesystem at /lib/python${MCRF_PYTHON_VERSION}
         --preload-file=${CMAKE_SOURCE_DIR}/wasm_stdlib/lib@/lib
