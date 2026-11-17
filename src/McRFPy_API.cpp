@@ -566,7 +566,7 @@ static PyMethodDef mcrfpyMethods[] = {
      MCRF_METHOD(mcrfpy, get_metrics,
          MCRF_SIG("()", "dict"),
          MCRF_DESC("Get current performance metrics."),
-         MCRF_RETURNS("dict: Performance data with keys: frame_time (last frame duration in MILLISECONDS), avg_frame_time (rolling mean frame time over the last 60 frames, in milliseconds), fps (frames per second, derived from avg_frame_time -- a rolling average, not an instantaneous rate), draw_calls (number of draw calls), ui_elements (total UI element count), visible_elements (visible element count), current_frame (frame counter), runtime (WALL-CLOCK seconds since engine start), simulation_time_ms (SIMULATED milliseconds, the deterministic counter advanced only by step()/advance() and the clock headless timers run on), grid_render_time (grid rendering time in ms), entity_render_time (entity rendering time in ms), fov_overlay_time (FOV overlay rendering time in ms), python_time (Python script execution time in ms), animation_time (animation processing time in ms), grid_cells_rendered (grid cell draws this frame, counted per layer), grid_chunks_repainted (layer chunk textures repainted this frame, counted per layer), entities_rendered (number of entities drawn this frame), total_entities (total entity count across all rendered grids), audio_sources (Sound and Music objects alive), audio_playing (those the engine is keeping alive because they are playing)")
+         MCRF_RETURNS("dict: Performance data with keys: frame_time (last frame duration in MILLISECONDS), avg_frame_time (rolling mean frame time over the last 60 frames, in milliseconds), fps (frames per second, derived from avg_frame_time -- a rolling average, not an instantaneous rate), draw_calls (number of draw calls), ui_elements (total UI element count), visible_elements (visible element count), current_frame (frame counter), runtime (WALL-CLOCK seconds since engine start), simulation_time_ms (SIMULATED milliseconds, the deterministic counter advanced only by step()/advance() and the clock headless timers run on), grid_render_time (grid rendering time in ms), entity_render_time (entity rendering time in ms), fov_overlay_time (FOV overlay rendering time in ms), python_time (Python script execution time in ms), animation_time (animation processing time in ms), grid_cells_rendered (grid cell draws this frame, counted per layer), grid_chunks_repainted (layer chunk textures repainted this frame, counted per layer), entities_rendered (number of entities drawn this frame), total_entities (total entity count across all rendered grids), audio_sources (Sound and Music objects alive), audio_playing (those the engine is keeping alive because they are playing), lock_waiting (threads blocked in mcrfpy.lock() right now), lock_windows (safe windows opened since start: one per frame that had a waiter), lock_admissions (mcrfpy.lock() holders admitted since start; nested acquires excluded). The lock_* values are live, and are counts, so contention can be checked without a clock")
          MCRF_NOTE("All per-frame counters and timing breakdowns describe the last COMPLETED frame. "
                    "Python callbacks run before the frame is rendered, so the in-progress frame's "
                    "values are not available yet; frame_time, fps, runtime, simulation_time_ms and "
@@ -664,6 +664,12 @@ static PyMethodDef mcrfpyMethods[] = {
                    "thread the context manager blocks (GIL released) until the render loop opens a "
                    "safe window between frames. On the thread that drives the clock (the main thread, "
                    "unless a background thread runs frames with step()/advance()) it is a no-op.")
+         MCRF_NOTE("EVERY non-nested lock() waits for the NEXT safe window, even if one is open "
+                   "right now: up to one frame, or until the next step()/advance() when headless. "
+                   "A window serves each waiting thread once, so a thread that releases and "
+                   "re-acquires gets one acquire per frame. A holder that waits, inside its block, "
+                   "for another thread's lock() deadlocks (that thread cannot enter until the "
+                   "holder leaves).")
          MCRF_NOTE("INSIDE THE LOCK, MUTATE ONLY. The main thread parks until every holder "
                    "releases, so hold time is added to frame time roughly 1:1 -- a 10 ms hold "
                    "costs the frame 10 ms, and presents as engine stutter rather than as a "
@@ -2647,6 +2653,11 @@ PyObject* McRFPy_API::_getMetrics(PyObject* self, PyObject* args) {
 
     // Add general metrics
     ok &= mcrf::dict_steal(dict, "current_frame", PyLong_FromLong(game->getFrame())) == 0;
+    // #535 - FrameLock observability: counts, so tests and embedders can reason about
+    // contention (admissions per window, waiters per frame) without wall-clock budgets.
+    ok &= mcrf::dict_steal(dict, "lock_waiting", PyLong_FromLong(game->getFrameLock().waitingCount())) == 0;
+    ok &= mcrf::dict_steal(dict, "lock_windows", PyLong_FromUnsignedLongLong(game->getFrameLock().windowsOpened())) == 0;
+    ok &= mcrf::dict_steal(dict, "lock_admissions", PyLong_FromUnsignedLongLong(game->getFrameLock().admissions())) == 0;
     ok &= mcrf::dict_steal(dict, "runtime", PyFloat_FromDouble(game->runtime.getElapsedTime().asSeconds())) == 0;
 
     // #396 - The SIMULATION clock, in integer milliseconds. The _ms suffix is deliberate:

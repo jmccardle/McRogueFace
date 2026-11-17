@@ -1,13 +1,16 @@
-"""The hold-time-to-frame-time budget for mcrfpy.lock() -- the measurement half of #395.
+"""Hold-time-to-frame-time cost of mcrfpy.lock() -- a REPORTED MEASUREMENT (#395, #535).
 
-WHY THIS EXISTS
-===============
-The rule for background threads is "inside the lock, mutate only -- no I/O, no
-blocking wait, no frame advance". That rule is unenforceable if nobody knows what a
-violation costs, because the cost does not present as "a handler is misbehaving": the
-main thread parks in FrameLock::closeWindow() until every holder releases, so a slow
-handler is indistinguishable from engine stutter. This file produces the number, and
-it is a test rather than a one-off benchmark so the number cannot rot.
+This was tests/integration/frame_lock_hold_budget_test.py, which gated the numbers below
+(slope in [0.6, 1.4], overhead < 2 ms, ...). Those gates asserted machine speed, so they
+failed whenever the machine was busy (#535). The properties that are NOT about speed
+(a holder is served by the frame that finds it waiting; the main thread is parked exactly
+while a holder is inside; at most one service per window) moved to
+tests/integration/frame_lock_hold_ordering_test.py and are expressed in counts.
+
+What remains here is the genuinely time-valued claim -- "holding the lock for H ms delays
+the frame by about H ms" -- which cannot be tested without a clock. It is a report with no
+pass/fail threshold; the numbers in docs/frame-lock.md come from it. It exits 0 unless a
+thread hangs (a deadlock is still a failure).
 
 THE EXPERIMENT
 ==============
@@ -15,36 +18,13 @@ Single variable. A background thread performs exactly ONE handler-shaped unit of
 per main-loop iteration, sleeping for H milliseconds:
 
   treatment arm : the sleep happens INSIDE `with mcrfpy.lock():`
-  control arm   : the same thread, the same sleep, the same H, the same one-per-frame
-                  handoff -- but the sleep happens OUTSIDE the lock and the lock block
-                  is empty.
+  control arm   : the same sleep OUTSIDE the lock, the lock block empty.
 
-Both arms hold the GIL identically (time.sleep releases it), do the same number of
-acquires, and are driven by the same main loop. The ONLY difference is which side of
-the barrier the H milliseconds are spent on. The main thread times each individual
-mcrfpy.step() call and takes the worst frame of the iteration -- the frame that served
-the holder.
+The main thread times each mcrfpy.step() and takes the worst frame of the iteration.
 
-WHAT IT ASSERTS
-===============
-  1. TREATMENT: cost per millisecond held is ~1:1. Least-squares slope of peak frame
-     time against H must land in [0.6, 1.4]. Not "it gets slower" -- the coefficient,
-     because the coefficient is the thing a rule can be written against.
-  2. CONTROL: the same sleep outside the lock costs the frame nothing. Slope < 0.15.
-  3. SEPARATION: treatment slope is at least 5x the control slope. This is what stops
-     the treatment result from being "sleeping anywhere slows the engine down".
-  4. The barrier's own fixed overhead (the H = 0 intercept) is small -- gated in
-     absolute terms so a barrier that became expensive per acquire is caught even
-     though the slope would be unchanged.
-  5. NON-VACUITY: every arm must actually have acquired the lock the expected number
-     of times, and the main loop must actually have run frames. A run where the holder
-     never acquired would otherwise report a flat, beautiful, meaningless slope.
-
-The numbers this file prints are the ones documented in docs/frame-lock.md. Re-run it
-to regenerate them:
-
-  cd build && ./mcrogueface --headless --exec ../tests/integration/frame_lock_hold_budget_test.py
+  cd build && ./mcrogueface --headless --exec ../tests/benchmarks/frame_lock_hold_cost_bench.py
 """
+
 
 import statistics
 import sys
@@ -59,18 +39,7 @@ import mcrfpy
 HOLDS_MS = [0.0, 1.0, 2.0, 4.0, 8.0, 16.0]
 ITERATIONS = 12          # handler invocations measured per (arm, H) cell
 STEP_SECONDS = 0.016
-ITER_DEADLINE = 2.0      # per-iteration hard deadline; a hang becomes a FAILURE
-
-failures = []
-
-
-def check_true(label, cond):
-    if not cond:
-        failures.append(label)
-        print(f"  FAILURE: {label}")
-    else:
-        print(f"  ok  {label}")
-
+ITER_DEADLINE = 30.0     # hang detector only: a hang becomes a FAILURE
 
 scene = mcrfpy.Scene("hold_budget")
 mcrfpy.current_scene = scene
@@ -261,66 +230,16 @@ print("  (see issue #410: one thread with a 1 ms hold can cost the main loop fou
 print("   orders of magnitude of frame rate without deadlocking or logging anything)")
 print()
 
-# --- Gates ---------------------------------------------------------------------
-print("Gates:")
-
-for h, nframes, med, nacq, ratio, still_alive in greedy_rows:
-    check_true(f"greedy H={h}ms: the main loop still made progress "
-               f"({nframes} frames in {GREEDY_SECONDS}s) -- not a livelock",
-               nframes >= 1)
-    check_true(f"greedy H={h}ms: the greedy thread really did acquire "
-               f"({nacq} acquires) -- non-vacuity", nacq >= 10)
-    check_true(f"greedy H={h}ms: at most one acquire is served per frame "
-               f"({nacq} acquires, {nframes} frames) -- #410",
-               nacq <= nframes + 1)
-    check_true(f"greedy H={h}ms: the greedy thread shut down and is not parked "
-               f"in acquire()", not still_alive)
-
-# (5) non-vacuity first: without these, every slope below is meaningless.
+# --- Report (no thresholds) ------------------------------------------------------
+# Only liveness is checked: every holder acquired, nothing hung, no thread left parked.
 expected_acq = len(HOLDS_MS) * ITERATIONS
-check_true(f"treatment acquired the lock {expected_acq} times (got {treat_acq})",
-           treat_acq == expected_acq)
-check_true(f"control acquired the lock {expected_acq} times (got {ctrl_acq})",
-           ctrl_acq == expected_acq)
-check_true(f"no iteration hit its deadline and no holder was left parked "
-           f"(timeouts={timeouts})", timeouts == 0)
-check_true(f"the main loop actually ran frames in both arms "
-           f"({treat_frames}, {ctrl_frames})",
-           treat_frames >= len(HOLDS_MS) * ITERATIONS and
-           ctrl_frames >= len(HOLDS_MS) * ITERATIONS)
-
-# (1) the coefficient.
-check_true(f"a millisecond held inside the lock costs the frame ~a millisecond: "
-           f"slope {treat_slope:.3f} in [0.6, 1.4]",
-           0.6 <= treat_slope <= 1.4)
-
-# (2) the control.
-check_true(f"the same sleep OUTSIDE the lock costs the frame nothing: "
-           f"slope {ctrl_slope:.4f} < 0.15", ctrl_slope < 0.15)
-
-# (3) separation -- the single-variable claim.
-check_true(f"treatment slope is at least 5x the control slope "
-           f"({treat_slope:.3f} vs {ctrl_slope:.4f})",
-           treat_slope >= 5.0 * max(ctrl_slope, 1e-6))
-
-# (4) the barrier's own fixed cost, absolute.
-check_true(f"the barrier's per-acquire overhead is under 2 ms "
-           f"(H=0 peak frame {intercept:.3f} ms)", intercept < 2.0)
-
-# The largest hold must actually exceed a 60 fps frame budget, otherwise the
-# headline claim ("a hold at the frame budget drops a frame") is asserted over a
-# range that never reaches it.
-check_true(f"the measured range reaches a 60 fps frame budget: peak at "
-           f"H={HOLDS_MS[-1]}ms is {treat[-1]:.3f} ms, gate is > 15.67 ms "
-           f"(one ms under the 16.67 ms budget, so the claim is asserted over a "
-           f"range that actually reaches it)",
-           treat[-1] > 15.67)
-
-if failures:
-    print(f"\n{len(failures)} FAILURE(S):")
-    for f in failures:
-        print(f"  FAILURE: {f}")
+hung = (timeouts != 0 or treat_acq != expected_acq or ctrl_acq != expected_acq
+        or any(r[5] for r in greedy_rows))
+if hung:
+    print(f"FAIL: deadlock/hang: acquires treatment={treat_acq} control={ctrl_acq} "
+          f"(expected {expected_acq} each), timeouts={timeouts}")
     sys.exit(1)
 
-print("\nPASS")
+print("REPORTED (no pass/fail threshold): slopes and overheads above are machine-dependent")
+print("PASS")
 sys.exit(0)

@@ -60,14 +60,17 @@ void FrameLock::acquire() {
     Py_BEGIN_ALLOW_THREADS
     {
         std::unique_lock<std::mutex> lock(mtx);
-        if (depth() > 0 || (safe_window && !closing)) {
-            // Nested lock() (this thread is already a holder), or the window is open
-            // and not yet closing: admitted now.
+        if (depth() > 0) {
+            // Nested lock(): this thread is already a holder.
             active++;
         } else {
-            // #410 - a late arrival (window closing or closed) is deferred to the
-            // NEXT window; it must not be served by the one being closed, or a
-            // thread that re-acquires without yielding keeps that window open forever.
+            // #410/#535 - EVERY non-nested arrival waits for the next openWindow(), even
+            // if a window is open right now. A window serves exactly the threads that
+            // were waiting when it opened (`eligible`). The old rule admitted a late
+            // arrival while a window was open and not yet marked closing, so a thread that
+            // released and re-acquired inside one window was served again by it: several
+            // times per frame with a handful of threads even on an idle machine, and
+            // without bound once the main thread was starved.
             const uint64_t my_epoch = epoch;
             waiting++;
             cv.wait(lock, [this, my_epoch]{ return epoch != my_epoch; });
@@ -76,6 +79,7 @@ void FrameLock::acquire() {
             waiting--;
             eligible--;
             active++;
+            admissions_total++;
         }
     }
     Py_END_ALLOW_THREADS
@@ -98,22 +102,16 @@ void FrameLock::openWindow() {
     // service in it; closeWindow() waits for exactly those (`eligible`).
     eligible = waiting.load();
     epoch++;
-    closing = false;
-    safe_window = true;
+    windows_opened++;
     cv.notify_all();  // Wake up all waiting threads
 }
 
 void FrameLock::closeWindow() {
     std::unique_lock<std::mutex> lock(mtx);
-    // #410 - close against late arrivals FIRST. From here on, acquire() defers any
-    // new non-nested arrival to the next window, so the waits below are bounded by
-    // the threads that were already waiting (plus nested acquires of current holders).
-    closing = true;
-    // Let every thread that was waiting when the window opened enter, then let all
-    // holders finish.
+    // Every non-nested arrival is deferred to the next window (see acquire()), so this
+    // wait is bounded by the threads that were waiting when the window opened (plus
+    // nested acquires of current holders): let them all enter, then let all holders finish.
     cv.wait(lock, [this]{ return eligible == 0 && active == 0; });
-    safe_window = false;
-    closing = false;
 }
 
 GameEngine::GameEngine() : GameEngine(McRogueFaceConfig{})
