@@ -1,10 +1,10 @@
+# mcrf: objects=[Caption,Color,ColorLayer,Grid,HeightMap,NoiseSource,Scene] verified=0.3.6-dev status=ok
 """HeightMap Noise Integration Demo
 
 Demonstrates: add_noise, multiply_noise with NoiseSource
 Shows terrain generation using different noise modes (flat, fbm, turbulence).
 """
 import mcrfpy
-from mcrfpy import automation
 
 GRID_WIDTH, GRID_HEIGHT = 64, 48
 CELL_SIZE = 16
@@ -40,7 +40,7 @@ def apply_to_layer(hmap, layer):
     for y in range(GRID_HEIGHT):
         for x in range(GRID_WIDTH):
             h = hmap.get((x, y))
-            layer.set(x, y, terrain_color(h))
+            layer.set((x, y), terrain_color(h))
 
 def run_demo(runtime):
     # Create three panels showing different noise modes
@@ -98,7 +98,8 @@ grid = mcrfpy.Grid(
     layers={}
 )
 grid.fill_color = mcrfpy.Color(0, 0, 0)
-color_layer = grid.add_layer("color", z_index=-1)
+color_layer = mcrfpy.ColorLayer(z_index=-1, name="color")
+grid.add_layer(color_layer)
 scene.children.append(grid)
 
 # Labels for each panel
@@ -118,7 +119,3 @@ scene.activate()
 
 # Run the demo
 run_demo(0)
-
-# Take screenshot
-automation.screenshot("procgen_02_heightmap_noise.png")
-print("Screenshot saved: procgen_02_heightmap_noise.png")

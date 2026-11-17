@@ -1,10 +1,10 @@
+# mcrf: objects=[Caption,Color,ColorLayer,Grid,HeightMap,NoiseSource,Scene] verified=0.3.6-dev status=ok
 """HeightMap Bezier Curves Demo
 
 Demonstrates: dig_bezier for rivers, roads, and paths
 Shows path carving with variable width and depth.
 """
 import mcrfpy
-from mcrfpy import automation
 import math
 
 GRID_WIDTH, GRID_HEIGHT = 64, 48
@@ -145,14 +145,11 @@ grid = mcrfpy.Grid(
     layers={}
 )
 grid.fill_color = mcrfpy.Color(0, 0, 0)
-color_layer = grid.add_layer("color", z_index=-1)
+color_layer = mcrfpy.ColorLayer(z_index=-1, name="color")
+grid.add_layer(color_layer)
 scene.children.append(grid)
 
 scene.activate()
 
 # Run the demo
 run_demo(0)
-
-# Take screenshot
-automation.screenshot("procgen_07_heightmap_bezier.png")
-print("Screenshot saved: procgen_07_heightmap_bezier.png")
