@@ -49,7 +49,7 @@ jobs:
 
       - name: Dependency cache key
         id: deps-key
-        run: echo "key=$(git ls-tree HEAD modules/ | cat - tools/build_deps.sh tools/build_python.sh | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+        run: echo "key=$(git ls-tree HEAD modules/ | cat - tools/build_deps.sh tools/build_python.sh /etc/os-release | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
 
       - name: Cache built dependencies
         uses: actions/cache@v4
@@ -106,8 +106,8 @@ jobs:
       - name: Dependency cache keys
         id: deps-key
         run: |
-          echo "key=$(git ls-tree HEAD modules/ | cat - tools/build_deps.sh tools/build_python.sh | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
-          echo "wasm=$(git ls-tree HEAD modules/cpython modules/libtcod-headless | cat - tools/build_deps_wasm.sh tools/build_python_wasm.sh | sha256sum | cut -c1-16)-$EMSDK_VERSION" >> "$GITHUB_OUTPUT"
+          echo "key=$(git ls-tree HEAD modules/ | cat - tools/build_deps.sh tools/build_python.sh /etc/os-release | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+          echo "wasm=$(git ls-tree HEAD modules/cpython modules/libtcod-headless | cat - tools/build_deps_wasm.sh tools/build_python_wasm.sh /etc/os-release | sha256sum | cut -c1-16)-$EMSDK_VERSION" >> "$GITHUB_OUTPUT"
 
       # Restore and save are separate steps so that a build which gets this far
       # is cached even when a later step fails.
