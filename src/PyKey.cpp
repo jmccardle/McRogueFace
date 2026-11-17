@@ -1,3 +1,5 @@
+#include <stdexcept>
+#include <string>
 #include "PyKey.h"
 #include <sstream>
 #include <cstring>
@@ -171,6 +173,13 @@ static const KeyEntry key_table[] = {
 };
 
 static const int NUM_KEY_ENTRIES = sizeof(key_table) / sizeof(key_table[0]);
+
+const char* PyKey::name_of(int value) {
+    for (int i = 0; i < NUM_KEY_ENTRIES; i++) {
+        if (key_table[i].value == value) return key_table[i].name;
+    }
+    throw std::out_of_range("PyKey::name_of: no key with value " + std::to_string(value));
+}
 
 sf::Keyboard::Key PyKey::from_legacy_string(const char* name) {
     for (int i = 0; i < NUM_KEY_ENTRIES; i++) {

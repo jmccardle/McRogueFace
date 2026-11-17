@@ -25,8 +25,13 @@ constexpr uint32_t REPLACEMENT = 0xFFFD;
 // Decode the code point starting at s[i] and advance i past it. A malformed or
 // truncated sequence decodes to U+FFFD and consumes one byte, so a bad byte
 // shows as one replacement glyph instead of swallowing its neighbours.
-inline uint32_t next_codepoint(const std::string& s, size_t& i)
+// A well-formed U+FFFD in the input also decodes to U+FFFD, so the return value
+// cannot tell the two apart: pass `malformed` to learn whether THIS decode was a
+// malformed sequence (set true) or a valid code point (set false).
+inline uint32_t next_codepoint(const std::string& s, size_t& i, bool* malformed = nullptr)
 {
+    if (malformed) *malformed = false;
+    const auto bad = [&]() { if (malformed) *malformed = true; ++i; return REPLACEMENT; };
     const auto byte = [&](size_t k) { return static_cast<unsigned char>(s[k]); };
     const unsigned char lead = byte(i);
     uint32_t cp;
@@ -36,18 +41,17 @@ inline uint32_t next_codepoint(const std::string& s, size_t& i)
     else if ((lead & 0xE0) == 0xC0) { cp = lead & 0x1F; extra = 1; min = 0x80; }
     else if ((lead & 0xF0) == 0xE0) { cp = lead & 0x0F; extra = 2; min = 0x800; }
     else if ((lead & 0xF8) == 0xF0) { cp = lead & 0x07; extra = 3; min = 0x10000; }
-    else { ++i; return REPLACEMENT; }
+    else { return bad(); }
 
-    if (i + extra >= s.size()) { ++i; return REPLACEMENT; }  // truncated
+    if (i + extra >= s.size()) { return bad(); }  // truncated
     for (int k = 1; k <= extra; ++k) {
         const unsigned char c = byte(i + k);
-        if ((c & 0xC0) != 0x80) { ++i; return REPLACEMENT; }
+        if ((c & 0xC0) != 0x80) { return bad(); }
         cp = (cp << 6) | (c & 0x3F);
     }
     // Overlong forms, surrogates and values past U+10FFFF are not UTF-8.
     if (cp < min || (cp >= 0xD800 && cp <= 0xDFFF) || cp > 0x10FFFF) {
-        ++i;
-        return REPLACEMENT;
+        return bad();
     }
     i += extra + 1;
     return cp;
