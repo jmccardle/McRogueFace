@@ -990,7 +990,7 @@ submodule automation
   meth get :: get() -> Window
   meth screenshot :: screenshot(filename: str = None) -> bytes | None
 
-=== EXPERIMENTAL TYPES (NOT FROZEN) (17) ===
+=== EXPERIMENTAL TYPES (NOT FROZEN) (18) ===
 [AutoRuleSet]
   prop grid_size: int (ro)
   prop group_count: int (ro)
@@ -1090,6 +1090,45 @@ submodule automation
   prop is_valid: bool (ro)
   prop source: str (ro)
   meth set_uniform :: set_uniform(name: str, value: float|tuple) -> None
+[TerminalLayer]
+  prop background: Color | None (rw)
+  prop blink_interval: float | None (rw)
+  prop chunk_repaints: int (ro)
+  prop cursor: tuple | None (ro)
+  prop cursor_style: str (ro)
+  prop cursor_visible: bool (ro)
+  prop grid: Grid | None (rw)
+  prop grid_size: tuple (ro)
+  prop name: str (ro)
+  prop on_output: Callable | None (rw)
+  prop palette: list (rw)
+  prop scroll_offset: int (rw)
+  prop scrollback: int (ro)
+  prop scrollback_rows: int (ro)
+  prop show_cursor: bool (rw)
+  prop texture: Texture (rw)
+  prop title: str (ro)
+  prop visible: bool (rw)
+  prop z_index: int (rw)
+  meth apply_ranges :: apply_ranges(source: HeightMap, ranges: list) -> TerminalLayer
+  meth apply_threshold :: apply_threshold(source: HeightMap, range: tuple, tile: int) -> TerminalLayer
+  meth at :: at(pos) -> int
+  meth clear :: clear() -> None
+  meth clear_line :: clear_line(y: int = None) -> None
+  meth edit :: edit() -> context manager
+  meth fill :: fill(index: int) -> None
+  meth fill_rect :: fill_rect(pos: tuple, size: tuple, index: int) -> None
+  meth focus :: focus(gained: bool) -> None
+  meth key :: key(key: Key, state: InputState = InputState.PRESSED, mods=None) -> None
+  meth mouse :: mouse(pos, button: MouseButton = None, state: InputState = None, mods=None) -> None
+  meth move :: move(pos) -> None
+  meth paste :: paste(text: str, allow_unsafe: bool = False) -> None
+  meth print :: print(text: str, pos=None, fg=None, bg=None, bold=False, italic=False, underline=False, blink=False, inverse=False, strike=False, faint=False) -> None
+  meth screen_text :: screen_text() -> str
+  meth scroll :: scroll(rows: int) -> None
+  meth set :: set(pos, index: int) -> None
+  meth text :: text(text: str) -> None
+  meth write :: write(data: bytes | str) -> None
 [TileMapFile]
   prop height: int (ro)
   prop object_layer_names: Any (ro)

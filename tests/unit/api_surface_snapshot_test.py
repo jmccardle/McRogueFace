@@ -53,6 +53,8 @@ EXPERIMENTAL_TYPES = frozenset({
     # declared part of the 1.0 freeze yet: it has had no downstream soak, and the
     # freeze decision belongs to a reviewer, not to the commit that introduces it.
     "VisibilityMask",
+    # Terminal emulation on libghostty-vt (#550): fast-tracked toward the freeze, not in it yet.
+    "TerminalLayer",
 })
 
 # Internal types not exported on the module but reachable through live instances.

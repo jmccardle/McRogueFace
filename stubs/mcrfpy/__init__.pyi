@@ -273,6 +273,8 @@ class Texture:
         codepoints defaults to [(0x20, 0x7E), (0x2500, 0x257F)]; ranges are inclusive. A bare (a, b) tuple
         raises TypeError: write [(a, b)] for a range or [a, b] for two codepoints.
         Tile 0 is the box tile (used for missing codepoints), tile 1 a solid white tile.
+        Coverage: code page 437 is the baseline; anything beyond it is an extra. Check the glyphs
+        you use (missing, clipped) and ship a prebuilt texture if a font does not convert cleanly.
         """
         ...
 
@@ -286,7 +288,7 @@ class Texture:
         ...
 
     def is_wide(self, codepoint: Union[str, int]) -> bool:
-        """EXPERIMENTAL. Whether the codepoint is East Asian Wide/Fullwidth (two tiles). Codepoint-only."""
+        """EXPERIMENTAL. Whether the codepoint takes two terminal cells (two tiles), by libghostty-vt's width rule. Codepoint-only."""
         ...
 
     missing: Optional[List[int]]            # Read-only
@@ -916,6 +918,58 @@ class TileLayer:
     def get(self, pos: Tuple[int, int]) -> int:
         """Get tile index at a specific cell."""
         ...
+
+class TerminalLayer(TileLayer):
+    """EXPERIMENTAL (#550, not part of the 1.0 freeze). A TileLayer whose cells are a terminal
+    screen emulated by libghostty-vt: bytes in through write(), bytes for the program out
+    through on_output. No I/O of its own. Every change to the cells is terminal input:
+    set/fill/fill_rect/layer[x, y] = i/apply_* print the tile's glyph; edit() is read-only.
+    """
+
+    def __init__(self, name: Optional[str] = None, z_index: int = -1,
+                 texture: Optional[Texture] = None,
+                 grid_size: Optional[Tuple[int, int]] = None,
+                 grid: Optional['Grid'] = None,
+                 scrollback: int = 1000,
+                 on_output: Optional[Callable[[bytes], Any]] = None) -> None: ...
+
+    on_output: Optional[Callable[[bytes], Any]]   # replies to queries, and encoded input
+    texture: Texture                    # from Texture.from_font; None assigns the shared default atlas
+    title: str                          # Read-only
+    cursor: Optional[Tuple[int, int]]   # Read-only; None when not in the viewport
+    cursor_style: str                   # Read-only: 'block', 'bar', 'underline', 'block_hollow'
+    cursor_visible: bool                # Read-only (DECTCEM)
+    show_cursor: bool
+    palette: List[Color]                # setting: 256 colours, or None for the built-in palette
+    background: Optional[Color]         # None: default-background cells are transparent
+    blink_interval: Optional[float]     # seconds per phase; None draws blinking steady
+    scroll_offset: int                  # rows back into history; 0 = live
+    scrollback: int                     # Read-only
+    scrollback_rows: int                # Read-only
+    chunk_repaints: int                 # Read-only debug counter
+
+    def write(self, data: Union[bytes, bytearray, memoryview, str]) -> None: ...
+    def key(self, key: 'Key', state: 'InputState' = ...,
+            mods: Union[None, str, Iterable[str]] = None) -> None: ...
+    def text(self, text: str) -> None: ...
+    def mouse(self, pos: Union[Tuple[float, float], 'Vector'], button: Optional['MouseButton'] = None,
+              state: Optional['InputState'] = None, mods: Union[None, str, Iterable[str]] = None) -> None: ...
+    def paste(self, text: str, allow_unsafe: bool = False) -> None: ...
+    def focus(self, gained: bool) -> None: ...
+    @overload
+    def move(self, pos: Union[Tuple[int, int], 'Vector']) -> None: ...
+    @overload
+    def move(self, x: int, y: int) -> None: ...
+    def print(self, text: str, pos: Optional[Tuple[int, int]] = None,
+              fg: Union[None, int, Color, Tuple[int, int, int], str] = None,
+              bg: Union[None, int, Color, Tuple[int, int, int], str] = None,
+              bold: bool = False, italic: bool = False, underline: bool = False, blink: bool = False,
+              inverse: bool = False, strike: bool = False, faint: bool = False) -> None: ...
+    def clear(self) -> None: ...
+    def clear_line(self, y: Optional[int] = None) -> None: ...
+    def screen_text(self) -> str: ...
+    def scroll(self, rows: int) -> None: ...
+    def fill_rect(self, pos: Tuple[int, int], size: Tuple[int, int], index: int) -> None: ...
 
 class FOV:
     """Field of view algorithm enum.

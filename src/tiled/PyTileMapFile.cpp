@@ -1,4 +1,5 @@
 #include "PyTileMapFile.h"
+#include "TerminalLayer.h"  // #550: refused as a target
 #include "PyTileSetFile.h"
 #include "TiledParse.h"
 #include "McRFPy_Doc.h"
@@ -208,6 +209,11 @@ PyObject* PyTileMapFile::apply_to_tile_layer(PyTileMapFileObject* self, PyObject
     // Validate TileLayer by TYPE OBJECT (#559), not by tp_name
     if (!PyObject_TypeCheck(tlayer_obj, &mcrfpydef::PyTileLayerType)) {
         PyErr_SetString(PyExc_TypeError, "First argument must be a TileLayer");
+        return NULL;
+    }
+    // #550: a TerminalLayer's cells are its terminal's; tiles written here would be stale
+    if (PyObject_TypeCheck(tlayer_obj, &mcrfpydef::PyTerminalLayerType)) {
+        PyErr_SetString(PyExc_TypeError, "First argument cannot be a TerminalLayer (its cells are written through the terminal)");
         return NULL;
     }
 

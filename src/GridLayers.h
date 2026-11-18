@@ -99,6 +99,11 @@ public:
 
     // Resize the layer (reallocates storage and reinitializes chunks)
     virtual void resize(int new_grid_x, int new_grid_y) = 0;
+
+    // #550: bring the stored cells up to date before they are read from outside the
+    // render pass (GridPoint access, edit() views). A no-op for layers whose cells are
+    // their own storage; a TerminalLayer copies what its emulator shows.
+    virtual void prepareRead() {}
 };
 
 // Color layer - stores RGBA color per cell
@@ -279,6 +284,10 @@ public:
     static PyObject* TileLayer_fill_rect(PyTileLayerObject* self, PyObject* args, PyObject* kwds);
     static PyObject* TileLayer_apply_threshold(PyTileLayerObject* self, PyObject* args, PyObject* kwds);
     static PyObject* TileLayer_apply_ranges(PyTileLayerObject* self, PyObject* args);
+    // #550: the bodies, without the TerminalLayer dispatch (TerminalLayer's apply_* run them
+    // against a scratch copy of its tiles)
+    static PyObject* TileLayer_apply_threshold_impl(PyTileLayerObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* TileLayer_apply_ranges_impl(PyTileLayerObject* self, PyObject* args);
     static PyObject* TileLayer_get_z_index(PyTileLayerObject* self, void* closure);
     static int TileLayer_set_z_index(PyTileLayerObject* self, PyObject* value, void* closure);
     static PyObject* TileLayer_get_visible(PyTileLayerObject* self, void* closure);

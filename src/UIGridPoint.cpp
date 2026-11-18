@@ -1,4 +1,5 @@
 #include "UIGridPoint.h"
+#include "TerminalLayer.h"
 #include "PyWrap.h"    // #430 - mcrf::to_python / PyRef
 #include "PyGridData.h"
 #include "UIEntity.h"    // #114 - for GridPoint.entities
@@ -157,6 +158,7 @@ PyObject* UIGridPoint::getattro(PyUIGridPointObject* self, PyObject* name) {
         return sfColor_to_PyObject(color_layer->at(x, y));
     } else if (layer->type == GridLayerType::Tile) {
         auto tile_layer = std::static_pointer_cast<TileLayer>(layer);
+        layer->prepareRead();  // #550: a TerminalLayer refreshes from its emulator
         return PyLong_FromLong(tile_layer->at(x, y));
     }
 
@@ -206,6 +208,12 @@ int UIGridPoint::setattro(PyUIGridPointObject* self, PyObject* name, PyObject* v
         if (!PyLong_Check(value)) {
             PyErr_SetString(PyExc_TypeError, "Tile layer values must be integers");
             return -1;
+        }
+        // #550: a TerminalLayer's cells are written through its terminal
+        if (auto term = std::dynamic_pointer_cast<TerminalLayer>(layer)) {
+            long long index = PyLong_AsLongLong(value);
+            if (index == -1 && PyErr_Occurred()) return -1;
+            return TerminalLayerAPI::set_cell(term, x, y, index) ? 0 : -1;
         }
         tile_layer->at(x, y) = PyLong_AsLong(value);
         tile_layer->markDirty(x, y);  // Mark only the affected chunk

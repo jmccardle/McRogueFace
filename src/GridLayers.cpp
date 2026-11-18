@@ -1,5 +1,6 @@
 #include <climits>
 #include "GridLayers.h"
+#include "TerminalLayer.h"
 #include "PyWrap.h"
 #include "McRFPy_Doc.h"
 #include "PyGridData.h"
@@ -13,6 +14,12 @@
 #include "PyHeightMap.h"
 #include "PythonObjectCache.h"
 #include <sstream>
+
+// #550: a TerminalLayer's cells are its terminal's. TileLayer's writers, called on one (also
+// unbound: mcrfpy.TileLayer.set(term, ...)), do what the TerminalLayer's own methods do.
+static bool is_terminal(PyTileLayerObject* self) {
+    return PyObject_TypeCheck(reinterpret_cast<PyObject*>(self), &mcrfpydef::PyTerminalLayerType);
+}
 
 // #562: a chunk is painted into a transparent RenderTexture with kCachePaintBlend, then
 // composited onto the target with kPremultipliedBlend (see Common.h).
@@ -254,7 +261,8 @@ void GridLayer::ensureChunkTexture(int chunk_idx, int cell_width, int cell_heigh
         chunk_texture_failed_size[chunk_idx] = {required_width, required_height};
         // Report once per chunk and size, not once per frame.
         std::ostringstream msg;
-        msg << (type == GridLayerType::Color ? "ColorLayer" : "TileLayer")
+        msg << (type == GridLayerType::Color ? "ColorLayer"
+                : dynamic_cast<TerminalLayer*>(this) ? "TerminalLayer" : "TileLayer")
             << " '" << name << "' (z_index " << z_index << "): could not create the "
             << required_width << "x" << required_height << " RenderTexture for chunk ("
             << cx << ", " << cy << "); drawing it cell by cell, which is much slower. "
@@ -784,6 +792,16 @@ int PyGridLayerAPI::LayerEdit_getbuffer(PyObject* exporter, Py_buffer* view, int
         view->obj = nullptr;
         return -1;
     }
+    // #550: a TerminalLayer's cells belong to its emulator; its view is read-only.
+    const bool read_only = dynamic_cast<TerminalLayer*>(L) != nullptr;
+    if (read_only && (flags & PyBUF_WRITABLE)) {
+        PyErr_SetString(PyExc_BufferError,
+                        "TerminalLayer.edit() is read-only: the terminal owns the cells "
+                        "(write through write(), print() or set())");
+        view->obj = nullptr;
+        return -1;
+    }
+    L->prepareRead();
     const Py_ssize_t w = L->grid_x;
     const Py_ssize_t h = L->grid_y;
     if (L->type == GridLayerType::Color) {
@@ -807,7 +825,7 @@ int PyGridLayerAPI::LayerEdit_getbuffer(PyObject* exporter, Py_buffer* view, int
     }
     view->obj = exporter;
     Py_INCREF(exporter);
-    view->readonly = 0;
+    view->readonly = read_only ? 1 : 0;
     view->shape = self->shape;
     view->strides = (flags & PyBUF_STRIDES) ? self->strides : nullptr;
     view->suboffsets = nullptr;
@@ -828,7 +846,7 @@ PyObject* PyGridLayerAPI::LayerEdit_enter(PyObject* self, PyObject* Py_UNUSED(ar
 PyObject* PyGridLayerAPI::LayerEdit_exit(PyObject* self, PyObject* args) {
     (void)args;
     PyLayerEditObject* e = (PyLayerEditObject*)self;
-    if (e->active && e->layer) {
+    if (e->active && e->layer && !dynamic_cast<TerminalLayer*>(e->layer.get())) {  // #550: read-only, nothing changed
         e->layer->markDirty();  // #328 conservative whole-layer invalidation (bumps content_generation, #351)
     }
     e->active = false;
@@ -1036,6 +1054,9 @@ PyObject* PyGridLayerAPI::pyobject_for(const std::shared_ptr<GridLayer>& layer,
         case GridLayerType::Color:
             return layer_wrapper<PyColorLayerObject, ColorLayer>(layer, grid, &mcrfpydef::PyColorLayerType);
         case GridLayerType::Tile:
+            // #550: a TerminalLayer comes back as one (the C++ object holds its state)
+            if (dynamic_cast<TerminalLayer*>(layer.get()))
+                return layer_wrapper<PyTileLayerObject, TileLayer>(layer, grid, &mcrfpydef::PyTerminalLayerType);
             return layer_wrapper<PyTileLayerObject, TileLayer>(layer, grid, &mcrfpydef::PyTileLayerType);
     }
     PyErr_SetString(PyExc_SystemError, "GridLayer has an unknown layer type");
@@ -2124,6 +2145,7 @@ PyObject* PyGridLayerAPI::TileLayer_at(PyTileLayerObject* self, PyObject* args, 
         return NULL;
     }
 
+    self->data->prepareRead();  // #550: a TerminalLayer refreshes from its emulator
     return PyLong_FromLong(self->data->at(x, y));
 }
 
@@ -2155,6 +2177,7 @@ static bool TileIndexToInt(long long value, int* out) {
 }
 
 PyObject* PyGridLayerAPI::TileLayer_set(PyTileLayerObject* self, PyObject* args) {
+    if (is_terminal(self)) return TerminalLayerAPI::py_set((PyObject*)self, args);
     PyObject* pos_obj;
     int index;
     if (!PyArg_ParseTuple(args, "Oi", &pos_obj, &index)) {
@@ -2207,10 +2230,12 @@ PyObject* PyGridLayerAPI::TileLayer_subscript(PyTileLayerObject* self, PyObject*
         return NULL;
     }
 
+    self->data->prepareRead();  // #550
     return PyLong_FromLong(self->data->at(x, y));
 }
 
 int PyGridLayerAPI::TileLayer_subscript_assign(PyTileLayerObject* self, PyObject* key, PyObject* value) {
+    if (is_terminal(self)) return TerminalLayerAPI::py_ass_subscript((PyObject*)self, key, value);
     if (!self->data) {
         PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
         return -1;
@@ -2261,6 +2286,7 @@ PyMappingMethods PyGridLayerAPI::TileLayer_mapping_methods = {
 };
 
 PyObject* PyGridLayerAPI::TileLayer_fill(PyTileLayerObject* self, PyObject* args) {
+    if (is_terminal(self)) return TerminalLayerAPI::py_fill((PyObject*)self, args);
     int index;
     if (!PyArg_ParseTuple(args, "i", &index)) {
         return NULL;
@@ -2277,6 +2303,7 @@ PyObject* PyGridLayerAPI::TileLayer_fill(PyTileLayerObject* self, PyObject* args
 }
 
 PyObject* PyGridLayerAPI::TileLayer_fill_rect(PyTileLayerObject* self, PyObject* args, PyObject* kwds) {
+    if (is_terminal(self)) return TerminalLayerAPI::py_fill_rect((PyObject*)self, args, kwds);
     static const char* kwlist[] = {"pos", "size", "index", NULL};
     PyObject* pos_obj;
     PyObject* size_obj;
@@ -2306,6 +2333,16 @@ PyObject* PyGridLayerAPI::TileLayer_fill_rect(PyTileLayerObject* self, PyObject*
 }
 
 PyObject* PyGridLayerAPI::TileLayer_apply_threshold(PyTileLayerObject* self, PyObject* args, PyObject* kwds) {
+    if (is_terminal(self)) return TerminalLayerAPI::py_apply_threshold((PyObject*)self, args, kwds);
+    return TileLayer_apply_threshold_impl(self, args, kwds);
+}
+
+PyObject* PyGridLayerAPI::TileLayer_apply_ranges(PyTileLayerObject* self, PyObject* args) {
+    if (is_terminal(self)) return TerminalLayerAPI::py_apply_ranges((PyObject*)self, args);
+    return TileLayer_apply_ranges_impl(self, args);
+}
+
+PyObject* PyGridLayerAPI::TileLayer_apply_threshold_impl(PyTileLayerObject* self, PyObject* args, PyObject* kwds) {
     static const char* kwlist[] = {"source", "range", "tile", NULL};
     PyObject* source_obj;
     PyObject* range_obj;
@@ -2381,7 +2418,7 @@ PyObject* PyGridLayerAPI::TileLayer_apply_threshold(PyTileLayerObject* self, PyO
     return (PyObject*)self;
 }
 
-PyObject* PyGridLayerAPI::TileLayer_apply_ranges(PyTileLayerObject* self, PyObject* args) {
+PyObject* PyGridLayerAPI::TileLayer_apply_ranges_impl(PyTileLayerObject* self, PyObject* args) {
     PyObject* source_obj;
     PyObject* ranges_obj;
 
@@ -2559,6 +2596,7 @@ PyObject* PyGridLayerAPI::TileLayer_get_texture(PyTileLayerObject* self, void* c
 }
 
 int PyGridLayerAPI::TileLayer_set_texture(PyTileLayerObject* self, PyObject* value, void* closure) {
+    if (is_terminal(self)) return TerminalLayerAPI::py_set_texture((PyObject*)self, value);
     if (!self->data) {
         PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
         return -1;
