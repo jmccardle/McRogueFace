@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Easing,Entity,Grid,Scene] verified=0.3.6-dev status=ok
+# mcrf: objects=[Caption,Color,Easing,Entity,Grid,Scene] verified=0.3.6 status=ok
 import mcrfpy
 
 game_scene = mcrfpy.Scene("game")

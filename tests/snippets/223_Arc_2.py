@@ -1,4 +1,4 @@
-# mcrf: objects=[Arc,Color,Easing,Scene] verified=0.3.5 status=ok
+# mcrf: objects=[Arc,Color,Easing,Scene] verified=0.3.6 status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("arc_spinner")

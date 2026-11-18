@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,ColorLayer,Grid,HeightMap,Scene] verified=0.3.6-dev status=ok
+# mcrf: objects=[Caption,Color,ColorLayer,Grid,HeightMap,Scene] verified=0.3.6 status=ok
 """HeightMap Hills and Craters Demo
 
 Demonstrates: add_hill, dig_hill

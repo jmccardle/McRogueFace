@@ -1,4 +1,4 @@
-# mcrf: objects=[Color,ColorLayer,Entity,Grid,Scene,TileLayer] verified=0.3.6-dev status=ok
+# mcrf: objects=[Color,ColorLayer,Entity,Grid,Scene,TileLayer] verified=0.3.6 status=ok
 import mcrfpy
 
 # Scene setup

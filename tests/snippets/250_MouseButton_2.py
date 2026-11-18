@@ -1,4 +1,4 @@
-# mcrf: objects=[Grid,InputState,MouseButton,Scene] verified=0.3.5 status=ok
+# mcrf: objects=[Grid,InputState,MouseButton,Scene] verified=0.3.6 status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("mousebutton_grid_demo")

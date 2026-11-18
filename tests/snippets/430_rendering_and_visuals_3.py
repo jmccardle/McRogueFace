@@ -1,4 +1,4 @@
-# mcrf: objects=[Grid,Scene,Sprite,Texture,TileLayer] verified=0.3.6-dev status=ok
+# mcrf: objects=[Grid,Scene,Sprite,Texture,TileLayer] verified=0.3.6 status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("textures")

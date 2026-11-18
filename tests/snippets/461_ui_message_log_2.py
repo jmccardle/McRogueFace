@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,InputState,Key,Scene,Timer] verified=0.3.6-dev status=ok
+# mcrf: objects=[Caption,Color,Frame,InputState,Key,Scene,Timer] verified=0.3.6 status=ok
 # region: enhanced
 import mcrfpy
 import time

@@ -1,4 +1,4 @@
-# mcrf: objects=[Frame,InputState,Scene] verified=0.3.5 status=ok
+# mcrf: objects=[Frame,InputState,Scene] verified=0.3.6 status=ok
 import mcrfpy
 
 # Create scene with object reference

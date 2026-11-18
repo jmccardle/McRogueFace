@@ -1,4 +1,4 @@
-# mcrf: objects=[Color,Frame,Scene,Timer] verified=0.3.5 status=ok
+# mcrf: objects=[Color,Frame,Scene,Timer] verified=0.3.6 status=ok
 import mcrfpy
 
 class AnimatedHealthBar:

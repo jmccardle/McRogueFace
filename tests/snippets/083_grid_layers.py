@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,ColorLayer,Grid,Scene,TileLayer] verified=0.3.5 status=ok
+# mcrf: objects=[Caption,Color,ColorLayer,Grid,Scene,TileLayer] verified=0.3.6 status=ok
 # Grid Layers - Multiple tile layers
 import mcrfpy
 

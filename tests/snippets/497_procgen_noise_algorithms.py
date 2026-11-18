@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,ColorLayer,Grid,NoiseSource,Scene] verified=0.3.6-dev status=ok
+# mcrf: objects=[Caption,Color,ColorLayer,Grid,NoiseSource,Scene] verified=0.3.6 status=ok
 """NoiseSource Algorithms Demo
 
 Demonstrates: simplex, perlin, wavelet noise algorithms

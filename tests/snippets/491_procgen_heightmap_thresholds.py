@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,ColorLayer,Grid,HeightMap,NoiseSource,Scene] verified=0.3.6-dev status=ok
+# mcrf: objects=[Caption,Color,ColorLayer,Grid,HeightMap,NoiseSource,Scene] verified=0.3.6 status=ok
 """HeightMap Thresholds and ColorLayer Integration Demo
 
 Demonstrates: threshold, threshold_binary, inverse, count_in_range

@@ -1,4 +1,4 @@
-# mcrf: objects=[BSP,Caption,Color,ColorLayer,Grid,Scene] verified=0.3.6-dev status=ok
+# mcrf: objects=[BSP,Caption,Color,ColorLayer,Grid,Scene] verified=0.3.6 status=ok
 """BSP Dungeon Generation Demo
 
 Demonstrates: BSP, split_recursive, leaves iteration, to_heightmap

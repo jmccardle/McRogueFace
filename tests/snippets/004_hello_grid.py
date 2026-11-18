@@ -1,4 +1,4 @@
-# mcrf: objects=[Grid,Scene] verified=0.3.5 status=ok
+# mcrf: objects=[Grid,Scene] verified=0.3.6 status=ok
 # Hello Grid - Create a tile-based grid
 import mcrfpy
 

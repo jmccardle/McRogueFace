@@ -1,4 +1,4 @@
-# mcrf: objects=[Easing,Entity,Grid,InputState,Key,Scene,Timer] verified=0.3.6-dev status=ok
+# mcrf: objects=[Easing,Entity,Grid,InputState,Key,Scene,Timer] verified=0.3.6 status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("animated_movement")

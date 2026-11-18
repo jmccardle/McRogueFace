@@ -1,4 +1,4 @@
-# mcrf: objects=[BSP,Caption,Color,ColorLayer,Grid,Scene,Traversal] verified=0.3.6-dev status=ok
+# mcrf: objects=[BSP,Caption,Color,ColorLayer,Grid,Scene,Traversal] verified=0.3.6 status=ok
 """BSP Traversal Orders Demo
 
 Demonstrates: traverse() with different Traversal orders

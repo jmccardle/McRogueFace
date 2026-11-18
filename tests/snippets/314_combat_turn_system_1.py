@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Entity,Frame,Grid,InputState,Key,Scene] verified=0.3.6-dev status=ok
+# mcrf: objects=[Caption,Color,Entity,Frame,Grid,InputState,Key,Scene] verified=0.3.6 status=ok
 # region: turn_manager
 import mcrfpy
 

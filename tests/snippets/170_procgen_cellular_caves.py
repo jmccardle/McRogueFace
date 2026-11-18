@@ -1,4 +1,4 @@
-# mcrf: objects=[Entity,Grid,Scene] verified=0.3.6-dev status=ok
+# mcrf: objects=[Entity,Grid,Scene] verified=0.3.6 status=ok
 # region: generate
 import mcrfpy
 import random

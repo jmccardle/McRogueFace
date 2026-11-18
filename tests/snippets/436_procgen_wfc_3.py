@@ -1,4 +1,4 @@
-# mcrf: objects=[Grid,Scene,Texture] verified=0.3.6-dev status=ok
+# mcrf: objects=[Grid,Scene,Texture] verified=0.3.6 status=ok
 # The WFC class from the Quick Start.
 import mcrfpy
 import random

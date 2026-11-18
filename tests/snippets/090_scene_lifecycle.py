@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,InputState,Key,Scene] verified=0.3.5 status=ok
+# mcrf: objects=[Caption,Color,Frame,InputState,Key,Scene] verified=0.3.6 status=ok
 # Scene Lifecycle - on_enter/on_exit callbacks
 import mcrfpy
 

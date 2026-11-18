@@ -1,4 +1,4 @@
-# mcrf: objects=[Easing,Scene,Sprite] verified=0.3.5 status=ok
+# mcrf: objects=[Easing,Scene,Sprite] verified=0.3.6 status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("easing_demo")

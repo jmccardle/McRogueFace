@@ -1,4 +1,4 @@
-# mcrf: objects=[Color,ColorLayer,Easing,Grid,Scene,Timer] verified=0.3.6-dev status=ok
+# mcrf: objects=[Color,ColorLayer,Easing,Grid,Scene,Timer] verified=0.3.6 status=ok
 # Screen shake manager with presets, and a directional shake built on it
 import mcrfpy
 

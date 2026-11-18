@@ -1,4 +1,4 @@
-# mcrf: objects=[BSP,Caption,Color,ColorLayer,Grid,HeightMap,NoiseSource,Scene] verified=0.3.6-dev status=ok
+# mcrf: objects=[BSP,Caption,Color,ColorLayer,Grid,HeightMap,NoiseSource,Scene] verified=0.3.6 status=ok
 """Advanced: Natural Cave System
 
 Combines: Noise (cave formation) + Threshold (open areas) + Sparse kernel (smoothing) + BSP (structured areas)

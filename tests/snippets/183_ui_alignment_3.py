@@ -1,4 +1,4 @@
-# mcrf: objects=[Alignment,Frame,Scene] verified=0.3.5 status=ok
+# mcrf: objects=[Alignment,Frame,Scene] verified=0.3.6 status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("ui_alignment_reactive")

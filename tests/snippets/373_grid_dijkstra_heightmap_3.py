@@ -1,4 +1,4 @@
-# mcrf: objects=[Color,ColorLayer,Entity,Grid,HeightMap,Scene] verified=0.3.6-dev status=ok
+# mcrf: objects=[Color,ColorLayer,Entity,Grid,HeightMap,Scene] verified=0.3.6 status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("dijkstra_heightmap")

@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Font,Scene] verified=0.3.5 status=ok
+# mcrf: objects=[Caption,Color,Font,Scene] verified=0.3.6 status=ok
 import mcrfpy
 
 # Load font

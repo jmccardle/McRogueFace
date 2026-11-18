@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,Scene,Timer] verified=0.3.5 status=ok
+# mcrf: objects=[Caption,Color,Frame,Scene,Timer] verified=0.3.6 status=ok
 # UI Message Log - Scrolling text messages
 import mcrfpy
 

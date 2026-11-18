@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,ColorLayer,Grid,HeightMap,NoiseSource,Scene] verified=0.3.6-dev status=ok
+# mcrf: objects=[Caption,Color,ColorLayer,Grid,HeightMap,NoiseSource,Scene] verified=0.3.6 status=ok
 """HeightMap Combination Operations Demo
 
 Demonstrates: add, subtract, multiply, min, max, lerp, copy_from

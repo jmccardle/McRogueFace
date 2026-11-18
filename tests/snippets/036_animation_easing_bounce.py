@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Easing,Frame,Scene,Timer] verified=0.3.5 status=ok
+# mcrf: objects=[Caption,Color,Easing,Frame,Scene,Timer] verified=0.3.6 status=ok
 # Easing: BOUNCE - Bouncy effect
 import mcrfpy
 

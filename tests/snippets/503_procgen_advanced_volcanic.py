@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,ColorLayer,Grid,HeightMap,NoiseSource,Scene] verified=0.3.6-dev status=ok
+# mcrf: objects=[Caption,Color,ColorLayer,Grid,HeightMap,NoiseSource,Scene] verified=0.3.6 status=ok
 """Advanced: Volcanic Crater Region
 
 Combines: Hills (mountains) + dig_hill (craters) + Voronoi (lava flows) + Erosion + Noise

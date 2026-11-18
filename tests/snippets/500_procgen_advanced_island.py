@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,ColorLayer,Grid,HeightMap,NoiseSource,Scene] verified=0.3.6-dev status=ok
+# mcrf: objects=[Caption,Color,ColorLayer,Grid,HeightMap,NoiseSource,Scene] verified=0.3.6 status=ok
 """Advanced: Island Terrain Generation
 
 Combines: Noise (base terrain) + Voronoi (biomes) + Hills + Erosion + Bezier (rivers)

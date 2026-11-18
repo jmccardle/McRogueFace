@@ -1,4 +1,4 @@
-# mcrf: objects=[Color,Easing,Frame,Scene,Sprite] verified=0.3.6-dev status=ok
+# mcrf: objects=[Color,Easing,Frame,Scene,Sprite] verified=0.3.6 status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("effects")

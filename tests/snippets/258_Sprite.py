@@ -1,4 +1,4 @@
-# mcrf: objects=[Scene,Sprite] verified=0.3.5 status=ok
+# mcrf: objects=[Scene,Sprite] verified=0.3.6 status=ok
 # Sprite Quick Reference - create, scale, animate a sprite
 import mcrfpy
 

@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Easing,Frame,Scene,Timer] verified=0.3.5 status=ok
+# mcrf: objects=[Caption,Color,Easing,Frame,Scene,Timer] verified=0.3.6 status=ok
 # Animation Position - Animate x and y along a path
 import mcrfpy
 

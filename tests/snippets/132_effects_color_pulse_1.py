@@ -1,4 +1,4 @@
-# mcrf: objects=[Color,ColorLayer,Grid,Scene,Timer] verified=0.3.5 status=ok
+# mcrf: objects=[Color,ColorLayer,Grid,Scene,Timer] verified=0.3.6 status=ok
 import mcrfpy
 import math
 

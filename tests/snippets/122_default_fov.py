@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Entity,FOV,Frame,Grid,Scene] verified=0.3.5 status=ok
+# mcrf: objects=[Caption,Color,Entity,FOV,Frame,Grid,Scene] verified=0.3.6 status=ok
 # Default FOV - Set default algorithm
 import mcrfpy
 

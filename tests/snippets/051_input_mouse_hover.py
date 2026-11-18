@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,Scene] verified=0.3.5 status=ok
+# mcrf: objects=[Caption,Color,Frame,Scene] verified=0.3.6 status=ok
 # Input Mouse Hover - Enter/exit/move events
 import mcrfpy
 

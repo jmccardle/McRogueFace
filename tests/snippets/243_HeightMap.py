@@ -1,4 +1,4 @@
-# mcrf: objects=[BSP,Color,ColorLayer,Grid,HeightMap,NoiseSource,Scene] verified=0.3.5 status=ok
+# mcrf: objects=[BSP,Color,ColorLayer,Grid,HeightMap,NoiseSource,Scene] verified=0.3.6 status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("heightmap-demo")

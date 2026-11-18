@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Scene,Sprite] verified=0.3.5 status=ok
+# mcrf: objects=[Caption,Color,Scene,Sprite] verified=0.3.6 status=ok
 # Sprite Atlas - Browse texture atlas
 import mcrfpy
 

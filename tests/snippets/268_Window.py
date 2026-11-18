@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Scene,Window] verified=0.3.5 status=ok
+# mcrf: objects=[Caption,Scene,Window] verified=0.3.6 status=ok
 import mcrfpy
 
 # Get window instance
