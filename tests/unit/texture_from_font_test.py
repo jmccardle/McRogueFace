@@ -1,10 +1,10 @@
 """#547 Texture.from_font: a static glyph atlas with codepoint <-> tile lookup (EXPERIMENTAL API).
 
 Pixels are checked by drawing tiles through a real TileLayer at 1:1 over a blue background and
-reading the screenshot. White over blue gives R == G, and R == 0 means transparent. How R relates to
-the glyph's alpha depends on the TileLayer chunk blend (currently alpha is applied twice, so a
-partial-alpha pixel reads darker than its alpha), so these checks only use R == G, R == 0, R == 255
-and "R takes several distinct values"; none depends on the exact curve. The test fonts are vendored in
+reading the screenshot. White over blue gives R == G with B == 255 (#562: the chunk blend is
+premultiplied, so a partial-alpha pixel keeps B at 255), and a transparent pixel reads exactly the
+background (0, 0, 255). How R relates to the glyph's alpha is not pinned to an exact curve; checks use
+R == G, B == 255, R == 0, R == 255 and "R takes several distinct values". The test fonts are vendored in
 tests/assets/fonts/ and the test fails, not skips, if one is missing.
 """
 import os
@@ -96,12 +96,12 @@ def render(tex, tiles, cols=8, rows=2):
     out = {}
     for (cx, cy) in tiles:
         out[(cx, cy)] = [[px[cy * ch + y][(cx * cw + x) * bpp] for x in range(cw)] for y in range(ch)]
-        # a white pixel of alpha a over blue has R == G (the engine's chunk blend dims B for partial
-        # alpha, so only R/G are compared); R != G means the glyph pixel was not white
+        # a white pixel of alpha a over blue has R == G and B == 255 (#562: premultiplied blend);
+        # a transparent pixel is exactly (0, 0, 255). Anything else means the glyph pixel was not white
         for y in range(ch):
             for x in range(cw):
                 r_, g_, b_ = (px[cy * ch + y][(cx * cw + x) * bpp + k] for k in range(3))
-                if abs(r_ - g_) > 1:
+                if abs(r_ - g_) > 1 or b_ != 255:
                     BAD_PIXELS.append((cx, cy, x, y, r_, g_, b_))
     return out
 
