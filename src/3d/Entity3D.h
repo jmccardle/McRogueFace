@@ -152,6 +152,9 @@ public:
     const VoxelPointState& getVoxelState(int x, int z) const;
 
     /// Check if a cell is currently visible to this entity
+    // #560: the per-cell memory is sized to ONE viewport grid. Called when the viewport changes and
+    // when its grid_size changes; the next query re-initialises it for the current grid.
+    void invalidateVoxelState() const { voxel_state_.clear(); voxel_state_initialized_ = false; }
     bool canSee(int x, int z) const;
 
     /// Check if a cell has been discovered by this entity

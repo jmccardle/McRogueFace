@@ -200,7 +200,7 @@ public:
     // =========================================================================
 
     /// Get the entity list (for EntityCollection3D)
-    std::shared_ptr<std::list<std::shared_ptr<Entity3D>>> getEntities() { return entities_; }
+    std::shared_ptr<std::vector<std::shared_ptr<Entity3D>>> getEntities() { return entities_; }
 
     /// #430: cache key for this viewport's EntityCollection3D wrapper (`vp.entities`).
     /// The collection has no C++ object of its own, so its identity lives here;
@@ -366,7 +366,7 @@ private:
     mutable std::mutex fovMutex_;
 
     // Entity3D storage
-    std::shared_ptr<std::list<std::shared_ptr<Entity3D>>> entities_;
+    std::shared_ptr<std::vector<std::shared_ptr<Entity3D>>> entities_;
 
     // Billboard storage
     std::shared_ptr<std::vector<std::shared_ptr<Billboard>>> billboards_;

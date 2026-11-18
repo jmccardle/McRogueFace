@@ -19,8 +19,13 @@ class VoxelPoint;
 // Python object struct for VoxelPoint
 typedef struct {
     PyObject_HEAD
-    VoxelPoint* data;
+    // A wrapper never points into the nav grid (it is reallocated by grid_size): it names a cell by
+    // viewport + coordinates and re-resolves on every access (#560). The viewport is held strongly,
+    // like GridPoint's grid, so `Viewport3D().at(1, 1)` on a temporary keeps working; the viewport
+    // never references its points (navGrid_ holds plain values), so there is no cycle.
     std::shared_ptr<mcrf::Viewport3D> viewport;
+    int x;
+    int z;
 } PyVoxelPointObject;
 
 // VoxelPoint - navigation grid cell for 3D terrain
@@ -45,6 +50,9 @@ public:
 
     // Constructor with position
     VoxelPoint(int x, int z, mcrf::Viewport3D* parent);
+
+    // Resolve the wrapper's cell: RuntimeError (as GridPoint) when the cell no longer exists. `keep` holds the viewport alive for the caller's use.
+    static VoxelPoint* resolve(PyVoxelPointObject* self, std::shared_ptr<mcrf::Viewport3D>& keep);
 
     // Python property accessors
     static PyGetSetDef getsetters[];

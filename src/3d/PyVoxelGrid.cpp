@@ -11,6 +11,21 @@
 // Python type interface
 // =============================================================================
 
+
+// Fetch n items of a sequence as new references. PySequence_GetItem returns NULL (exception set)
+// when a sequence's __len__ disagrees with its __getitem__ (a list subclass that lies), so every
+// item is checked before use; on failure nothing is left held (#560).
+static bool fetch_items(PyObject* seq, int n, PyObject** out) {
+    for (int i = 0; i < n; i++) {
+        out[i] = PySequence_GetItem(seq, i);
+        if (!out[i]) {
+            for (int k = 0; k < i; k++) Py_DECREF(out[k]);
+            return false;
+        }
+    }
+    return true;
+}
+
 PyObject* PyVoxelGrid::pynew(PyTypeObject* type, PyObject* args, PyObject* kwds) {
     PyVoxelGridObject* self = (PyVoxelGridObject*)type->tp_alloc(type, 0);
     if (self) {
@@ -44,9 +59,11 @@ int PyVoxelGrid::init(PyVoxelGridObject* self, PyObject* args, PyObject* kwds) {
 
     int width = 0, height = 0, depth = 0;
 
-    PyObject* w_obj = PySequence_GetItem(size_obj, 0);
-    PyObject* h_obj = PySequence_GetItem(size_obj, 1);
-    PyObject* d_obj = PySequence_GetItem(size_obj, 2);
+    PyObject* sz_items[3];
+    if (!fetch_items(size_obj, 3, sz_items)) return -1;
+    PyObject* w_obj = sz_items[0];
+    PyObject* h_obj = sz_items[1];
+    PyObject* d_obj = sz_items[2];
 
     bool valid = true;
     if (PyLong_Check(w_obj)) width = (int)PyLong_AsLong(w_obj); else valid = false;
@@ -189,23 +206,21 @@ int PyVoxelGrid::set_offset(PyVoxelGridObject* self, PyObject* value, void* clos
     }
 
     float x = 0, y = 0, z = 0;
-    PyObject* x_obj = PySequence_GetItem(value, 0);
-    PyObject* y_obj = PySequence_GetItem(value, 1);
-    PyObject* z_obj = PySequence_GetItem(value, 2);
+    PyObject* off_items[3];
+    if (!fetch_items(value, 3, off_items)) return -1;
+    PyObject* x_obj = off_items[0];
+    PyObject* y_obj = off_items[1];
+    PyObject* z_obj = off_items[2];
 
-    bool valid = true;
-    if (PyNumber_Check(x_obj)) x = (float)PyFloat_AsDouble(PyNumber_Float(x_obj)); else valid = false;
-    if (PyNumber_Check(y_obj)) y = (float)PyFloat_AsDouble(PyNumber_Float(y_obj)); else valid = false;
-    if (PyNumber_Check(z_obj)) z = (float)PyFloat_AsDouble(PyNumber_Float(z_obj)); else valid = false;
+    const bool valid = mcrf::to_float(x_obj, x, "offset element") &&
+                       mcrf::to_float(y_obj, y, "offset element") &&
+                       mcrf::to_float(z_obj, z, "offset element");
 
     Py_DECREF(x_obj);
     Py_DECREF(y_obj);
     Py_DECREF(z_obj);
 
-    if (!valid) {
-        PyErr_SetString(PyExc_TypeError, "offset elements must be numbers");
-        return -1;
-    }
+    if (!valid) return -1;  // the converter's exception (TypeError / ValueError / OverflowError)
 
     self->data->setOffset(x, y, z);
     return 0;
@@ -225,12 +240,8 @@ int PyVoxelGrid::set_rotation(PyVoxelGridObject* self, PyObject* value, void* cl
         return -1;
     }
 
-    if (!PyNumber_Check(value)) {
-        PyErr_SetString(PyExc_TypeError, "rotation must be a number");
-        return -1;
-    }
-
-    float rotation = (float)PyFloat_AsDouble(PyNumber_Float(value));
+    float rotation;
+    if (!mcrf::to_float(value, rotation, "rotation")) return -1;
     self->data->setRotation(rotation);
     return 0;
 }
@@ -485,12 +496,12 @@ PyObject* PyVoxelGrid::fill_box(PyVoxelGridObject* self, PyObject* args) {
     int x0, y0, z0, x1, y1, z1;
     PyObject* items[6];
 
-    items[0] = PySequence_GetItem(min_obj, 0);
-    items[1] = PySequence_GetItem(min_obj, 1);
-    items[2] = PySequence_GetItem(min_obj, 2);
-    items[3] = PySequence_GetItem(max_obj, 0);
-    items[4] = PySequence_GetItem(max_obj, 1);
-    items[5] = PySequence_GetItem(max_obj, 2);
+    // PySequence_GetItem on a list subclass with a lying __len__ returns NULL (#560)
+    if (!fetch_items(min_obj, 3, items)) return nullptr;
+    if (!fetch_items(max_obj, 3, items + 3)) {
+        for (int k = 0; k < 3; k++) Py_DECREF(items[k]);
+        return nullptr;
+    }
 
     bool valid = true;
     if (PyLong_Check(items[0])) x0 = (int)PyLong_AsLong(items[0]); else valid = false;
@@ -613,12 +624,12 @@ PyObject* PyVoxelGrid::fill_box_hollow(PyVoxelGridObject* self, PyObject* args, 
 
     int x0, y0, z0, x1, y1, z1;
     PyObject* items[6];
-    items[0] = PySequence_GetItem(min_obj, 0);
-    items[1] = PySequence_GetItem(min_obj, 1);
-    items[2] = PySequence_GetItem(min_obj, 2);
-    items[3] = PySequence_GetItem(max_obj, 0);
-    items[4] = PySequence_GetItem(max_obj, 1);
-    items[5] = PySequence_GetItem(max_obj, 2);
+    // PySequence_GetItem on a list subclass with a lying __len__ returns NULL (#560)
+    if (!fetch_items(min_obj, 3, items)) return nullptr;
+    if (!fetch_items(max_obj, 3, items + 3)) {
+        for (int k = 0; k < 3; k++) Py_DECREF(items[k]);
+        return nullptr;
+    }
 
     bool valid = true;
     if (PyLong_Check(items[0])) x0 = (int)PyLong_AsLong(items[0]); else valid = false;
@@ -674,9 +685,7 @@ PyObject* PyVoxelGrid::fill_sphere(PyVoxelGridObject* self, PyObject* args) {
 
     int cx, cy, cz;
     PyObject* items[3];
-    items[0] = PySequence_GetItem(center_obj, 0);
-    items[1] = PySequence_GetItem(center_obj, 1);
-    items[2] = PySequence_GetItem(center_obj, 2);
+    if (!fetch_items(center_obj, 3, items)) return nullptr;
 
     bool valid = true;
     if (PyLong_Check(items[0])) cx = (int)PyLong_AsLong(items[0]); else valid = false;
@@ -735,9 +744,7 @@ PyObject* PyVoxelGrid::fill_cylinder(PyVoxelGridObject* self, PyObject* args) {
 
     int cx, cy, cz;
     PyObject* items[3];
-    items[0] = PySequence_GetItem(base_obj, 0);
-    items[1] = PySequence_GetItem(base_obj, 1);
-    items[2] = PySequence_GetItem(base_obj, 2);
+    if (!fetch_items(base_obj, 3, items)) return nullptr;
 
     bool valid = true;
     if (PyLong_Check(items[0])) cx = (int)PyLong_AsLong(items[0]); else valid = false;
@@ -796,12 +803,12 @@ PyObject* PyVoxelGrid::fill_noise(PyVoxelGridObject* self, PyObject* args, PyObj
 
     int x0, y0, z0, x1, y1, z1;
     PyObject* items[6];
-    items[0] = PySequence_GetItem(min_obj, 0);
-    items[1] = PySequence_GetItem(min_obj, 1);
-    items[2] = PySequence_GetItem(min_obj, 2);
-    items[3] = PySequence_GetItem(max_obj, 0);
-    items[4] = PySequence_GetItem(max_obj, 1);
-    items[5] = PySequence_GetItem(max_obj, 2);
+    // PySequence_GetItem on a list subclass with a lying __len__ returns NULL (#560)
+    if (!fetch_items(min_obj, 3, items)) return nullptr;
+    if (!fetch_items(max_obj, 3, items + 3)) {
+        for (int k = 0; k < 3; k++) Py_DECREF(items[k]);
+        return nullptr;
+    }
 
     bool valid = true;
     if (PyLong_Check(items[0])) x0 = (int)PyLong_AsLong(items[0]); else valid = false;
@@ -855,12 +862,12 @@ PyObject* PyVoxelGrid::copy_region(PyVoxelGridObject* self, PyObject* args) {
 
     int x0, y0, z0, x1, y1, z1;
     PyObject* items[6];
-    items[0] = PySequence_GetItem(min_obj, 0);
-    items[1] = PySequence_GetItem(min_obj, 1);
-    items[2] = PySequence_GetItem(min_obj, 2);
-    items[3] = PySequence_GetItem(max_obj, 0);
-    items[4] = PySequence_GetItem(max_obj, 1);
-    items[5] = PySequence_GetItem(max_obj, 2);
+    // PySequence_GetItem on a list subclass with a lying __len__ returns NULL (#560)
+    if (!fetch_items(min_obj, 3, items)) return nullptr;
+    if (!fetch_items(max_obj, 3, items + 3)) {
+        for (int k = 0; k < 3; k++) Py_DECREF(items[k]);
+        return nullptr;
+    }
 
     bool valid = true;
     if (PyLong_Check(items[0])) x0 = (int)PyLong_AsLong(items[0]); else valid = false;
@@ -932,9 +939,7 @@ PyObject* PyVoxelGrid::paste_region(PyVoxelGridObject* self, PyObject* args, PyO
 
     int x, y, z;
     PyObject* items[3];
-    items[0] = PySequence_GetItem(pos_obj, 0);
-    items[1] = PySequence_GetItem(pos_obj, 1);
-    items[2] = PySequence_GetItem(pos_obj, 2);
+    if (!fetch_items(pos_obj, 3, items)) return nullptr;
 
     bool valid = true;
     if (PyLong_Check(items[0])) x = (int)PyLong_AsLong(items[0]); else valid = false;

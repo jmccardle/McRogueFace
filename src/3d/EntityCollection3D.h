@@ -20,7 +20,7 @@ class Viewport3D;
 // Python object for EntityCollection3D
 typedef struct {
     PyObject_HEAD
-    std::shared_ptr<std::list<std::shared_ptr<mcrf::Entity3D>>> data;
+    std::shared_ptr<std::vector<std::shared_ptr<mcrf::Entity3D>>> data;
     std::shared_ptr<mcrf::Viewport3D> viewport;
     PyObject* weakreflist;  // #430: cacheable, so `vp.entities is vp.entities`
 } PyEntityCollection3DObject;
@@ -28,9 +28,11 @@ typedef struct {
 // Python object for EntityCollection3D iterator
 typedef struct {
     PyObject_HEAD
-    std::shared_ptr<std::list<std::shared_ptr<mcrf::Entity3D>>> data;
-    std::list<std::shared_ptr<mcrf::Entity3D>>::iterator current;
-    std::list<std::shared_ptr<mcrf::Entity3D>>::iterator end;
+    std::shared_ptr<std::vector<std::shared_ptr<mcrf::Entity3D>>> data;
+    // #560: an index, not a std::list iterator. A remove+append keeps the size (so the size guard
+    // passes) but erases the node a stored iterator points at; an index is always re-resolved
+    // against the live list and bounds-checked, as the 2D UIEntityCollection iterator does.
+    Py_ssize_t index;
     int start_size;
 } PyEntityCollection3DIterObject;
 
@@ -41,7 +43,7 @@ public:
     // collection has no C++ object of its own, so its cache key (`serial`) lives on
     // the owner: Viewport3D::entities_serial. Same object every call.
     static PyObject* pyobject_for(uint64_t& serial,
-                                  const std::shared_ptr<std::list<std::shared_ptr<mcrf::Entity3D>>>& data,
+                                  const std::shared_ptr<std::vector<std::shared_ptr<mcrf::Entity3D>>>& data,
                                   const std::shared_ptr<mcrf::Viewport3D>& viewport);
 
     // Python sequence protocol

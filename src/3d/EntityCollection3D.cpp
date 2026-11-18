@@ -21,13 +21,13 @@ PySequenceMethods EntityCollection3D::sqmethods = {
 // =============================================================================
 
 PyObject* EntityCollection3D::pyobject_for(uint64_t& serial,
-    const std::shared_ptr<std::list<std::shared_ptr<mcrf::Entity3D>>>& data,
+    const std::shared_ptr<std::vector<std::shared_ptr<mcrf::Entity3D>>>& data,
     const std::shared_ptr<mcrf::Viewport3D>& viewport)
 {
     return mcrf::cached_wrapper<PyEntityCollection3DObject>(serial,
         &mcrfpydef::PyEntityCollection3DType, [&](PyEntityCollection3DObject* o) {
             // tp_alloc zero-fills; construct the C++ members in place (dealloc destroys them).
-            new (&o->data) std::shared_ptr<std::list<std::shared_ptr<mcrf::Entity3D>>>(data);
+            new (&o->data) std::shared_ptr<std::vector<std::shared_ptr<mcrf::Entity3D>>>(data);
             new (&o->viewport) std::shared_ptr<mcrf::Viewport3D>(viewport);
             o->weakreflist = nullptr;
         });
@@ -60,9 +60,8 @@ PyObject* EntityCollection3D::iter(PyEntityCollection3DObject* self)
     if (!iter_obj) return NULL;
 
     // Initialize with placement new for iterator members
-    new (&iter_obj->data) std::shared_ptr<std::list<std::shared_ptr<mcrf::Entity3D>>>(self->data);
-    new (&iter_obj->current) std::list<std::shared_ptr<mcrf::Entity3D>>::iterator(self->data->begin());
-    new (&iter_obj->end) std::list<std::shared_ptr<mcrf::Entity3D>>::iterator(self->data->end());
+    new (&iter_obj->data) std::shared_ptr<std::vector<std::shared_ptr<mcrf::Entity3D>>>(self->data);
+    iter_obj->index = 0;
     iter_obj->start_size = static_cast<int>(self->data->size());
 
     return (PyObject*)iter_obj;
@@ -89,7 +88,7 @@ PyObject* EntityCollection3D::getitem(PyEntityCollection3DObject* self, Py_ssize
         return NULL;
     }
 
-    // Iterate to the index (std::list doesn't have random access)
+    // O(1): the container is a vector (#329 pattern, #560)
     auto it = self->data->begin();
     std::advance(it, index);
 
@@ -189,7 +188,7 @@ PyObject* EntityCollection3D::clear(PyEntityCollection3DObject* self, PyObject* 
     // Detach the whole list first, then release each entity from the private copy:
     // setViewport(nullptr) drops the identity pin, which can run an entity subclass's __del__ (user
     // code) that mutates this collection; iterating the live list across that is a use-after-free.
-    std::list<std::shared_ptr<mcrf::Entity3D>> detached;
+    std::vector<std::shared_ptr<mcrf::Entity3D>> detached;
     detached.swap(*self->data);
     for (auto& entity : detached) {
         entity->setViewport(nullptr);
@@ -360,14 +359,16 @@ PyObject* EntityCollection3DIter::next(PyEntityCollection3DIterObject* self)
     }
 
     // Check if we've reached the end
-    if (self->current == self->end) {
+    if (self->index >= static_cast<Py_ssize_t>(self->data->size())) {
         PyErr_SetNone(PyExc_StopIteration);
         return NULL;
     }
 
     // Get current entity and advance
-    auto entity = *(self->current);
-    ++(self->current);
+    auto it = self->data->begin();
+    std::advance(it, self->index);
+    auto entity = *it;
+    ++self->index;
 
     return mcrf::Entity3D::pyobject_for(entity);
 }
