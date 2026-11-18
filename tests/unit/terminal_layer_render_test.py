@@ -60,7 +60,7 @@ def shot():
     path = os.path.join(TMP, f"s{_n[0]}.png")
     mcrfpy.step(0)
     automation.screenshot(path)
-    return _png.read_png(path)
+    return _png.read_png(path, crop_w=640, crop_h=64)  # every scene is in the top-left 640x64
 
 
 def px(img, x, y):
