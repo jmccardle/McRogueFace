@@ -225,6 +225,19 @@ p[1] = mcrfpy.Color(1, 2, 3)
 t.palette = p
 test("palette setter", (t.palette[1].r, t.palette[1].g, t.palette[1].b) == (1, 2, 3))
 raises("palette needs 256 colours", ValueError, lambda: setattr(t, "palette", p[:10]))
+for bad, exc in (((300, 0, 0), ValueError), (None, TypeError), ("no such colour", ValueError), (5, TypeError)):
+    q = list(p)
+    q[7] = bad
+    try:
+        mcrfpy.Color(bad)
+        want = None
+    except Exception as e:
+        want = type(e)
+    raises(f"a palette entry {bad!r} is converted like Color(v)", want, lambda: setattr(t, "palette", q))
+q = list(p)
+q[3], q[4] = "red", (1, 2, 3)
+t.palette = q
+test("palette entries accept what Color(v) accepts", (t.palette[3].r, t.palette[4].b) == (255, 3), f"{t.palette[3]}")
 t.palette = None
 test("palette None restores the built-in one", t.palette[1] != mcrfpy.Color(1, 2, 3))
 t.write(b"\x1b]4;2;rgb:10/20/30\x1b\\")

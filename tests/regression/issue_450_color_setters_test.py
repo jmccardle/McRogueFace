@@ -74,6 +74,22 @@ MAKERS = {
     "Sprite": lambda **kw: mcrfpy.Sprite(pos=(0, 0), **kw),
     "Entity": lambda **kw: mcrfpy.Entity(grid_pos=(0, 0), **kw),
     "ColorLayer": lambda **kw: mcrfpy.ColorLayer(name="c", **kw),
+    # #550: background starts as None (unset); give it a Color so the attribute is discovered.
+    "TerminalLayer": lambda **kw: _terminal(**kw),
+}
+
+
+def _terminal(**kw):
+    t = mcrfpy.TerminalLayer(grid_size=(4, 2), **kw)
+    if "background" not in kw:
+        t.background = C(1, 2, 3)
+    return t
+
+
+# Optional Color attributes: None is their documented "unset" value and reads back as None;
+# every other value converts exactly like Color(value). Listed one by one, never by pattern.
+OPTIONAL_NONE = {
+    "TerminalLayer.background": "None = default-background cells are transparent (#550)",
 }
 # Attributes that store RGB only: the converter is the same, alpha reads back as 255.
 RGB_ONLY = {
@@ -83,6 +99,9 @@ RGB_ONLY = {
 NO_COLOR_ATTRIBUTE = {
     "WangSet": "color_count / colors are read-only terrain metadata from a tileset file",
 }
+# TerminalLayer.palette is a list of 256 Colors, not a Color attribute (it never reads back as
+# one, so section 2 does not see it); its entries go through the same Color conversion, which
+# tests/unit/terminal_layer_test.py checks.
 
 
 # --- 1. every class with a Color-ish descriptor has a maker ---
@@ -128,11 +147,16 @@ for tname, make in MAKERS.items():
             o = make()
             setattr(o, name, BASELINE)
             want = expected(value)
-            if want[0] == "ok":
+            if value is None and key in OPTIONAL_NONE:
+                want = ("ok", None)
+            elif want[0] == "ok":
                 want = ("ok", stored(want[1]))
             got = outcome(lambda: setattr(o, name, value))
             after = getattr(o, name)
-            if want[0] == "ok":
+            if want == ("ok", None):
+                if got[0] != "ok" or after is not None:
+                    wrong.append("%r -> %r / %r, want None (unset)" % (value, got, after))
+            elif want[0] == "ok":
                 if got[0] != "ok" or after != want[1]:
                     wrong.append("%r -> %r / %r, want %r" % (value, got, after, want[1]))
             else:
@@ -161,7 +185,8 @@ for tname, make in MAKERS.items():
 for must in ("Frame.fill_color", "Frame.outline_color", "Caption.fill_color",
              "Caption.outline_color", "Circle.fill_color", "Circle.outline_color",
              "Arc.color", "Line.color", "Grid.fill_color", "GridView.fill_color",
-             "Viewport3D.bg_color", "Viewport3D.fog_color", "Entity3D.color"):
+             "Viewport3D.bg_color", "Viewport3D.fog_color", "Entity3D.color",
+             "TerminalLayer.background"):
     check(must in covered, "%s discovered and checked" % must)
 
 

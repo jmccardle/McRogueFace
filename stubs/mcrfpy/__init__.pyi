@@ -273,6 +273,8 @@ class Texture:
         codepoints defaults to [(0x20, 0x7E), (0x2500, 0x257F)]; ranges are inclusive. A bare (a, b) tuple
         raises TypeError: write [(a, b)] for a range or [a, b] for two codepoints.
         Tile 0 is the box tile (used for missing codepoints), tile 1 a solid white tile.
+        Coverage: code page 437 is the baseline; anything beyond it is an extra. Check the glyphs
+        you use (missing, clipped) and ship a prebuilt texture if a font does not convert cleanly.
         """
         ...
 

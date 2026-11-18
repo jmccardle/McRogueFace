@@ -631,6 +631,7 @@ PyMethodDef PyTexture::methods[] = {
          MCRF_RAISES("TypeError", "font/bold/italic is not a Font, codepoints has the wrong type (a bare (a, b) tuple is rejected as ambiguous; a bool is not a codepoint), or cell is not a pair of ints")
          MCRF_RAISES("RuntimeError", "no display (#451), or an MCRF_HEADLESS build with no font rasterizer")
          MCRF_NOTE("Glyphs larger than the cell are clipped and listed in clipped (variant_clipped). Bold-italic is not a face of its own: index(..., bold=True, italic=True) gives the bold tile.")
+         MCRF_NOTE("Coverage: code page 437 is the baseline every font should convert cleanly; anything beyond it is an extra. Check the glyphs you plan to use (missing, clipped) and ship a prebuilt texture if a font does not convert cleanly.")
      )},
     {"index", (PyCFunction)PyTexture::py_index, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(Texture, index,
