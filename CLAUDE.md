@@ -184,7 +184,7 @@ McRogueFace uses a unified Makefile for both Linux native builds and Windows cro
 ### Quick Reference
 
 ```bash
-# Fresh clone: build SFML, libtcod, CPython into __lib/ first (see BUILD_FROM_SOURCE.md)
+# Fresh clone: build SFML, libtcod, CPython into __lib/ (and libghostty-vt, static, into __lib_static/) first (see BUILD_FROM_SOURCE.md)
 make deps               # no root? tools/fetch_dev_headers.sh + export MCRF_SYSROOT=...
 
 # Linux builds
@@ -234,6 +234,7 @@ make clean-dist         # Remove only distribution packages
 
 The build expects pre-built libraries in:
 - `__lib/` - Linux shared libraries (libpython3.15.so, libsfml-*.so, libtcod.so)
+- `__lib_static/ghostty-vt/` - libghostty-vt static archive + headers (link input only; built with Zig 0.17.1 by `tools/build_libghostty.sh`, not shipped)
 - `__lib/Python/Lib/` - Python standard library source
 - `__lib/Python/lib.linux-x86_64-3.15/` - Python extension modules (.so)
 - `__lib_windows/` - Windows DLLs and libraries
@@ -388,7 +389,7 @@ McRogueFace supports WebGL deployment via Emscripten with an SDL2+OpenGL ES 2 ba
 
 ```bash
 source ~/emsdk/emsdk_env.sh  # Activate Emscripten SDK
-tools/build_deps_wasm.sh      # Once per clone (after make deps): wasm CPython, libtcod, deps/stb
+tools/build_deps_wasm.sh      # Once per clone (after make deps): wasm CPython, libtcod, libghostty-vt, deps/stb
 make wasm                     # Full game web build
 make playground               # REPL-focused web build
 make serve                    # Serve at http://localhost:8080

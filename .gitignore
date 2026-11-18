@@ -42,6 +42,8 @@ __lib_fuzz/
 __lib_ft/
 __lib_tsan/
 __lib_windows/
+__lib_static/
+__lib_wasm/
 build-windows/
 build_windows/
 _oldscripts/

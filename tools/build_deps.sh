@@ -4,7 +4,8 @@
 # where CMake expects them. This is what `make deps` runs.
 #
 # Usage:
-#   tools/build_deps.sh                 # SFML + libtcod + CPython -> __lib/, deps/ links
+#   tools/build_deps.sh                 # SFML + libtcod + CPython -> __lib/, libghostty-vt
+#                                       # (static, via build_libghostty.sh) -> __lib_static/, deps/ links
 #   tools/build_deps.sh --free-threaded # also the free-threaded CPython -> __lib_ft/
 #   tools/build_deps.sh --clean         # rebuild everything from scratch
 #
@@ -16,6 +17,8 @@
 # force a rebuild). Output layout:
 #   __lib/libsfml-*.so*, __lib/libtcod.so*, __lib/libpython3.X.so*,
 #   __lib/Python/{Lib,lib.linux-x86_64-3.X}/, __lib/include/pyconfig.h
+#   __lib_static/ghostty-vt/{include,lib}  (libghostty-vt static archive: a link input, so it
+#                                           stays out of __lib/, which is shipped whole)
 #   deps/{cpython,Python,libtcod,SFML} -> modules/...
 
 set -euo pipefail
@@ -31,7 +34,7 @@ for arg in "$@"; do
     case "$arg" in
         --free-threaded) FT=1 ;;
         --clean) CLEAN=1 ;;
-        --help|-h) sed -n '2,21p' "$0"; exit 0 ;;
+        --help|-h) sed -n '2,22p' "$0"; exit 0 ;;
         *) echo "Unknown argument: $arg"; exit 1 ;;
     esac
 done
@@ -80,7 +83,7 @@ cd "$PROJECT_ROOT"
 log "Submodules"
 git submodule update --init --depth 1 \
     modules/SFML modules/libtcod-headless modules/cpython \
-    modules/imgui modules/imgui-sfml modules/json modules/RapidXML
+    modules/imgui modules/imgui-sfml modules/json modules/RapidXML modules/ghostty
 # libtcod vendors utf8proc as a nested submodule (see LIBTCOD_UTF8PROC below)
 git -C modules/libtcod-headless submodule update --init --depth 1 src/vendor/utf8proc
 
@@ -184,6 +187,11 @@ if [ "$FT" -eq 1 ]; then
 fi
 verify_stdlib "$LIB_DIR"
 [ "$FT" -eq 1 ] && verify_stdlib "$PROJECT_ROOT/__lib_ft"
+
+# --- libghostty-vt (static; Zig toolchain provisioned by the script) ---------
+LG_ARGS=()
+[ "$CLEAN" -eq 1 ] && LG_ARGS+=(--clean)
+"$SCRIPT_DIR/build_libghostty.sh" native "${LG_ARGS[@]}"
 
 # --- deps/ include links ----------------------------------------------------
 log "deps/ links"

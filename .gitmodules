@@ -20,3 +20,7 @@
 [submodule "modules/json"]
 	path = modules/json
 	url = https://github.com/nlohmann/json.git
+[submodule "modules/ghostty"]
+	path = modules/ghostty
+	url = https://github.com/jmccardle/ghostty.git
+	branch = emscripten-lib-vt-1.0.1

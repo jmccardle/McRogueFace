@@ -108,7 +108,7 @@ make -j$(nproc)
 ```bash
 git clone <repository-url> McRogueFace
 cd McRogueFace
-make deps   # builds SFML, libtcod-headless, and CPython 3.15 into __lib/
+make deps   # builds SFML, libtcod-headless, CPython 3.15 and libghostty-vt (needs curl, xz)
 make
 # See BUILD_FROM_SOURCE.md for complete instructions
 ```
@@ -247,5 +247,5 @@ This project is licensed under the MIT License - see LICENSE file for details.
 ## Acknowledgments
 
 - Developed for 7-Day Roguelike 2023, 2024, 2025, 2026 - here's to many more
-- Built with [SFML](https://www.sfml-dev.org/), [libtcod](https://github.com/libtcod/libtcod), and Python
+- Built with [SFML](https://www.sfml-dev.org/), [libtcod](https://github.com/libtcod/libtcod), [libghostty-vt](https://github.com/ghostty-org/ghostty) (Ghostty's terminal emulator core, MIT), and Python
 - Inspired by David Churchill's COMP4300 game engine lectures

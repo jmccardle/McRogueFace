@@ -1,5 +1,6 @@
 #include "CommandLineParser.h"
 #include "Python.h"  // PY_VERSION, Py_GIL_DISABLED
+#include <ghostty/vt.h>  // ghostty_version() (#550)
 #include <iostream>
 #include <filesystem>
 #include <algorithm>
@@ -282,4 +283,6 @@ void CommandLineParser::print_version() {
 #else
     std::cout << "Python " PY_VERSION " (McRogueFace embedded)\n";
 #endif
+    // The libghostty-vt linked into this binary (static): proves the dependency is built in.
+    std::cout << "libghostty-vt " << ghostty_version() << "\n";
 }

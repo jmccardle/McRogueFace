@@ -6,6 +6,7 @@
 #   deps/stb/stb_image.h                           (SDL2Renderer's image loader)
 #   modules/libtcod-headless/build-emscripten/     libtcod.a plus its fetched
 #                                                  lodepng-c and utf8proc builds
+#   __lib_wasm/ghostty-vt/                         libghostty-vt static archive (Zig, via build_libghostty.sh)
 #   modules/cpython/cross-build/wasm32-emscripten/ via tools/build_python_wasm.sh
 #
 # Each step is skipped when its output exists; --clean rebuilds libtcod.
@@ -38,7 +39,7 @@ cd "$PROJECT_ROOT"
 # CPython, and the header-only RapidXML and json the engine includes on every
 # backend. imgui/imgui-sfml are desktop-only.
 git submodule update --init --depth 1 modules/SFML modules/libtcod-headless modules/cpython \
-    modules/RapidXML modules/json
+    modules/RapidXML modules/json modules/ghostty
 git -C modules/libtcod-headless submodule update --init --depth 1 src/vendor/utf8proc
 [ "$SUBMODULES_ONLY" -eq 1 ] && exit 0
 
@@ -75,6 +76,10 @@ if [ "$CLEAN" -eq 1 ] || [ ! -f "$B/libtcod.a" ]; then
 else
     log "libtcod already built (skip)"
 fi
+
+# --- libghostty-vt ----------------------------------------------------------
+# Built by Zig (wasm32-emscripten), not by emcc; the archive is linked into the engine.
+"$SCRIPT_DIR/build_libghostty.sh" wasm $([ "$CLEAN" -eq 1 ] && echo --clean)
 
 # --- CPython ----------------------------------------------------------------
 if ls modules/cpython/cross-build/wasm32-emscripten/build/python/libpython3.*.a >/dev/null 2>&1; then
