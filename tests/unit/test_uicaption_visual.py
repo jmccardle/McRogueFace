@@ -18,7 +18,7 @@ def shot(name):
     mcrfpy.step(0.01)
     path = os.path.join(shots, name)
     automation.screenshot(path)
-    return read_png(path)
+    return read_png(path, 440, 290)  # every count() box lies inside x < 440, y < 290 (exact crop)
 
 
 def count(img, x0, y0, x1, y1, color, tol=12):

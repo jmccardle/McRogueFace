@@ -39,7 +39,12 @@ def raises(name, exc, fn, needle=None):
 
 
 # --- screenshot reading -------------------------------------------------------------------
-def read_png(path):
+def read_png(path, crop_w=None, crop_h=None):
+    """Decode the top-left crop_w x crop_h pixels of a PNG (the whole image by default).
+
+    Un-filtering a row needs only the row above and the bytes to the left, so a prefix of each row
+    and the first crop_h rows decode exactly as in the full image. The pure-Python filter loop over a
+    whole 1024x768 screenshot took ~0.7 s (several times that under the debug CPython build)."""
     d = open(path, "rb").read()
     p, idat = 8, b""
     while p < len(d):
@@ -51,10 +56,12 @@ def read_png(path):
         elif typ == b"IDAT":
             idat += body
     bpp = {2: 3, 6: 4}[ct]
-    raw, stride, rows, prev, q = zlib.decompress(idat), w * bpp, [], bytearray(w * bpp), 0
-    for _ in range(h):
-        ft, line = raw[q], bytearray(raw[q + 1:q + 1 + w * bpp])
-        q += 1 + stride
+    raw, full_stride, q = zlib.decompress(idat), w * bpp, 0
+    stride = min(w, crop_w or w) * bpp
+    rows, prev = [], bytearray(stride)
+    for _ in range(min(h, crop_h or h)):
+        ft, line = raw[q], bytearray(raw[q + 1:q + 1 + stride])
+        q += 1 + full_stride
         for i in range(stride):
             a = line[i - bpp] if i >= bpp else 0
             b = prev[i]
@@ -92,7 +99,7 @@ def render(tex, tiles, cols=8, rows=2):
     path = f"test_547_{_shot[0]}.png"
     _shot[0] += 1
     automation.screenshot(path)
-    _w, _h, bpp, px = read_png(path)
+    _w, _h, bpp, px = read_png(path, cols * cw, ch)  # only row 0 of the grid is inspected
     out = {}
     for (cx, cy) in tiles:
         out[(cx, cy)] = [[px[cy * ch + y][(cx * cw + x) * bpp] for x in range(cw)] for y in range(ch)]

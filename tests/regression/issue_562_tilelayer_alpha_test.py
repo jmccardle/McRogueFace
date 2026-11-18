@@ -22,6 +22,9 @@ import _png  # noqa: E402
 import mcrfpy  # noqa: E402
 from mcrfpy import automation  # noqa: E402
 
+# Every pixel the checks read lies within x <= 418, y <= 383; decoding only this corner of the
+# 1024x768 screenshot (exact, see _png.read_png) keeps the test cheap under the debug CPython build.
+CROP = (512, 400)
 TMPDIR = tempfile.mkdtemp(prefix="mcrf562_")
 failures = []
 warnings.simplefilter("ignore", mcrfpy.TextureWarning)
@@ -37,11 +40,12 @@ def shot(name):
     path = os.path.join(TMPDIR, name + ".png")
     mcrfpy.step(0)  # the screenshot shows the last complete frame; draw this one (#529)
     automation.screenshot(path)
-    return _png.read_png(path)
+    return _png.read_png(path, *CROP)
 
 
 def px(img, x, y):
     w, h, ch, data = img
+    assert x < w and y < h, "pixel (%d, %d) is outside the decoded crop %dx%d" % (x, y, w, h)
     i = (y * w + x) * ch
     return tuple(data[i:i + 3])
 

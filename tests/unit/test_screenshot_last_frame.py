@@ -32,7 +32,7 @@ def shot():
     path = os.path.join(TMP, "s%d.png" % _n[0])
     _n[0] += 1
     assert automation.screenshot(path) is True, "screenshot() should return True"
-    w, h, ch, px = _png.read_png(path)
+    w, h, ch, px = _png.read_png(path, 151, 151)  # only pixel (150, 150) is read (exact crop)
     i = (150 * w + 150) * ch
     with open(path, "rb") as f:
         return tuple(px[i:i + 3]), f.read()
