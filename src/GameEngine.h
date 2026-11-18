@@ -481,6 +481,9 @@ public:
 
     // #219 - Thread synchronization for background threads
     FrameLock& getFrameLock() { return frameLock; }
+    // True while doFrame()/runSimFrame() runs: timers and callbacks execute in it, and a
+    // frame cannot be re-entered (#551).
+    bool inFrame() const { return in_frame; }
     bool isMainThread() const { return std::this_thread::get_id() == main_thread_id; }
 
     // #411 - Exactly one thread drives the simulation clock. The first thread to run a

@@ -517,7 +517,7 @@ void GameEngine::run()
 void GameEngine::doFrame()
 {
     // #529: callbacks run in here; a screenshot they take shows the previous frame.
-    struct FrameScope {  // restores, not clears: step() can be called from a callback
+    struct FrameScope {  // restores what it found (always false now: a frame cannot be re-entered, #551)
         bool& flag;
         bool saved;
         explicit FrameScope(bool& f) : flag(f), saved(f) { flag = true; }
@@ -1204,7 +1204,7 @@ float GameEngine::step(float dt) {
 // Scene.update() -- step(float) still passes through the caller's own float unchanged.
 float GameEngine::runSimFrame(int ms, float actual_dt) {
     // #529: timer callbacks run in here; a screenshot they take shows the last render.
-    struct FrameScope {  // restores, not clears: step() can be called from a callback
+    struct FrameScope {  // restores what it found (always false now: a frame cannot be re-entered, #551)
         bool& flag;
         bool saved;
         explicit FrameScope(bool& f) : flag(f), saved(f) { flag = true; }

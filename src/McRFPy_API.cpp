@@ -2228,6 +2228,18 @@ static bool frameAdvanceAllowed(const char* fname)
             fname);
         return false;
     }
+    // #551 - A frame is already running on this thread (a Timer, animation, input, scene or
+    // trigger callback called us). It cannot be re-entered: the nested frame's timer pass
+    // erased entries out from under the outer pass's iterator (segfault), or recursed
+    // without end. One guard, here, on the frame entry point -- not one per callback.
+    if (Resources::game->inFrame()) {
+        PyErr_Format(PyExc_RuntimeError,
+            "mcrfpy.%s() cannot be called from inside a running frame (a timer, animation, "
+            "input, or scene callback): a frame is already in progress. Call it from outside "
+            "the callbacks, or let the callback return and step again.",
+            fname);
+        return false;
+    }
     return true;
 }
 

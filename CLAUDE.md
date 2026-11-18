@@ -816,6 +816,9 @@ GC and module clearing, so the old guards skipped every release made during fina
 Gate: `tests/regression/issue_468_exit_teardown_test.py` (markers on every exit path, and
 no LSan report under `make asan-test`).
 
+**Frames do not nest (#551).** `step()`/`advance()` from inside any callback raise
+`RuntimeError` (`GameEngine::inFrame()`, checked once in `frameAdvanceAllowed`).
+
 `tools/lint_bindings.py` (tree-sitter, `make lint-bindings`) enforces all of this:
 identity-type construction outside a converter (via `tp_alloc`, `Foo::pynew`, or
 `PyObject_New`), direct `PythonObjectCache::` use, a new reference passed inline to a

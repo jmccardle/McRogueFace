@@ -155,20 +155,24 @@ elif CASE == "midframe":
     after_that(after)
 
 elif CASE == "nested":
-    # A callback that runs a nested step(), mutates, then shoots is STILL inside a frame: the
-    # scope guard restores in_frame, it does not clear it. HEADLESS ONLY HAS TEETH: windowed
-    # step() is a no-op, so no nested frame runs and the old clearing guard would pass too.
+    # A callback whose nested step() is refused (#551: a frame cannot be re-entered), then
+    # mutates and shoots, is STILL inside a frame: the refused call must not take it out.
     p0, b0 = shot()
     got = {}
 
     def in_callback():
-        mcrfpy.step(0)
+        try:
+            mcrfpy.step(0)
+            got["refused"] = False
+        except RuntimeError:
+            got["refused"] = True
         green()
         p1, b1 = shot()
         got["px"], got["same"] = p1, (b1 == b0)
 
     in_a_frame(in_callback)
-    after_that(lambda: finish(p0=p0, in_cb=got["px"], in_cb_same=got["same"], after=shot()[0]))
+    after_that(lambda: finish(p0=p0, in_cb=got["px"], in_cb_same=got["same"],
+                              refused=got["refused"], after=shot()[0]))
 
 elif CASE == "window":
     # Window.screenshot() follows the same rules as automation.screenshot().
