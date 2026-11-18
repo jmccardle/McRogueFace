@@ -423,6 +423,55 @@ def _layer_alpha_pixels(page):
     return _expect(not bad, "; ".join(bad) or "layer, grid and cached-frame alpha applied once")
 
 
+# #550 TerminalLayer on the web: the same C++ against the wasm libghostty-vt archive. A 6x2
+# terminal at (100, 100), cells 1:1 with the atlas, over a blue Frame: an SGR truecolor
+# background cell, a FULL BLOCK in a truecolor foreground, a default-background cell (which
+# must show the blue underneath), a DSR reply through on_output and an encoded arrow key.
+TERMINAL_SCENE_SRC = (
+    "import mcrfpy\n"
+    "f = mcrfpy.Font('assets/JetbrainsMono.ttf')\n"
+    "tex = mcrfpy.Texture.from_font(f, 16, codepoints=[(0x20, 0x7E), 0x2588])\n"
+    "cw, ch = tex.sprite_width, tex.sprite_height\n"
+    "sc = mcrfpy.Scene('term550')\n"
+    "sc.children.append(mcrfpy.Frame(pos=(0, 0), size=(1024, 768), fill_color=mcrfpy.Color(0, 0, 255)))\n"
+    "out = []\n"
+    "t = mcrfpy.TerminalLayer(texture=tex, grid_size=(6, 2), on_output=out.append)\n"
+    "g = mcrfpy.Grid(grid_size=(6, 2), texture=tex, pos=(100, 100), size=(6 * cw, 2 * ch), layers=[t])\n"
+    "g.center = (3 * cw, ch)\n"
+    "g.fill_color = mcrfpy.Color(0, 0, 0, 0)\n"
+    "sc.children.append(g)\n"
+    "t.show_cursor = False\n"
+    "t.write('\\x1b[48;2;200;0;0m \\x1b[0m\\x1b[38;2;0;200;0m\\u2588\\x1b[0mhi\\x1b[6n'.encode())\n"
+    "t.key(mcrfpy.Key.UP, mcrfpy.InputState.PRESSED, ())\n"
+    "mcrfpy.current_scene = sc\n"
+    "print(repr(t.screen_text().split(chr(10))[0]), out, cw, ch)\n"
+)
+
+
+def t_terminal_layer(page):
+    return with_scene_viewport(page, lambda: _terminal_layer(page))
+
+
+def _terminal_layer(page):
+    out = rp(page, TERMINAL_SCENE_SRC).strip()
+    want_prefix = "' \u2588hi' [b'\\x1b[1;5R', b'\\x1b[A'] "
+    if not out.startswith(want_prefix):
+        return _expect(False, f"state: {out!r} (want prefix {want_prefix!r})")
+    cw, ch = (int(v) for v in out[len(want_prefix):].split())
+    img = canvas_image(page)
+    bad = []
+
+    def expect(label, xy, want):
+        got = img.getpixel(xy)[:3]
+        if got != want:
+            bad.append(f"{label} at {xy}: {got} != {want}")
+
+    expect("SGR background cell", (100 + cw // 2, 100 + ch // 2), (200, 0, 0))
+    expect("truecolor full block", (100 + cw + cw // 2, 100 + ch // 2), (0, 200, 0))
+    expect("default background is transparent", (100 + 5 * cw + cw // 2, 100 + ch + ch // 2), (0, 0, 255))
+    return _expect(not bad, "; ".join(bad) or f"screen, replies, key encoding and cell colours ({cw}x{ch} cells)")
+
+
 TESTS = [
     ("basic_eval", t_basic_eval),
     ("print_stdout", t_print_stdout),
@@ -438,6 +487,7 @@ TESTS = [
     ("text_baseline", t_text_baseline),
     ("arc_pixels", t_arc_pixels),
     ("layer_alpha_pixels", t_layer_alpha_pixels),
+    ("terminal_layer", t_terminal_layer),
 ]
 
 
