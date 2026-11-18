@@ -1546,9 +1546,21 @@ static PyObject* TL_mouse(PyObject* self, PyObject* args, PyObject* kwds) {
     if (!PyPosition_FromObject(pos_obj, &x, &y, "pos")) return nullptr;
     int button = 0;
     if (button_obj && button_obj != Py_None) {
-        sf::Mouse::Button b;
-        if (!PyMouseButton::from_arg(button_obj, &b)) return nullptr;
-        switch (static_cast<int>(b)) {
+        // The MouseButton value as an int: the wheel values (10-13) are not sf::Mouse::Button
+        // enumerators, so they are never loaded through that enum type.
+        long b = -1;
+        if (PyMouseButton::mouse_button_enum_class &&
+            PyObject_TypeCheck(button_obj, (PyTypeObject*)PyMouseButton::mouse_button_enum_class)) {
+            PyObject* v = PyObject_GetAttrString(button_obj, "value");
+            if (!v) return nullptr;
+            b = PyLong_AsLong(v);
+            Py_DECREF(v);
+            if (b == -1 && PyErr_Occurred()) return nullptr;
+        } else {
+            PyErr_SetString(PyExc_TypeError, "button must be a MouseButton or None");
+            return nullptr;
+        }
+        switch (b) {
             case sf::Mouse::Left: button = GHOSTTY_MOUSE_BUTTON_LEFT; break;
             case sf::Mouse::Right: button = GHOSTTY_MOUSE_BUTTON_RIGHT; break;
             case sf::Mouse::Middle: button = GHOSTTY_MOUSE_BUTTON_MIDDLE; break;
