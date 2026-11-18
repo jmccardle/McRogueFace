@@ -17,7 +17,8 @@ for pos in ((1999, 1999), (1000, 1500), (0, 1999)):
     check(e.at(pos) is None, f"at{pos} on the big grid before any FOV update")   # was an OOB read
 check(e.perspective_map.size == (2000, 2000), "map follows the grid")
 e.update_visibility()
-check(e.at((0, 0)) is None or e.at((0, 0)) is not None, "at() still works after update")
+check(e.at((0, 0)) is not None, "the entity's own cell is VISIBLE after an update on the new grid")
+check(e.perspective_map[0, 0] == 2, "perspective_map marks its own cell visible")
 
 # same-sized grids keep their memory
 a = mcrfpy.Grid(grid_size=(5, 5), texture=tex)

@@ -20,8 +20,10 @@ class VoxelPoint;
 typedef struct {
     PyObject_HEAD
     // A wrapper never points into the nav grid (it is reallocated by grid_size): it names a cell by
-    // viewport + coordinates and re-resolves on every access (#560).
-    std::weak_ptr<mcrf::Viewport3D> viewport;
+    // viewport + coordinates and re-resolves on every access (#560). The viewport is held strongly,
+    // like GridPoint's grid, so `Viewport3D().at(1, 1)` on a temporary keeps working; the viewport
+    // never references its points (navGrid_ holds plain values), so there is no cycle.
+    std::shared_ptr<mcrf::Viewport3D> viewport;
     int x;
     int z;
 } PyVoxelPointObject;
@@ -49,8 +51,7 @@ public:
     // Constructor with position
     VoxelPoint(int x, int z, mcrf::Viewport3D* parent);
 
-    // Resolve the wrapper's cell: RuntimeError (as GridPoint) when the viewport is gone or the
-    // cell no longer exists. `keep` holds the viewport alive for the caller's use.
+    // Resolve the wrapper's cell: RuntimeError (as GridPoint) when the cell no longer exists. `keep` holds the viewport alive for the caller's use.
     static VoxelPoint* resolve(PyVoxelPointObject* self, std::shared_ptr<mcrf::Viewport3D>& keep);
 
     // Python property accessors
@@ -86,7 +87,7 @@ inline PyTypeObject PyVoxelPointType = {
     // shared_ptr kept its target alive forever (grid.at() leaked the whole grid).
     .tp_dealloc = [](PyObject* self) {
         auto* o = (PyVoxelPointObject*)self;
-        o->viewport.~weak_ptr();
+        o->viewport.~shared_ptr();
         Py_TYPE(self)->tp_free(self);
     },
     .tp_repr = (reprfunc)VoxelPoint::repr,

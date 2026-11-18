@@ -46,7 +46,7 @@ namespace mcrf {
 
 Viewport3D::Viewport3D()
     : size_(320.0f, 240.0f)
-    , entities_(std::make_shared<std::list<std::shared_ptr<Entity3D>>>())
+    , entities_(std::make_shared<std::vector<std::shared_ptr<Entity3D>>>())
     , billboards_(std::make_shared<std::vector<std::shared_ptr<Billboard>>>())
 {
     position = sf::Vector2f(0, 0);
@@ -55,7 +55,7 @@ Viewport3D::Viewport3D()
 
 Viewport3D::Viewport3D(float x, float y, float width, float height)
     : size_(width, height)
-    , entities_(std::make_shared<std::list<std::shared_ptr<Entity3D>>>())
+    , entities_(std::make_shared<std::vector<std::shared_ptr<Entity3D>>>())
     , billboards_(std::make_shared<std::vector<std::shared_ptr<Billboard>>>())
 {
     position = sf::Vector2f(x, y);
@@ -322,6 +322,11 @@ void Viewport3D::setGridSize(int width, int depth) {
 
     gridWidth_ = width;
     gridDepth_ = depth;
+
+    // #560: every entity's seen/discovered memory is indexed by this grid's width
+    if (entities_) {
+        for (auto& e : *entities_) e->invalidateVoxelState();
+    }
 
     // Resize and initialize grid
     navGrid_.resize(width * depth);
@@ -1338,14 +1343,13 @@ static bool PyTuple_GetVec3(PyObject* tuple, mcrf::vec3& out) {
     PyObject* y = items3[1];
     PyObject* z = items3[2];
 
-    bool ok = true;
-    if (PyNumber_Check(x) && PyNumber_Check(y) && PyNumber_Check(z)) {
-        out.x = static_cast<float>(PyFloat_AsDouble(PyNumber_Float(x)));
-        out.y = static_cast<float>(PyFloat_AsDouble(PyNumber_Float(y)));
-        out.z = static_cast<float>(PyFloat_AsDouble(PyNumber_Float(z)));
-    } else {
-        ok = false;
-    }
+    // mcrf::to_float: no leaked intermediate, and a failed conversion leaves its exception set (false
+    // with an error pending means "the element was bad", false without one means "wrong shape")
+    mcrf::vec3 tmp;
+    bool ok = mcrf::to_float(x, tmp.x, "vector element") &&
+              mcrf::to_float(y, tmp.y, "vector element") &&
+              mcrf::to_float(z, tmp.z, "vector element");
+    if (ok) out = tmp;
 
     Py_DECREF(x);
     Py_DECREF(y);
@@ -1449,7 +1453,7 @@ static PyObject* Viewport3D_get_camera_pos(PyViewport3DObject* self, void* closu
 static int Viewport3D_set_camera_pos(PyViewport3DObject* self, PyObject* value, void* closure) {
     mcrf::vec3 pos;
     if (!PyTuple_GetVec3(value, pos)) {
-        PyErr_SetString(PyExc_TypeError, "camera_pos must be (x, y, z)");
+        if (!PyErr_Occurred()) PyErr_SetString(PyExc_TypeError, "camera_pos must be (x, y, z)");
         return -1;
     }
     self->data->setCameraPosition(pos);
@@ -1464,7 +1468,7 @@ static PyObject* Viewport3D_get_camera_target(PyViewport3DObject* self, void* cl
 static int Viewport3D_set_camera_target(PyViewport3DObject* self, PyObject* value, void* closure) {
     mcrf::vec3 target;
     if (!PyTuple_GetVec3(value, target)) {
-        PyErr_SetString(PyExc_TypeError, "camera_target must be (x, y, z)");
+        if (!PyErr_Occurred()) PyErr_SetString(PyExc_TypeError, "camera_target must be (x, y, z)");
         return -1;
     }
     self->data->setCameraTarget(target);
@@ -2037,8 +2041,8 @@ static PyObject* Viewport3D_at(PyViewport3DObject* self, PyObject* args) {
         return NULL;
     }
 
-    // tp_alloc zero-fills: construct the weak_ptr in place
-    new (&vp_obj->viewport) std::weak_ptr<mcrf::Viewport3D>(self->data);
+    // tp_alloc zero-fills: construct the shared_ptr in place (tp_dealloc destroys it)
+    new (&vp_obj->viewport) std::shared_ptr<mcrf::Viewport3D>(self->data);
     vp_obj->x = x;
     vp_obj->z = z;
 

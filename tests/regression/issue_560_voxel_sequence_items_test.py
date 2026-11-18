@@ -54,5 +54,35 @@ try:
     e.follow_path(path)
 except (TypeError, ValueError, IndexError, RuntimeError):
     pass
+
+# the float converters: complex is a TypeError (not a pending-exception success), no refs leak
+import gc
+for label, make in (("Viewport3D(camera_pos=)", lambda: mcrfpy.Viewport3D(camera_pos=(1j, 0, 0))),
+                    ("Viewport3D(camera_target=)", lambda: mcrfpy.Viewport3D(camera_target=(0, 0, 1j)))):
+    try:
+        make(); fails.append(label + " accepted a complex number")
+    except TypeError:
+        pass
+    except BaseException as ex:
+        fails.append(f"{label}: {type(ex).__name__}")
+for label, setter in (("camera_pos", lambda v: setattr(vp, "camera_pos", v)),
+                      ("camera_target", lambda v: setattr(vp, "camera_target", v)),
+                      ("offset", lambda v: setattr(vg, "offset", v)),
+                      ("rotation", lambda v: setattr(vg, "rotation", v[0]))):
+    for bad, exc in (((1j, 0, 0), TypeError), (("a", 0, 0), TypeError), ((10**400, 0, 0), OverflowError)):
+        try:
+            setter(bad); fails.append(f"{label} = {bad!r} accepted")
+        except exc:
+            pass
+        except BaseException as ex:
+            fails.append(f"{label} = {bad!r}: {type(ex).__name__}")
+f = 1.25
+setter_ok = lambda: (setattr(vp, "camera_pos", (f, f, f)), setattr(vg, "offset", (f, f, f)))
+setter_ok()
+r0 = sys.getrefcount(f)
+for _ in range(1000):
+    setter_ok()
+if abs(sys.getrefcount(f) - r0) > 3:
+    fails.append("refcount of the float drifted over 1000 assignments")
 print("FAIL: " + "; ".join(fails) if fails else "PASS")
 sys.exit(1 if fails else 0)

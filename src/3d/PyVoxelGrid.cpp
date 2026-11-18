@@ -212,19 +212,15 @@ int PyVoxelGrid::set_offset(PyVoxelGridObject* self, PyObject* value, void* clos
     PyObject* y_obj = off_items[1];
     PyObject* z_obj = off_items[2];
 
-    bool valid = true;
-    if (PyNumber_Check(x_obj)) x = (float)PyFloat_AsDouble(PyNumber_Float(x_obj)); else valid = false;
-    if (PyNumber_Check(y_obj)) y = (float)PyFloat_AsDouble(PyNumber_Float(y_obj)); else valid = false;
-    if (PyNumber_Check(z_obj)) z = (float)PyFloat_AsDouble(PyNumber_Float(z_obj)); else valid = false;
+    const bool valid = mcrf::to_float(x_obj, x, "offset element") &&
+                       mcrf::to_float(y_obj, y, "offset element") &&
+                       mcrf::to_float(z_obj, z, "offset element");
 
     Py_DECREF(x_obj);
     Py_DECREF(y_obj);
     Py_DECREF(z_obj);
 
-    if (!valid) {
-        PyErr_SetString(PyExc_TypeError, "offset elements must be numbers");
-        return -1;
-    }
+    if (!valid) return -1;  // the converter's exception (TypeError / ValueError / OverflowError)
 
     self->data->setOffset(x, y, z);
     return 0;
@@ -244,12 +240,8 @@ int PyVoxelGrid::set_rotation(PyVoxelGridObject* self, PyObject* value, void* cl
         return -1;
     }
 
-    if (!PyNumber_Check(value)) {
-        PyErr_SetString(PyExc_TypeError, "rotation must be a number");
-        return -1;
-    }
-
-    float rotation = (float)PyFloat_AsDouble(PyNumber_Float(value));
+    float rotation;
+    if (!mcrf::to_float(value, rotation, "rotation")) return -1;
     self->data->setRotation(rotation);
     return 0;
 }

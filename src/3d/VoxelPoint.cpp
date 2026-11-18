@@ -2,6 +2,7 @@
 
 #include "VoxelPoint.h"
 #include "Viewport3D.h"
+#include "PyWrap.h"
 #include <cstdio>
 
 // Default constructor
@@ -34,7 +35,7 @@ VoxelPoint::VoxelPoint(int x, int z, mcrf::Viewport3D* parent)
 
 VoxelPoint* VoxelPoint::resolve(PyVoxelPointObject* self, std::shared_ptr<mcrf::Viewport3D>& keep)
 {
-    keep = self->viewport.lock();
+    keep = self->viewport;
     if (!keep || !keep->isValidCell(self->x, self->z)) {
         PyErr_SetString(PyExc_RuntimeError, "VoxelPoint data is no longer valid");
         return nullptr;
@@ -144,15 +145,10 @@ PyObject* VoxelPoint::get_float_member(PyVoxelPointObject* self, void* closure)
 int VoxelPoint::set_float_member(PyVoxelPointObject* self, PyObject* value, void* closure)
 {
 
-    double newValue;
-    if (PyFloat_Check(value)) {
-        newValue = PyFloat_AsDouble(value);
-    } else if (PyLong_Check(value)) {
-        newValue = static_cast<double>(PyLong_AsLong(value));
-    } else {
-        PyErr_SetString(PyExc_TypeError, "Value must be a number");
-        return -1;
-    }
+    // The project's checked float converter: TypeError for a non-number, ValueError for nan/inf,
+    // OverflowError for a value outside float range (an int too big for a double included).
+    float newValue;
+    if (!mcrf::to_float(value, newValue, "Value")) return -1;
 
     intptr_t member = reinterpret_cast<intptr_t>(closure);
 
@@ -162,14 +158,14 @@ int VoxelPoint::set_float_member(PyVoxelPointObject* self, PyObject* value, void
 
     switch (member) {
         case VOXEL_HEIGHT:
-            data->height = static_cast<float>(newValue);
+            data->height = newValue;
             break;
         case VOXEL_COST:
-            if (newValue < 0.0) {
+            if (newValue < 0.0f) {
                 PyErr_SetString(PyExc_ValueError, "Cost must be non-negative");
                 return -1;
             }
-            data->cost = static_cast<float>(newValue);
+            data->cost = newValue;
             break;
         default:
             PyErr_SetString(PyExc_AttributeError, "Invalid float member");
@@ -197,7 +193,7 @@ PyObject* VoxelPoint::get_entities(PyVoxelPointObject* self, void* closure)
 
 PyObject* VoxelPoint::repr(PyVoxelPointObject* self)
 {
-    std::shared_ptr<mcrf::Viewport3D> keep = self->viewport.lock();
+    std::shared_ptr<mcrf::Viewport3D> keep = self->viewport;
     if (!keep || !keep->isValidCell(self->x, self->z)) {
         return PyUnicode_FromFormat("<VoxelPoint (%d, %d) stale>", self->x, self->z);
     }

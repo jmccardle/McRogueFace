@@ -145,6 +145,8 @@ void Entity3D::updateWorldPosFromGrid()
 
 void Entity3D::setViewport(std::shared_ptr<Viewport3D> vp)
 {
+    // #560: memory of another viewport's grid describes the wrong cells here
+    if (viewport_.lock() != vp) invalidateVoxelState();
     viewport_ = vp;
     if (vp) {
         updateWorldPosFromGrid();
@@ -259,6 +261,7 @@ const VoxelPointState& Entity3D::getVoxelState(int x, int z) const
     }
 
     int w = vp->getGridWidth();
+    if (x < 0 || x >= w || z < 0 || z >= vp->getGridDepth()) return empty;  // no row wrap-around
     int idx = z * w + x;
     if (idx >= 0 && idx < static_cast<int>(voxel_state_.size())) {
         return voxel_state_[idx];
