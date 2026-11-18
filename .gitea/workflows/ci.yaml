@@ -80,8 +80,10 @@ jobs:
           xvfb-run -a -s "-noreset" ./build/mcrogueface --headless --exec tools/generate_dynamic_docs.py
           xvfb-run -a -s "-noreset" ./build/mcrogueface --headless --exec tools/generate_stubs_v2.py
 
+      # Up to 6 jobs share midlife's 12 cores, so a suite can get a third of its usual
+      # CPU: double the per-test hang limits (the timeouts guard hangs, not speed).
       - name: Run tests (Release)
-        run: cd tests && python3 run_tests.py -v -j 8
+        run: cd tests && MCRF_TIMEOUT_MULTIPLIER=2 python3 run_tests.py -v -j 8
 
       - name: Test run left the tree clean
         run: |
