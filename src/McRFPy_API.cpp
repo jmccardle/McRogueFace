@@ -671,6 +671,13 @@ static PyMethodDef mcrfpyMethods[] = {
                    "misbehaving handler. Do I/O, waiting, and computation OUTSIDE the block and "
                    "apply the result inside it. Calling mcrfpy.step() or mcrfpy.advance() while "
                    "holding the lock raises RuntimeError rather than deadlocking.")
+         MCRF_NOTE("Once the engine is shutting down, lock() on a thread that would have to wait "
+                   "raises RuntimeError('engine is shutting down'), including in a thread that "
+                   "was already waiting, and never grants the lock. This starts when the exiting "
+                   "main thread begins joining threads -- or, if another thread drives the clock, "
+                   "when that thread ends. The clock owner's lock stays a no-op throughout. "
+                   "A SystemExit raised on a background thread that drives the clock (from "
+                   "step() re-raising a callback's sys.exit()) ends only that thread.")
          MCRF_LINK("docs/frame-lock.md", "The frame barrier: rules, budget, and failure modes")
      )},
 
@@ -781,12 +788,13 @@ static PyMethodDef mcrfpy_atexit_def = {
 // registered while mcrfpy is first imported, so it runs after any handler a game
 // registers (which may still use the engine), and before finalization starts
 // clearing anything (Py_IsInitialized() is still true there).
-// #556: closes the frame lock. Registered with threading._register_atexit, which runs at
+// #556: closes the frame lock (now, or when the clock's owner thread ends if it is not the
+// exiting main thread; see GameEngine::closeFrameLockForShutdown). Registered with threading._register_atexit, which runs at
 // the start of threading._shutdown(), BEFORE it joins non-daemon threads -- an atexit
 // handler runs after the join, too late for a thread blocked in mcrfpy.lock().
 static PyObject* mcrfpy_close_frame_lock(PyObject*, PyObject*)
 {
-    if (McRFPy_API::game) McRFPy_API::game->getFrameLock().shutdown();
+    if (McRFPy_API::game) McRFPy_API::game->closeFrameLockForShutdown();
     Py_RETURN_NONE;
 }
 

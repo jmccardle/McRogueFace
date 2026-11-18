@@ -500,6 +500,9 @@ public:
 
     // #219 - Thread synchronization for background threads
     FrameLock& getFrameLock() { return frameLock; }
+    // #556: the exiting main thread's hook, before it joins other threads. Closes the frame
+    // lock now, or -- when another live thread still drives the clock -- when that thread ends.
+    void closeFrameLockForShutdown();
     // True while doFrame()/runSimFrame() runs: timers and callbacks execute in it, and a
     // frame cannot be re-entered (#551).
     bool inFrame() const { return in_frame; }

@@ -107,7 +107,10 @@ PyObject* PyLock::lock(PyObject* self, PyObject* args) {
         return NULL;
     }
 
-    if (Resources::game->getFrameLock().isShutdown()) {  // #556
+    // The clock owner's lock is a no-op (see __enter__) and stays one after shutdown began:
+    // an atexit handler or __del__ on the main thread may still take it. Only a thread that
+    // would have to wait is refused (#556).
+    if (!Resources::game->ownsClock() && Resources::game->getFrameLock().isShutdown()) {
         PyErr_SetString(PyExc_RuntimeError, "engine is shutting down");
         return NULL;
     }

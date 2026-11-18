@@ -24,6 +24,15 @@
 #include <emscripten/html5.h>
 #endif
 
+namespace {
+// #556: the frame lock to close when the clock's owner thread ends, set by
+// closeFrameLockForShutdown() when the exiting main thread is not the owner. Under its
+// mutex, which the engine's destructor takes to withdraw it, so a thread ending after
+// the engine is gone finds nothing.
+std::mutex deferred_close_mtx;
+FrameLock* deferred_close = nullptr;
+}
+
 // Static member definitions for shader intermediate texture (#106)
 std::unique_ptr<sf::RenderTexture> GameEngine::shaderIntermediate;
 bool GameEngine::shaderIntermediateInitialized = false;
@@ -278,6 +287,10 @@ void GameEngine::releasePythonReferences()
 
 GameEngine::~GameEngine()
 {
+    {   // #556: a clock-owner thread ending later must not reach this engine's lock
+        std::lock_guard<std::mutex> g(deferred_close_mtx);
+        if (deferred_close == &frameLock) deferred_close = nullptr;
+    }
     cleanup();
     // scenes map uses shared_ptr, will clean up automatically
     scenes.clear();
@@ -727,9 +740,32 @@ struct ClockOwnerRelease {
         if (!owns) return;
         std::thread::id me = std::this_thread::get_id();
         clock_owner.compare_exchange_strong(me, std::thread::id{});
+        // The owner is gone: if shutdown was waiting on it, nothing can open a window now.
+        std::lock_guard<std::mutex> g(deferred_close_mtx);
+        if (deferred_close) {
+            deferred_close->shutdown();
+            deferred_close = nullptr;
+        }
     }
 };
 thread_local ClockOwnerRelease clock_owner_release;
+}
+
+// #556 - Called on the exiting main thread before it joins the other threads. The frame
+// lock may stop granting only when no thread can open a window any more: when the main
+// thread owns the clock or nobody does. If another live thread drives the clock (#411) it
+// keeps running frames while the main thread joins it, and its waiters must still be
+// served; the lock then closes when that thread ends (its ownership has no other release
+// point), which is when the join can finish.
+void GameEngine::closeFrameLockForShutdown()
+{
+    std::lock_guard<std::mutex> g(deferred_close_mtx);
+    const std::thread::id owner = clock_owner.load();
+    if (owner == std::thread::id{} || owner == std::this_thread::get_id()) {
+        frameLock.shutdown();
+    } else {
+        deferred_close = &frameLock;
+    }
 }
 
 bool GameEngine::claimClock()
