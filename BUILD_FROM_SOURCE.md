@@ -7,8 +7,8 @@ git clone <repository-url> McRogueFace && cd McRogueFace
 sudo apt install build-essential cmake git rsync xvfb \
     zlib1g-dev libx11-dev libxrandr-dev libxcursor-dev libxi-dev \
     libfreetype-dev libudev-dev libvorbis-dev libflac-dev libogg-dev \
-    libgl-dev libopenal-dev libzstd-dev uuid-dev
-make deps        # SFML, libtcod-headless, CPython -> __lib/  (~3-5 min)
+    libgl-dev libopenal-dev libzstd-dev uuid-dev curl xz-utils
+make deps        # SFML, libtcod-headless, CPython -> __lib/; libghostty-vt -> __lib_static/  (~3-5 min, +~8 min first time)
 make             # McRogueFace -> build/mcrogueface
 ```
 
@@ -41,11 +41,27 @@ You still need `xvfb` for the tests (or use the `MCRF_HEADLESS` build below).
 
 | Step | Detail |
 |------|--------|
-| Submodules | `git submodule update --init --depth 1` for SFML, libtcod-headless, cpython, imgui, imgui-sfml, json, RapidXML, plus libtcod's nested `src/vendor/utf8proc` |
+| Submodules | `git submodule update --init --depth 1` for SFML, libtcod-headless, cpython, imgui, imgui-sfml, json, RapidXML, ghostty, plus libtcod's nested `src/vendor/utf8proc` |
 | SFML 2.6 | CMake shared build → `__lib/libsfml-*.so*` |
 | libtcod-headless 2.2.2 (`mcrf-pinned`) | `-DLIBTCOD_SDL3=OFF`, `LIBTCOD_{UTF8PROC,LODEPNG,STB}=vendored`, PIC → `__lib/libtcod.so*`. With the defaults, libtcod depends on a `libutf8proc.so.3` reachable only through a RUNPATH into its build tree; the script fails if that happens. |
 | CPython 3.15 | `tools/build_python.sh` (below) |
+| libghostty-vt 1.0.1 | `tools/build_libghostty.sh native`: `zig build -Demit-lib-vt` on `modules/ghostty` (pinned to the `emscripten-lib-vt-1.0.1` branch of `jmccardle/ghostty`: upstream `vt-1.0.1` plus the commits that make it build for Emscripten) → static `__lib_static/ghostty-vt/{include,lib}`. Linked into the executable, so nothing is added to `lib/`. See below. |
 | `deps/` | include links: `deps/{cpython,Python,libtcod,SFML}` → `modules/...` |
+
+### libghostty-vt and Zig
+
+libghostty-vt (the terminal emulator core of [Ghostty](https://ghostty.org), MIT) is built
+with Zig, which must be **exactly 0.17.1**. `tools/build_libghostty.sh` picks Zig in this
+order: `$ZIG` (the path of a zig binary), a `zig` on `PATH`, else it downloads the official
+x86_64-Linux tarball into `build-deps/` (gitignored) and checks it against a sha256 pinned in
+the script. A Zig of any other version is an error; nothing falls back to it. Ghostty's own
+Zig package dependencies are fetched over https during this step (cache:
+`build-deps/zig-global-cache`, or `$ZIG_GLOBAL_CACHE_DIR`); the engine build needs no network.
+The first build takes about 8 minutes (Zig downloads, then compiles); a rebuild with a warm
+cache is seconds. One archive serves the Release, debug and sanitizer builds. Needs `curl`
+and `xz` only when it has to download Zig. The Windows and WebAssembly variants are built by
+`build_deps_windows.sh` and `build_deps_wasm.sh` (into `__lib_windows/ghostty-vt/` and
+`__lib_wasm/ghostty-vt/`); `mcrogueface --version` prints the linked libghostty-vt version.
 
 ### CPython and its variants
 
@@ -77,10 +93,12 @@ still needs `make deps` first (the build copies the Linux CPython's stdlib), and
 
 ```bash
 make deps-windows     # tools/build_deps_windows.sh: CPython (python.org embeddable, sha256-pinned),
-                      # SFML and libtcod (built from the submodules with MinGW) -> __lib_windows/
+                      # SFML, libtcod (built from the submodules with MinGW) and libghostty-vt (Zig cross-build,
+                      # static) -> __lib_windows/
 make windows          # MinGW-w64 cross-build (needs g++-mingw-w64-x86-64-posix, curl, unzip)
 
 source ~/emsdk/emsdk_env.sh
+tools/build_deps_wasm.sh   # libtcod, stb, libghostty-vt (Zig) and CPython for Emscripten
 make python-wasm      # tools/build_python_wasm.sh: cross-builds modules/cpython for Emscripten
 make wasm-game        # or: make wasm / make playground
 ```
@@ -182,6 +200,7 @@ libz/libstdc++/libm/libgcc_s/libc with no RUNPATH.
 | Component | Time |
 |-----------|------|
 | `make deps` (SFML + libtcod + CPython) | ~3 minutes |
+| libghostty-vt (first run, incl. Zig download) | ~8 minutes |
 | McRogueFace | ~1 minute |
 | Pre-built deps archive + McRogueFace | ~1 minute |
 
@@ -190,4 +209,4 @@ libz/libstdc++/libm/libgcc_s/libc with no RUNPATH.
 The executable needs these system libraries: `libz.so.1`, `libopenal.so.1`,
 `libX11.so.6`, `libXrandr.so.2`, `libfreetype.so.6`, `libGL.so.1` (plus
 `libzstd.so.1`/`libuuid.so.1` for CPython's `_zstd`/`_uuid`). Python, SFML and
-libtcod are bundled in `lib/`.
+libtcod are bundled in `lib/`; libghostty-vt is linked statically.
