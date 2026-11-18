@@ -32,6 +32,16 @@ VoxelPoint::VoxelPoint(int x, int z, mcrf::Viewport3D* parent)
 // Python Property Accessors
 // =============================================================================
 
+VoxelPoint* VoxelPoint::resolve(PyVoxelPointObject* self, std::shared_ptr<mcrf::Viewport3D>& keep)
+{
+    keep = self->viewport.lock();
+    if (!keep || !keep->isValidCell(self->x, self->z)) {
+        PyErr_SetString(PyExc_RuntimeError, "VoxelPoint data is no longer valid");
+        return nullptr;
+    }
+    return &keep->at(self->x, self->z);
+}
+
 // Member offsets for bool properties
 enum VoxelPointBoolMember {
     VOXEL_WALKABLE = 0,
@@ -46,20 +56,19 @@ enum VoxelPointFloatMember {
 
 PyObject* VoxelPoint::get_bool_member(PyVoxelPointObject* self, void* closure)
 {
-    if (!self->data) {
-        PyErr_SetString(PyExc_RuntimeError, "VoxelPoint data is null");
-        return NULL;
-    }
+    std::shared_ptr<mcrf::Viewport3D> keep;
+    VoxelPoint* data = resolve(self, keep);
+    if (!data) return NULL;
 
     intptr_t member = reinterpret_cast<intptr_t>(closure);
     bool value = false;
 
     switch (member) {
         case VOXEL_WALKABLE:
-            value = self->data->walkable;
+            value = data->walkable;
             break;
         case VOXEL_TRANSPARENT:
-            value = self->data->transparent;
+            value = data->transparent;
             break;
         default:
             PyErr_SetString(PyExc_AttributeError, "Invalid bool member");
@@ -71,10 +80,6 @@ PyObject* VoxelPoint::get_bool_member(PyVoxelPointObject* self, void* closure)
 
 int VoxelPoint::set_bool_member(PyVoxelPointObject* self, PyObject* value, void* closure)
 {
-    if (!self->data) {
-        PyErr_SetString(PyExc_RuntimeError, "VoxelPoint data is null");
-        return -1;
-    }
 
     // Exact bool / int only: an int SUBCLASS's __bool__ is user code that could resize the grid and
     // free the VoxelPoint this wrapper points at (a raw pointer into the nav grid, #558)
@@ -88,12 +93,16 @@ int VoxelPoint::set_bool_member(PyVoxelPointObject* self, PyObject* value, void*
     bool newValue = newValue_truth != 0;
     intptr_t member = reinterpret_cast<intptr_t>(closure);
 
+    std::shared_ptr<mcrf::Viewport3D> keep;
+    VoxelPoint* data = resolve(self, keep);
+    if (!data) return -1;
+
     switch (member) {
         case VOXEL_WALKABLE:
-            self->data->walkable = newValue;
+            data->walkable = newValue;
             break;
         case VOXEL_TRANSPARENT:
-            self->data->transparent = newValue;
+            data->transparent = newValue;
             break;
         default:
             PyErr_SetString(PyExc_AttributeError, "Invalid bool member");
@@ -101,8 +110,8 @@ int VoxelPoint::set_bool_member(PyVoxelPointObject* self, PyObject* value, void*
     }
 
     // Trigger TCOD synchronization
-    if (self->data->parent_viewport) {
-        self->data->parent_viewport->syncTCODCell(self->data->grid_x, self->data->grid_z);
+    if (data->parent_viewport) {
+        data->parent_viewport->syncTCODCell(data->grid_x, data->grid_z);
     }
 
     return 0;
@@ -110,20 +119,19 @@ int VoxelPoint::set_bool_member(PyVoxelPointObject* self, PyObject* value, void*
 
 PyObject* VoxelPoint::get_float_member(PyVoxelPointObject* self, void* closure)
 {
-    if (!self->data) {
-        PyErr_SetString(PyExc_RuntimeError, "VoxelPoint data is null");
-        return NULL;
-    }
+    std::shared_ptr<mcrf::Viewport3D> keep;
+    VoxelPoint* data = resolve(self, keep);
+    if (!data) return NULL;
 
     intptr_t member = reinterpret_cast<intptr_t>(closure);
     float value = 0.0f;
 
     switch (member) {
         case VOXEL_HEIGHT:
-            value = self->data->height;
+            value = data->height;
             break;
         case VOXEL_COST:
-            value = self->data->cost;
+            value = data->cost;
             break;
         default:
             PyErr_SetString(PyExc_AttributeError, "Invalid float member");
@@ -135,10 +143,6 @@ PyObject* VoxelPoint::get_float_member(PyVoxelPointObject* self, void* closure)
 
 int VoxelPoint::set_float_member(PyVoxelPointObject* self, PyObject* value, void* closure)
 {
-    if (!self->data) {
-        PyErr_SetString(PyExc_RuntimeError, "VoxelPoint data is null");
-        return -1;
-    }
 
     double newValue;
     if (PyFloat_Check(value)) {
@@ -152,16 +156,20 @@ int VoxelPoint::set_float_member(PyVoxelPointObject* self, PyObject* value, void
 
     intptr_t member = reinterpret_cast<intptr_t>(closure);
 
+    std::shared_ptr<mcrf::Viewport3D> keep;
+    VoxelPoint* data = resolve(self, keep);
+    if (!data) return -1;
+
     switch (member) {
         case VOXEL_HEIGHT:
-            self->data->height = static_cast<float>(newValue);
+            data->height = static_cast<float>(newValue);
             break;
         case VOXEL_COST:
             if (newValue < 0.0) {
                 PyErr_SetString(PyExc_ValueError, "Cost must be non-negative");
                 return -1;
             }
-            self->data->cost = static_cast<float>(newValue);
+            data->cost = static_cast<float>(newValue);
             break;
         default:
             PyErr_SetString(PyExc_AttributeError, "Invalid float member");
@@ -173,12 +181,11 @@ int VoxelPoint::set_float_member(PyVoxelPointObject* self, PyObject* value, void
 
 PyObject* VoxelPoint::get_grid_pos(PyVoxelPointObject* self, void* closure)
 {
-    if (!self->data) {
-        PyErr_SetString(PyExc_RuntimeError, "VoxelPoint data is null");
-        return NULL;
-    }
+    std::shared_ptr<mcrf::Viewport3D> keep;
+    VoxelPoint* data = resolve(self, keep);
+    if (!data) return NULL;
 
-    return Py_BuildValue("(ii)", self->data->grid_x, self->data->grid_z);
+    return Py_BuildValue("(ii)", data->grid_x, data->grid_z);
 }
 
 PyObject* VoxelPoint::get_entities(PyVoxelPointObject* self, void* closure)
@@ -190,20 +197,22 @@ PyObject* VoxelPoint::get_entities(PyVoxelPointObject* self, void* closure)
 
 PyObject* VoxelPoint::repr(PyVoxelPointObject* self)
 {
-    if (!self->data) {
-        return PyUnicode_FromString("<VoxelPoint (null)>");
+    std::shared_ptr<mcrf::Viewport3D> keep = self->viewport.lock();
+    if (!keep || !keep->isValidCell(self->x, self->z)) {
+        return PyUnicode_FromFormat("<VoxelPoint (%d, %d) stale>", self->x, self->z);
     }
+    VoxelPoint* data = &keep->at(self->x, self->z);
 
     // Use snprintf then PyUnicode_FromString because PyUnicode_FromFormat doesn't support %.2f
     char buffer[128];
     snprintf(buffer, sizeof(buffer),
         "<VoxelPoint (%d, %d) walkable=%s transparent=%s height=%.2f cost=%.2f>",
-        self->data->grid_x,
-        self->data->grid_z,
-        self->data->walkable ? "True" : "False",
-        self->data->transparent ? "True" : "False",
-        self->data->height,
-        self->data->cost
+        data->grid_x,
+        data->grid_z,
+        data->walkable ? "True" : "False",
+        data->transparent ? "True" : "False",
+        data->height,
+        data->cost
     );
     return PyUnicode_FromString(buffer);
 }

@@ -61,8 +61,7 @@ PyObject* EntityCollection3D::iter(PyEntityCollection3DObject* self)
 
     // Initialize with placement new for iterator members
     new (&iter_obj->data) std::shared_ptr<std::list<std::shared_ptr<mcrf::Entity3D>>>(self->data);
-    new (&iter_obj->current) std::list<std::shared_ptr<mcrf::Entity3D>>::iterator(self->data->begin());
-    new (&iter_obj->end) std::list<std::shared_ptr<mcrf::Entity3D>>::iterator(self->data->end());
+    iter_obj->index = 0;
     iter_obj->start_size = static_cast<int>(self->data->size());
 
     return (PyObject*)iter_obj;
@@ -360,14 +359,16 @@ PyObject* EntityCollection3DIter::next(PyEntityCollection3DIterObject* self)
     }
 
     // Check if we've reached the end
-    if (self->current == self->end) {
+    if (self->index >= static_cast<Py_ssize_t>(self->data->size())) {
         PyErr_SetNone(PyExc_StopIteration);
         return NULL;
     }
 
     // Get current entity and advance
-    auto entity = *(self->current);
-    ++(self->current);
+    auto it = self->data->begin();
+    std::advance(it, self->index);
+    auto entity = *it;
+    ++self->index;
 
     return mcrf::Entity3D::pyobject_for(entity);
 }

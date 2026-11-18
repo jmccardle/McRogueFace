@@ -1203,9 +1203,13 @@ PyObject* Entity3D::py_follow_path(PyEntity3DObject* self, PyObject* args)
     }
 
     std::vector<std::pair<int, int>> path;
-    Py_ssize_t len = PyList_Size(path_list);
-    for (Py_ssize_t i = 0; i < len; ++i) {
+    // The list can shrink while an element's __index__ runs (user code), and an element dropped by
+    // it would be freed under a borrowed reference: re-read with a bounds check and hold each (#560).
+    for (Py_ssize_t i = 0; i < PyList_Size(path_list); ++i) {
         PyObject* item = PyList_GetItem(path_list, i);
+        if (!item) return NULL;
+        Py_INCREF(item);
+        mcrf::PyRef item_hold(item);
         if (!PyTuple_Check(item) || PyTuple_Size(item) != 2) {
             PyErr_SetString(PyExc_TypeError, "Each path element must be (x, z) tuple");
             return NULL;

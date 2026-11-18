@@ -1325,9 +1325,18 @@ static bool PyTuple_GetVec3(PyObject* tuple, mcrf::vec3& out) {
     Py_ssize_t size = PySequence_Size(tuple);
     if (size != 3) return false;
 
-    PyObject* x = PySequence_GetItem(tuple, 0);
-    PyObject* y = PySequence_GetItem(tuple, 1);
-    PyObject* z = PySequence_GetItem(tuple, 2);
+    // NULL when a list subclass's __len__ lies about its items (#560)
+    PyObject* items3[3];
+    for (int i = 0; i < 3; i++) {
+        items3[i] = PySequence_GetItem(tuple, i);
+        if (!items3[i]) {
+            for (int k = 0; k < i; k++) Py_DECREF(items3[k]);
+            return false;
+        }
+    }
+    PyObject* x = items3[0];
+    PyObject* y = items3[1];
+    PyObject* z = items3[2];
 
     bool ok = true;
     if (PyNumber_Check(x) && PyNumber_Check(y) && PyNumber_Check(z)) {
@@ -1770,17 +1779,21 @@ int Viewport3D::init(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
     // Camera position
     if (camera_pos_obj && camera_pos_obj != Py_None) {
         mcrf::vec3 cam_pos;
-        if (PyTuple_GetVec3(camera_pos_obj, cam_pos)) {
-            self->data->setCameraPosition(cam_pos);
+        if (!PyTuple_GetVec3(camera_pos_obj, cam_pos)) {
+            if (!PyErr_Occurred()) PyErr_SetString(PyExc_TypeError, "camera_pos must be (x, y, z)");
+            return -1;
         }
+        self->data->setCameraPosition(cam_pos);
     }
 
     // Camera target
     if (camera_target_obj && camera_target_obj != Py_None) {
         mcrf::vec3 cam_target;
-        if (PyTuple_GetVec3(camera_target_obj, cam_target)) {
-            self->data->setCameraTarget(cam_target);
+        if (!PyTuple_GetVec3(camera_target_obj, cam_target)) {
+            if (!PyErr_Occurred()) PyErr_SetString(PyExc_TypeError, "camera_target must be (x, y, z)");
+            return -1;
         }
+        self->data->setCameraTarget(cam_target);
     }
 
     // Background color
@@ -2024,8 +2037,10 @@ static PyObject* Viewport3D_at(PyViewport3DObject* self, PyObject* args) {
         return NULL;
     }
 
-    vp_obj->data = &(self->data->at(x, z));
-    vp_obj->viewport = self->data;
+    // tp_alloc zero-fills: construct the weak_ptr in place
+    new (&vp_obj->viewport) std::weak_ptr<mcrf::Viewport3D>(self->data);
+    vp_obj->x = x;
+    vp_obj->z = z;
 
     return (PyObject*)vp_obj;
 }

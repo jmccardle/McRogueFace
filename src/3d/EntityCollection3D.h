@@ -29,8 +29,10 @@ typedef struct {
 typedef struct {
     PyObject_HEAD
     std::shared_ptr<std::list<std::shared_ptr<mcrf::Entity3D>>> data;
-    std::list<std::shared_ptr<mcrf::Entity3D>>::iterator current;
-    std::list<std::shared_ptr<mcrf::Entity3D>>::iterator end;
+    // #560: an index, not a std::list iterator. A remove+append keeps the size (so the size guard
+    // passes) but erases the node a stored iterator points at; an index is always re-resolved
+    // against the live list and bounds-checked, as the 2D UIEntityCollection iterator does.
+    Py_ssize_t index;
     int start_size;
 } PyEntityCollection3DIterObject;
 
