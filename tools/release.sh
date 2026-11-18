@@ -8,7 +8,7 @@
 #   1. check   clean master, tag free, the tools each step needs are present, and the
 #              site's cookbook fences equal their engine snippets (inject_snippets.py --check, #541)
 #   2. bump    header -> VERSION, build
-#   3. test    full suite + check-snippets
+#   3. test    full suite (run_tests.py -j TEST_JOBS, default nproc-2) + check-snippets
 #   4. docs    docs + manifest, stamp snippets (verified=VERSION), snippet shots
 #   5. package Linux, Windows, WASM -- each unpacked and run (tools/smoke_package.py)
 #   6. commit  "Release VERSION": header, manifest, snippet stamps
@@ -89,13 +89,14 @@ command -v wine >/dev/null || die "wine not found: it runs the Windows package's
 [ -f "$SITE_DIR/tools/inject_snippets.py" ] || die "$SITE_DIR has no tools/inject_snippets.py (#541); update the site checkout"
 python3 "$SITE_DIR/tools/inject_snippets.py" --check --engine "$ROOT" \
     || die "cookbook fences have drifted from tests/snippets (above): run tools/inject_snippets.py in $SITE_DIR and commit the site"
-if [ -n "${DISPLAY:-}" ]; then
-    WITH_DISPLAY=()
-elif command -v xvfb-run >/dev/null; then
-    WITH_DISPLAY=(xvfb-run -a -s "-noreset")
-else
-    die "rendering tests need a display: set DISPLAY or install xvfb-run"
-fi
+# Everything that renders gets a private virtual display, never the caller's: on a desktop
+# an inherited DISPLAY put every test window on the user's screen (lag, and ~1.7 s per GL
+# context, enough to time tests out). The suite itself runs -j workers, each on its own Xvfb.
+command -v xvfb-run >/dev/null && command -v Xvfb >/dev/null \
+    || die "rendering steps need Xvfb: install xvfb (xvfb-run)"
+unset DISPLAY WAYLAND_DISPLAY
+WITH_DISPLAY=(xvfb-run -a -s "-noreset")
+TEST_JOBS="${TEST_JOBS:-$(( $(nproc) > 3 ? $(nproc) - 2 : 1 ))}"
 echo "ok: master at $(git rev-parse --short HEAD), $CURRENT -> $VERSION, previous release $BASE_REF"
 
 # --- 2. bump -------------------------------------------------------------------------
@@ -108,7 +109,9 @@ make wasm-game
 
 # --- 3. test -------------------------------------------------------------------------
 step test "full suite and snippet check"
-(cd tests && ALSOFT_DRIVERS=null "${WITH_DISPLAY[@]}" python3 run_tests.py)
+# -j > 1 starts its own Xvfb per worker; -j 1 needs the wrapper.
+if [ "$TEST_JOBS" -gt 1 ]; then SUITE_DISPLAY=(); else SUITE_DISPLAY=("${WITH_DISPLAY[@]}"); fi
+(cd tests && ALSOFT_DRIVERS=null "${SUITE_DISPLAY[@]}" python3 run_tests.py -j "$TEST_JOBS")
 "${WITH_DISPLAY[@]}" make check-snippets
 
 # --- 4. docs -------------------------------------------------------------------------
@@ -126,7 +129,7 @@ make package-linux package-windows package-web
 PACKAGES=(dist/McRogueFace-"$VERSION"-Linux.tar.gz
           dist/McRogueFace-"$VERSION"-Windows.zip
           dist/McRogueFace-"$VERSION"-WASM.zip)
-python3 tools/smoke_package.py --version "$VERSION" "${PACKAGES[@]}"
+"${WITH_DISPLAY[@]}" python3 tools/smoke_package.py --version "$VERSION" "${PACKAGES[@]}"
 
 # --- 6. commit -----------------------------------------------------------------------
 step commit "Release $VERSION"
