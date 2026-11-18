@@ -1,5 +1,6 @@
 #include <climits>
 #include "GridLayers.h"
+#include "TerminalLayer.h"
 #include "PyWrap.h"
 #include "McRFPy_Doc.h"
 #include "PyGridData.h"
@@ -254,7 +255,8 @@ void GridLayer::ensureChunkTexture(int chunk_idx, int cell_width, int cell_heigh
         chunk_texture_failed_size[chunk_idx] = {required_width, required_height};
         // Report once per chunk and size, not once per frame.
         std::ostringstream msg;
-        msg << (type == GridLayerType::Color ? "ColorLayer" : "TileLayer")
+        msg << (type == GridLayerType::Color ? "ColorLayer"
+                : dynamic_cast<TerminalLayer*>(this) ? "TerminalLayer" : "TileLayer")
             << " '" << name << "' (z_index " << z_index << "): could not create the "
             << required_width << "x" << required_height << " RenderTexture for chunk ("
             << cx << ", " << cy << "); drawing it cell by cell, which is much slower. "
@@ -784,6 +786,16 @@ int PyGridLayerAPI::LayerEdit_getbuffer(PyObject* exporter, Py_buffer* view, int
         view->obj = nullptr;
         return -1;
     }
+    // #550: a TerminalLayer's cells belong to its emulator; its view is read-only.
+    const bool read_only = dynamic_cast<TerminalLayer*>(L) != nullptr;
+    if (read_only && (flags & PyBUF_WRITABLE)) {
+        PyErr_SetString(PyExc_BufferError,
+                        "TerminalLayer.edit() is read-only: the terminal owns the cells "
+                        "(write through write(), print() or set())");
+        view->obj = nullptr;
+        return -1;
+    }
+    L->prepareRead();
     const Py_ssize_t w = L->grid_x;
     const Py_ssize_t h = L->grid_y;
     if (L->type == GridLayerType::Color) {
@@ -807,7 +819,7 @@ int PyGridLayerAPI::LayerEdit_getbuffer(PyObject* exporter, Py_buffer* view, int
     }
     view->obj = exporter;
     Py_INCREF(exporter);
-    view->readonly = 0;
+    view->readonly = read_only ? 1 : 0;
     view->shape = self->shape;
     view->strides = (flags & PyBUF_STRIDES) ? self->strides : nullptr;
     view->suboffsets = nullptr;
@@ -828,7 +840,7 @@ PyObject* PyGridLayerAPI::LayerEdit_enter(PyObject* self, PyObject* Py_UNUSED(ar
 PyObject* PyGridLayerAPI::LayerEdit_exit(PyObject* self, PyObject* args) {
     (void)args;
     PyLayerEditObject* e = (PyLayerEditObject*)self;
-    if (e->active && e->layer) {
+    if (e->active && e->layer && !dynamic_cast<TerminalLayer*>(e->layer.get())) {  // #550: read-only, nothing changed
         e->layer->markDirty();  // #328 conservative whole-layer invalidation (bumps content_generation, #351)
     }
     e->active = false;
@@ -1036,6 +1048,9 @@ PyObject* PyGridLayerAPI::pyobject_for(const std::shared_ptr<GridLayer>& layer,
         case GridLayerType::Color:
             return layer_wrapper<PyColorLayerObject, ColorLayer>(layer, grid, &mcrfpydef::PyColorLayerType);
         case GridLayerType::Tile:
+            // #550: a TerminalLayer comes back as one (the C++ object holds its state)
+            if (dynamic_cast<TerminalLayer*>(layer.get()))
+                return layer_wrapper<PyTileLayerObject, TileLayer>(layer, grid, &mcrfpydef::PyTerminalLayerType);
             return layer_wrapper<PyTileLayerObject, TileLayer>(layer, grid, &mcrfpydef::PyTileLayerType);
     }
     PyErr_SetString(PyExc_SystemError, "GridLayer has an unknown layer type");

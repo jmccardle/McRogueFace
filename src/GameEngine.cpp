@@ -1,4 +1,5 @@
 #include "GameEngine.h"
+#include "TerminalLayer.h"  // #550: blink clock
 #include "Display.h"
 #include "ActionCode.h"
 #include <sys/stat.h>
@@ -577,6 +578,8 @@ void GameEngine::doFrame()
     currentScene()->update();
     testTimers(headless ? simulation_time : runtime.getElapsedTime().asMilliseconds());
     if (McRFPy_API::exitPending()) return;
+    // #550: blink phases of terminal layers, on the timers' clock (no-op unless one blinks)
+    TerminalLayer::tickAll(headless ? simulation_time : runtime.getElapsedTime().asMilliseconds());
 
     // Update Python scenes
     {
@@ -1354,6 +1357,7 @@ float GameEngine::runSimFrame(int ms, float actual_dt) {
     // the exit to its caller (see _step).
     testTimers(simulation_time);
     if (McRFPy_API::exitPending()) return actual_dt;
+    TerminalLayer::tickAll(simulation_time);  // #550: terminal blink phases, deterministic under step()
 
     // Python Scene.update(dt) hook -- the originally-filed omission
     {

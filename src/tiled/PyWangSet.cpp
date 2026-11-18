@@ -1,4 +1,5 @@
 #include "PyWangSet.h"
+#include "TerminalLayer.h"  // #550: refused as a target
 #include "TiledParse.h"
 #include "WangResolve.h"
 #include "McRFPy_Doc.h"
@@ -219,6 +220,11 @@ PyObject* PyWangSet::apply(PyWangSetObject* self, PyObject* args, PyObject* kwds
     }
     if (!PyObject_TypeCheck(tlayer_obj, &mcrfpydef::PyTileLayerType)) {
         PyErr_SetString(PyExc_TypeError, "Second argument must be a TileLayer");
+        return NULL;
+    }
+    // #550: a TerminalLayer's cells are its terminal's; tiles written here would be stale
+    if (PyObject_TypeCheck(tlayer_obj, &mcrfpydef::PyTerminalLayerType)) {
+        PyErr_SetString(PyExc_TypeError, "Second argument cannot be a TerminalLayer (its cells are written through the terminal)");
         return NULL;
     }
 

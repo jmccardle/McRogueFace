@@ -99,6 +99,11 @@ public:
 
     // Resize the layer (reallocates storage and reinitializes chunks)
     virtual void resize(int new_grid_x, int new_grid_y) = 0;
+
+    // #550: bring the stored cells up to date before they are read from outside the
+    // render pass (GridPoint access, edit() views). A no-op for layers whose cells are
+    // their own storage; a TerminalLayer copies what its emulator shows.
+    virtual void prepareRead() {}
 };
 
 // Color layer - stores RGBA color per cell

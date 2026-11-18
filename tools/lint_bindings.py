@@ -116,6 +116,7 @@ TYPE_CLASS = {
     # grid world
     "PyUIEntityType": "identity", "PyGridDataType": "identity",
     "PyColorLayerType": "identity", "PyTileLayerType": "identity",
+    "PyTerminalLayerType": "identity",  # #550
     "PyUIEntityCollectionType": "identity", "PyUICollectionType": "identity",
     "PyDijkstraMapType": "identity",
     # 3D

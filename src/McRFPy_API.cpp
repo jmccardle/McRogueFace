@@ -102,6 +102,7 @@
 #include "UILine.h"
 #include "UICircle.h"
 #include "UIArc.h"
+#include "TerminalLayer.h"
 #include "GridLayers.h"
 #include "Resources.h"
 #include "PyScene.h"
@@ -1032,6 +1033,7 @@ static PyObject* mcrfpy_module_create(PyObject* spec, PyModuleDef* def)
 
         /*grid layers (#147)*/
         &PyColorLayerType, &PyTileLayerType,
+        &mcrfpydef::PyTerminalLayerType,  // #550 (EXPERIMENTAL): a TileLayer driven by libghostty-vt
 
         /*timer*/
         &PyTimerType,
