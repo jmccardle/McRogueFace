@@ -8,7 +8,8 @@
 #   make run          - Run the Linux build
 #
 # Dependencies (fresh clone: `make deps && make`):
-#   make deps         - Build SFML, libtcod, CPython from submodules into __lib/
+#   make deps         - Build SFML, libtcod, CPython from submodules into __lib/, and libghostty-vt
+#                       (static; Zig 0.17.1 is downloaded and sha256-checked) into __lib_static/
 #   make deps-ft      - Same, plus the free-threaded CPython into __lib_ft/
 #   (no root? tools/fetch_dev_headers.sh, then export MCRF_SYSROOT=...)
 #
@@ -18,7 +19,7 @@
 #   make python-debug - pydebug (3.Xd) into __lib_debug/  (for debug/asan/fuzz)
 #   make python-tsan  - free-threaded pydebug + TSan (3.Xtd) into __lib_tsan/ (for tsan)
 #   make python-windows - Fetch python.org's embeddable 3.X into __lib_windows/ (for windows)
-#   make deps-windows - CPython + SFML + libtcod for MinGW into __lib_windows/ (for windows)
+#   make deps-windows - CPython + SFML + libtcod + libghostty-vt for MinGW into __lib_windows/ (for windows)
 #   make python-wasm  - Cross-build modules/cpython for Emscripten (for wasm; needs emsdk_env.sh)
 #   make free-threaded - Build McRogueFace against __lib_ft/ in build-ft/
 #

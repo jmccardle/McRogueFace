@@ -15,6 +15,8 @@
 #                                             the upstream extlibs/ the submodule carries)
 #   __lib_windows/libtcod/{include,lib,bin}   libtcod.dll, self-contained: utf8proc, lodepng
 #                                             and stb are compiled in, no SDL (zlib is libz.dll)
+#   __lib_windows/ghostty-vt/{include,lib}    libghostty-vt, STATIC (ghostty-vt-static.lib), cross-built
+#                                             with Zig by tools/build_libghostty.sh
 #   build-windows-deps/{sfml,libtcod}/        the build trees (gitignored; submodules stay clean)
 #
 # A component is rebuilt when what it was built from changed: SFML and libtcod record the
@@ -40,7 +42,7 @@ CLEAN=0
 for arg in "$@"; do
     case "$arg" in
         --clean) CLEAN=1 ;;
-        --help|-h) sed -n '2,25p' "$0"; exit 0 ;;
+        --help|-h) sed -n '2,27p' "$0"; exit 0 ;;
         *) echo "Unknown argument: $arg" >&2; exit 1 ;;
     esac
 done
@@ -59,7 +61,7 @@ cd "$ROOT"
 # --- Submodules and deps/ links ---------------------------------------------
 # Only what the Windows build uses: libtcod's nested vcpkg and docs theme are never built.
 log "Submodules"
-git submodule update --init --depth 1 modules/SFML modules/libtcod-headless modules/cpython
+git submodule update --init --depth 1 modules/SFML modules/libtcod-headless modules/cpython modules/ghostty
 (cd modules/libtcod-headless && git submodule update --init --depth 1 src/vendor/utf8proc src/vendor/zlib)
 # CMake reads the Windows pyconfig.h through deps/cpython; build_deps.sh makes the same link.
 mkdir -p deps "$STAMPS"
@@ -171,5 +173,10 @@ for need in kernel32.dll libz.dll; do
 done
 unexpected="$(echo "$imports" | awk '!/^(kernel32|msvcrt|libwinpthread-1|libz)\.dll$/')"
 [ -z "$unexpected" ] || die "libtcod.dll imports unexpected DLLs: $unexpected"
+
+# --- libghostty-vt ----------------------------------------------------------
+# Zig cross-compiles it (x86_64-windows-gnu); it is linked statically, nothing to ship.
+"$SCRIPT_DIR/build_libghostty.sh" windows $([ "$CLEAN" -eq 1 ] && echo --clean)
+[ -e "$DEST/ghostty-vt/lib/ghostty-vt-static.lib" ] || die "libghostty-vt not staged"
 
 log "Windows dependencies staged and validated in $DEST"
