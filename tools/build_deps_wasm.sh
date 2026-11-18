@@ -38,7 +38,7 @@ cd "$PROJECT_ROOT"
 # Every submodule the web build reads: SFML (stb_image, freetype headers), libtcod,
 # CPython, and the header-only RapidXML and json the engine includes on every
 # backend. imgui/imgui-sfml are desktop-only.
-git submodule update --init --depth 1 modules/SFML modules/libtcod-headless modules/cpython \
+git submodule update --init --depth 1 --jobs 6 modules/SFML modules/libtcod-headless modules/cpython \
     modules/RapidXML modules/json modules/ghostty
 git -C modules/libtcod-headless submodule update --init --depth 1 src/vendor/utf8proc
 [ "$SUBMODULES_ONLY" -eq 1 ] && exit 0

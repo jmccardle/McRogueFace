@@ -19,30 +19,40 @@ on:
 
 env:
   ALSOFT_DRIVERS: "null"
+  # ccache (default dir ~/.cache/ccache). BASEDIR (set per job from $PWD: each job runs in a
+  # fresh random directory) + NOHASHDIR: hits do not depend on the checkout path. Each
+  # build job restores the newest ccache-<kind>- entry; only master (and PRs, for the
+  # PR-only asan job) saves one, so branch pushes reuse master's cache without adding an
+  # entry per push. The cache server expires entries unused for 7 days.
+  CCACHE_NOHASHDIR: "true"
+  CCACHE_MAXSIZE: "400M"
   APT_PACKAGES: >-
     build-essential cmake git rsync xvfb
     zlib1g-dev libx11-dev libxrandr-dev libxcursor-dev libxi-dev
     libfreetype-dev libudev-dev libvorbis-dev libflac-dev libogg-dev
     libgl-dev libopenal-dev libzstd-dev uuid-dev
-    curl xz-utils ca-certificates
+    curl xz-utils ca-certificates zstd ccache
   # The web job's toolchain: the emsdk tools/release.sh built 0.3.6's WASM package with.
   # (.github/workflows/package.yaml still pins 4.0.19.)
   EMSDK_VERSION: "5.0.0"
   WEB_APT_PACKAGES: >-
     build-essential cmake git python3 python3-venv pkg-config
-    autoconf automake libtool curl xz-utils ca-certificates
+    autoconf automake libtool curl xz-utils ca-certificates zstd ccache
 
 jobs:
   # Both web builds (the shipped game build and the docs-site playground), driven in
   # headless Chromium by tests/wasm/ -- the check for the SDL2/Emscripten backend,
   # which the native jobs never compile. No native engine build: the web
   # build cross-compiles its own CPython (tools/build_deps_wasm.sh).
-  # Runs on master and on pull requests only (John, 2026-11-18): about 7 min of build
-  # CPU a run, on runners several branches share. A feature branch that touches the
-  # web build can be checked locally (tools/build_deps_wasm.sh; make wasm-game
-  # playground test-wasm) or through a PR.
+  # Runs on master and on pull requests only (John, 2026-11-18, when a run took about
+  # 7 min; about 2.5 min warm since ccache and the runner image), on runners several
+  # branches share. A feature branch that touches the web build can be checked locally
+  # (tools/build_deps_wasm.sh; make wasm-game playground test-wasm) or through a PR.
   web:
     runs-on: ffwf-k8s
+    env:
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
     steps:
       - name: Checkout
@@ -50,8 +60,8 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y $WEB_APT_PACKAGES
+          pkgs="$WEB_APT_PACKAGES"
+          dpkg -s $pkgs >/dev/null 2>&1 || { sudo apt-get update && sudo apt-get install -y $pkgs; }
 
       # Computed into variables first: with `shell: bash` (-e -o pipefail) a failing
       # input command fails the step instead of silently hashing less.
@@ -64,22 +74,33 @@ jobs:
           echo "key=$(printf '%s\n' "$tree" "$files" | sha256sum | cut -c1-16)-$EMSDK_VERSION" >> "$GITHUB_OUTPUT"
           echo "emsdk=$EMSDK_VERSION-$(sha256sum < /etc/os-release | cut -c1-8)" >> "$GITHUB_OUTPUT"
 
+      # The ffwf-k8s image ships emsdk at ~/emsdk (and Playwright's headless Chromium);
+      # a runner without it, or with another version, restores or installs it here.
+      - name: emsdk ${{ env.EMSDK_VERSION }} in the runner image?
+        id: emsdk-image
+        shell: bash
+        run: |
+          if [ "$(cat "$HOME/emsdk/upstream/emscripten/emscripten-version.txt" 2>/dev/null)" = "\"$EMSDK_VERSION\"" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Restore emsdk
         id: emsdk-cache
+        if: steps.emsdk-image.outputs.present != 'true'
         uses: actions/cache/restore@v4
         with:
           path: ~/emsdk
           key: emsdk-${{ steps.web-key.outputs.emsdk }}
 
       - name: Install emsdk ${{ env.EMSDK_VERSION }}
-        if: steps.emsdk-cache.outputs.cache-hit != 'true'
+        if: steps.emsdk-image.outputs.present != 'true' && steps.emsdk-cache.outputs.cache-hit != 'true'
         run: |
           git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$HOME/emsdk"
           "$HOME/emsdk/emsdk" install "$EMSDK_VERSION"
           "$HOME/emsdk/emsdk" activate "$EMSDK_VERSION"
 
       - name: Save emsdk
-        if: steps.emsdk-cache.outputs.cache-hit != 'true'
+        if: steps.emsdk-image.outputs.present != 'true' && steps.emsdk-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: ~/emsdk
@@ -122,16 +143,43 @@ jobs:
             build-deps/zig-pkg
           key: wasm-deps-${{ steps.web-key.outputs.key }}
 
+      - name: ccache base directory
+        run: echo "CCACHE_BASEDIR=$PWD" >> "$GITHUB_ENV"
+
+      - name: Restore ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-web-${{ github.run_id }}
+          restore-keys: ccache-web-
+
       - name: Build (web game + playground)
         run: |
           source "$HOME/emsdk/emsdk_env.sh"
           make wasm-game
           make playground
 
+      - name: ccache statistics
+        run: ccache --show-stats
+
+      - name: Save ccache
+        if: github.ref == 'refs/heads/master'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-web-${{ github.run_id }}
+
       - name: Browser test environment (Playwright + headless Chromium)
+        shell: bash
         run: |
+          # The ffwf-k8s image carries the browser and its system libraries. If `playwright
+          # install` downloads anything (another runner, or a Playwright newer than the
+          # image's), install that browser's apt dependencies as well.
+          before=$(ls "$HOME/.cache/ms-playwright" 2>/dev/null || true)
           make test-wasm-setup
-          sudo .venv-wasmtest/bin/python -m playwright install-deps chromium-headless-shell
+          if [ "$(ls "$HOME/.cache/ms-playwright" 2>/dev/null || true)" != "$before" ]; then
+            sudo .venv-wasmtest/bin/python -m playwright install-deps chromium-headless-shell
+          fi
 
       - name: Test (headless Chromium)
         run: make test-wasm
@@ -150,14 +198,17 @@ jobs:
 
   build-and-test:
     runs-on: ffwf-k8s
+    env:
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y $APT_PACKAGES
+          pkgs="$APT_PACKAGES"
+          dpkg -s $pkgs >/dev/null 2>&1 || { sudo apt-get update && sudo apt-get install -y $pkgs; }
 
       - name: Dependency cache key
         id: deps-key
@@ -212,8 +263,28 @@ jobs:
             __lib_static
           key: deps-release-${{ steps.deps-key.outputs.key }}
 
+      - name: ccache base directory
+        run: echo "CCACHE_BASEDIR=$PWD" >> "$GITHUB_ENV"
+
+      - name: Restore ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-release-${{ github.run_id }}
+          restore-keys: ccache-release-
+
       - name: Build (Release)
         run: make linux
+
+      - name: ccache statistics
+        run: ccache --show-stats
+
+      - name: Save ccache
+        if: github.ref == 'refs/heads/master'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-release-${{ github.run_id }}
 
       # Generated, untracked inputs some tests read (docs/API_REFERENCE_DYNAMIC.md,
       # stubs/mcrfpy.pyi): `mcrf_project init` copies the stub into a new game's typings/.
@@ -237,14 +308,17 @@ jobs:
 
   debug-test:
     runs-on: ffwf-k8s
+    env:
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y $APT_PACKAGES
+          pkgs="$APT_PACKAGES"
+          dpkg -s $pkgs >/dev/null 2>&1 || { sudo apt-get update && sudo apt-get install -y $pkgs; }
 
       - name: Dependency cache key
         id: deps-key
@@ -301,8 +375,28 @@ jobs:
             __lib_debug
           key: deps-debug-${{ steps.deps-key.outputs.key }}
 
+      - name: ccache base directory
+        run: echo "CCACHE_BASEDIR=$PWD" >> "$GITHUB_ENV"
+
+      - name: Restore ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-debug-${{ github.run_id }}
+          restore-keys: ccache-debug-
+
       - name: Build (debug Python)
         run: make debug
+
+      - name: ccache statistics
+        run: ccache --show-stats
+
+      - name: Save ccache
+        if: github.ref == 'refs/heads/master'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-debug-${{ github.run_id }}
 
       # stubs/mcrfpy.pyi is generated and untracked; `mcrf_project init` copies it into a new
       # game, and integration/mcrf_project_test.py checks that it did.
@@ -314,6 +408,9 @@ jobs:
 
   asan-test:
     runs-on: ffwf-k8s
+    env:
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
     if: github.event_name == 'pull_request'
     steps:
       - name: Checkout
@@ -321,8 +418,8 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y $APT_PACKAGES
+          pkgs="$APT_PACKAGES"
+          dpkg -s $pkgs >/dev/null 2>&1 || { sudo apt-get update && sudo apt-get install -y $pkgs; }
 
       - name: Dependency cache key
         id: deps-key
@@ -379,8 +476,28 @@ jobs:
             __lib_debug
           key: deps-debug-${{ steps.deps-key.outputs.key }}
 
+      - name: ccache base directory
+        run: echo "CCACHE_BASEDIR=$PWD" >> "$GITHUB_ENV"
+
+      - name: Restore ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-asan-${{ github.run_id }}
+          restore-keys: ccache-asan-
+
       - name: Build (ASan + UBSan)
         run: make asan
+
+      - name: ccache statistics
+        run: ccache --show-stats
+
+      - name: Save ccache
+        if: github.event_name == 'pull_request'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-asan-${{ github.run_id }}
 
       # stubs/mcrfpy.pyi is generated and untracked; `mcrf_project init` copies it into a new
       # game, and integration/mcrf_project_test.py checks that it did.
@@ -392,6 +509,9 @@ jobs:
 
   valgrind-test:
     runs-on: ffwf-k8s
+    env:
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
     if: github.event_name == 'pull_request'
     steps:
       - name: Checkout
@@ -399,8 +519,8 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y $APT_PACKAGES valgrind
+          pkgs="$APT_PACKAGES valgrind"
+          dpkg -s $pkgs >/dev/null 2>&1 || { sudo apt-get update && sudo apt-get install -y $pkgs; }
 
       - name: Dependency cache key
         id: deps-key
@@ -457,8 +577,21 @@ jobs:
             __lib_debug
           key: deps-debug-${{ steps.deps-key.outputs.key }}
 
+      - name: ccache base directory
+        run: echo "CCACHE_BASEDIR=$PWD" >> "$GITHUB_ENV"
+
+      - name: Restore ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-debug-${{ github.run_id }}
+          restore-keys: ccache-debug-
+
       - name: Build (debug Python)
         run: make debug
+
+      - name: ccache statistics
+        run: ccache --show-stats
 
       # stubs/mcrfpy.pyi is generated and untracked; `mcrf_project init` copies it into a new
       # game, and integration/mcrf_project_test.py checks that it did.

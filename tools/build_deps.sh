@@ -81,7 +81,7 @@ cd "$PROJECT_ROOT"
 # --- Submodules -------------------------------------------------------------
 # Shallow, and only what the native build needs (cpython is large).
 log "Submodules"
-git submodule update --init --depth 1 \
+git submodule update --init --depth 1 --jobs 6 \
     modules/SFML modules/libtcod-headless modules/cpython \
     modules/imgui modules/imgui-sfml modules/json modules/RapidXML modules/ghostty
 # libtcod vendors utf8proc as a nested submodule (see LIBTCOD_UTF8PROC below)
