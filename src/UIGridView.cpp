@@ -432,7 +432,7 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
     // Children (grid-world pixel coordinates; owned by this view -- #364)
     if (children && !children->empty()) {
         if (children_need_sort) {
-            std::sort(children->begin(), children->end(),
+            std::stable_sort(children->begin(), children->end(),
                 [](const auto& a, const auto& b) { return a->z_index < b->z_index; });
             children_need_sort = false;
         }
@@ -580,7 +580,7 @@ UIDrawable* UIGridView::click_at(sf::Vector2f point)
     //    camera must not move a child's logical position). Do not "fix" this.
     if (children && !children->empty()) {
         if (children_need_sort) {
-            std::sort(children->begin(), children->end(),
+            std::stable_sort(children->begin(), children->end(),
                 [](const auto& a, const auto& b) { return a->z_index < b->z_index; });
             children_need_sort = false;
         }

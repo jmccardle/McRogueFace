@@ -146,6 +146,11 @@ public:
     // #552: true once a z_index was chosen (setter, constructor argument, animation). A collection
     // append only assigns the next free z_index (insertion order) to a drawable that has none.
     bool z_index_explicit = false;
+    // Bumped by everything that can change the highest z_index of some collection: a z_index write
+    // that changes the value, and every link/unlink of a drawable to a parent or scene. The
+    // collections' cache of their highest z_index (UICollection.cpp) is valid only at the epoch it
+    // was stored at.
+    static inline uint64_t z_epoch = 0;
     
     // Notification for z_index changes
     void notifyZIndexChanged();

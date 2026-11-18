@@ -299,7 +299,7 @@ void GridData::removeLayer(std::shared_ptr<GridLayer> layer)
 void GridData::sortLayers()
 {
     if (layers_need_sort) {
-        std::sort(layers.begin(), layers.end(),
+        std::stable_sort(layers.begin(), layers.end(),
             [](const auto& a, const auto& b) { return a->z_index < b->z_index; });
         layers_need_sort = false;
     }

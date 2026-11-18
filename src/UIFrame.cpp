@@ -181,7 +181,7 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
 
             // Sort children by z_index if needed
             if (children_need_sort && !children->empty()) {
-                std::sort(children->begin(), children->end(),
+                std::stable_sort(children->begin(), children->end(),
                     [](const std::shared_ptr<UIDrawable>& a, const std::shared_ptr<UIDrawable>& b) {
                         return a->z_index < b->z_index;
                     });
@@ -244,7 +244,7 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
 
         // Sort children by z_index if needed
         if (children_need_sort && !children->empty()) {
-            std::sort(children->begin(), children->end(),
+            std::stable_sort(children->begin(), children->end(),
                 [](const std::shared_ptr<UIDrawable>& a, const std::shared_ptr<UIDrawable>& b) {
                     return a->z_index < b->z_index;
                 });

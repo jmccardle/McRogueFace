@@ -407,6 +407,7 @@ void UIDrawable::initZIndex(int z, PyObject* args, PyObject* kwds, const char* c
     // A constructor's z_index counts as chosen only when the caller passed it (#552): a default of 0
     // is "none", which a collection append replaces with the next free slot.
     z_index = z;
+    z_epoch++;
     bool given = kwds && PyDict_GetItemString(kwds, "z_index") != nullptr;
     for (Py_ssize_t i = 0; !given && kwlist[i]; i++) {
         if (strcmp(kwlist[i], "z_index") == 0) given = i < PyTuple_GET_SIZE(args);
@@ -424,6 +425,11 @@ void UIDrawable::notifyZIndexChanged() {
 void UIDrawable::markParentChildrenNeedSort() {
     // #552: a child of a Frame or Grid is drawn from that parent's children vector, which only
     // re-sorts when told.
+    // The owning scene, current or not (#552): a scene that is not current sorts when it is next drawn.
+    if (auto scene = parent_scene.lock()) {
+        if (auto* pyscene = dynamic_cast<PyScene*>(scene.get())) pyscene->ui_elements_need_sort = true;
+        return;
+    }
     auto p = parent.lock();
     if (!p) return;
     if (p->derived_type() == PyObjectsEnum::UIFRAME) {
@@ -547,6 +553,7 @@ void UIDrawable::assignZIndex(int z) {
     z_index_explicit = true;   // #552, even when z equals the current value
     if (z == z_index) return;
     z_index = z;
+    z_epoch++;
     notifyZIndexChanged();
     markDirty();
 }
@@ -919,6 +926,7 @@ int UIDrawable::set_grid_size(PyObject* self, PyObject* value, void* closure) {
 
 // #122 - Parent-child hierarchy implementation
 void UIDrawable::setParent(std::shared_ptr<UIDrawable> new_parent) {
+    z_epoch++;
     parent = new_parent;
     parent_scene.reset();  // #183: Clear scene parent when setting drawable parent
 
@@ -944,6 +952,7 @@ bool UIDrawable::canAdopt(const std::shared_ptr<UIDrawable>& new_parent, const U
 }
 
 void UIDrawable::setParentScene(const std::weak_ptr<Scene>& scene) {
+    z_epoch++;
     parent.reset();        // #183: Clear drawable parent when setting scene parent
     parent_scene = scene;
 
@@ -1043,6 +1052,7 @@ std::shared_ptr<UIDrawable> UIDrawable::getParent() const {
 // updatePyIdentityPin() is the LAST statement on both paths so that even in that case
 // no member of a freed `this` is touched afterwards.
 void UIDrawable::removeFromParent() {
+    if (!parent.expired() || !parent_scene.expired()) z_epoch++;   // a member leaves a collection
     // #183: Handle scene parent removal
     // #464: the scene itself, so a scene that lost its name to another still finds us.
     if (auto scene = parent_scene.lock()) {
