@@ -12,7 +12,7 @@ name: Package
 # The Windows package is cross-compiled with MinGW-w64 and run under Wine, as
 # tools/release.sh does it (#538). Its libraries in __lib_windows/ come from
 # tools/build_deps_windows.sh: CPython is python.org's embeddable package, pinned by
-# sha256; SFML and libtcod are built from the submodules.
+# sha256; SFML, libtcod and libghostty-vt (Zig cross-build) are built from the submodules.
 #
 # Releases package here. .gitea/workflows/package.yaml is this file with the Forgejo
 # runner's label, manual-only (workflow_dispatch) there; keep the steps in step when one
@@ -31,7 +31,7 @@ env:
     build-essential cmake git rsync xvfb pandoc
     zlib1g-dev libx11-dev libxrandr-dev libxcursor-dev libxi-dev
     libfreetype-dev libudev-dev libvorbis-dev libflac-dev libogg-dev
-    libgl-dev libopenal-dev libzstd-dev uuid-dev
+    libgl-dev libopenal-dev libzstd-dev uuid-dev curl xz-utils ca-certificates
     libssl-dev libffi-dev libsqlite3-dev libbz2-dev liblzma-dev
     libreadline-dev libncurses-dev libgdbm-dev
   # CPython 3.15's Platforms/emscripten/config.toml pins this version.
@@ -63,13 +63,15 @@ jobs:
         shell: bash
         run: |
           tree=$(git ls-tree HEAD modules/)
-          files=$(cat tools/build_deps.sh tools/build_python.sh /etc/os-release)
+          files=$(cat tools/build_deps.sh tools/build_python.sh tools/build_libghostty.sh /etc/os-release)
           echo "key=$(printf '%s\n' "$tree" "$files" | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
 
       - name: Cache built dependencies
         uses: actions/cache@v4
         with:
-          path: __lib
+          path: |
+            __lib
+            __lib_static
           key: deps-release-${{ steps.deps-key.outputs.key }}
 
       - name: Build dependencies
@@ -127,10 +129,10 @@ jobs:
         shell: bash
         run: |
           tree=$(git ls-tree HEAD modules/)
-          files=$(cat tools/build_deps.sh tools/build_python.sh /etc/os-release)
+          files=$(cat tools/build_deps.sh tools/build_python.sh tools/build_libghostty.sh /etc/os-release)
           echo "key=$(printf '%s\n' "$tree" "$files" | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
-          wasm_tree=$(git ls-tree HEAD modules/cpython modules/libtcod-headless)
-          wasm_files=$(cat tools/build_deps_wasm.sh tools/build_python_wasm.sh /etc/os-release)
+          wasm_tree=$(git ls-tree HEAD modules/cpython modules/libtcod-headless modules/ghostty)
+          wasm_files=$(cat tools/build_deps_wasm.sh tools/build_python_wasm.sh tools/build_libghostty.sh /etc/os-release)
           echo "wasm=$(printf '%s\n' "$wasm_tree" "$wasm_files" | sha256sum | cut -c1-16)-$EMSDK_VERSION" >> "$GITHUB_OUTPUT"
 
       # Restore and save are separate steps so that a build which gets this far
@@ -139,7 +141,9 @@ jobs:
         id: deps-cache
         uses: actions/cache/restore@v4
         with:
-          path: __lib
+          path: |
+            __lib
+            __lib_static
           key: deps-release-${{ steps.deps-key.outputs.key }}
 
       - name: Build dependencies
@@ -149,7 +153,9 @@ jobs:
         if: steps.deps-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: __lib
+          path: |
+            __lib
+            __lib_static
           key: deps-release-${{ steps.deps-key.outputs.key }}
 
       # package-web runs the Linux build's interpreter to assemble the zip.
@@ -169,10 +175,13 @@ jobs:
           path: |
             modules/cpython/cross-build
             modules/libtcod-headless/build-emscripten
+            __lib_wasm
+            build-deps/dl
+            build-deps/zig-global-cache
             ~/.cache/emscripten
           key: wasm-deps-${{ steps.deps-key.outputs.wasm }}
 
-      - name: Build the Emscripten dependencies (CPython, libtcod, stb)
+      - name: Build the Emscripten dependencies (CPython, libtcod, stb, libghostty-vt)
         run: |
           source "$HOME/emsdk/emsdk_env.sh"
           tools/build_deps_wasm.sh
@@ -184,6 +193,9 @@ jobs:
           path: |
             modules/cpython/cross-build
             modules/libtcod-headless/build-emscripten
+            __lib_wasm
+            build-deps/dl
+            build-deps/zig-global-cache
             ~/.cache/emscripten
           key: wasm-deps-${{ steps.deps-key.outputs.wasm }}
 
@@ -229,10 +241,10 @@ jobs:
         shell: bash
         run: |
           tree=$(git ls-tree HEAD modules/)
-          files=$(cat tools/build_deps.sh tools/build_python.sh /etc/os-release)
+          files=$(cat tools/build_deps.sh tools/build_python.sh tools/build_libghostty.sh /etc/os-release)
           echo "key=$(printf '%s\n' "$tree" "$files" | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
-          win_tree=$(git ls-tree HEAD modules/SFML modules/libtcod-headless modules/cpython)
-          win_files=$(cat tools/build_deps_windows.sh tools/fetch_windows_python.sh cmake/toolchains/mingw-w64-x86_64.cmake /etc/os-release)
+          win_tree=$(git ls-tree HEAD modules/SFML modules/libtcod-headless modules/cpython modules/ghostty)
+          win_files=$(cat tools/build_deps_windows.sh tools/build_libghostty.sh tools/fetch_windows_python.sh cmake/toolchains/mingw-w64-x86_64.cmake /etc/os-release)
           # The compilers, headers and import libraries the dependencies are built with.
           win_tools=$(dpkg-query -W -f='${Package} ${Version}\n' g++-mingw-w64-x86-64-posix gcc-mingw-w64-x86-64-posix mingw-w64-x86-64-dev binutils-mingw-w64-x86-64)
           win_cmake=$(cmake --version)
@@ -242,7 +254,9 @@ jobs:
         id: deps-cache
         uses: actions/cache/restore@v4
         with:
-          path: __lib
+          path: |
+            __lib
+            __lib_static
           key: deps-release-${{ steps.deps-key.outputs.key }}
 
       - name: Build dependencies
@@ -252,24 +266,32 @@ jobs:
         if: steps.deps-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: __lib
+          path: |
+            __lib
+            __lib_static
           key: deps-release-${{ steps.deps-key.outputs.key }}
 
       - name: Restore the Windows dependency builds
         id: windows-cache
         uses: actions/cache/restore@v4
         with:
-          path: __lib_windows
+          path: |
+            __lib_windows
+            build-deps/dl
+            build-deps/zig-global-cache
           key: windows-deps-${{ steps.deps-key.outputs.windows }}
 
-      - name: Build the Windows dependencies (CPython, SFML, libtcod)
+      - name: Build the Windows dependencies (CPython, SFML, libtcod, libghostty-vt)
         run: make deps-windows
 
       - name: Save the Windows dependency builds
         if: steps.windows-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: __lib_windows
+          path: |
+            __lib_windows
+            build-deps/dl
+            build-deps/zig-global-cache
           key: windows-deps-${{ steps.deps-key.outputs.windows }}
 
       - name: Build the Linux engine
