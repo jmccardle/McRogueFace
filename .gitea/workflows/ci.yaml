@@ -9,8 +9,9 @@ on:
 # Every job starts from a plain checkout: `make deps` shallow-inits the
 # submodules it needs and builds SFML, libtcod and CPython into __lib/ and libghostty-vt
 # (static, built by Zig) into __lib_static/ (cached on the submodule pins + build scripts).
-# The Zig tarball and Zig's package cache (build-deps/) are cached apart, on the libghostty
-# build script alone, so a bumped submodule pin rebuilds without downloading Zig again.
+# The Zig tarball and Zig's package caches (build-deps/) are cached apart, keyed on the ghostty
+# pin and the build script, and only used (restored and saved) when the deps cache above misses:
+# a warm run does no network fetches at all.
 # Tests need an X display -- the SFML build opens one even with --headless -- so `run_tests.py -j N` starts N
 # private Xvfb servers itself (no outer xvfb-run), with OpenAL's null backend
 # standing in for an audio device. Jobs run on the `ffwf-k8s` runner: a fresh
@@ -54,7 +55,7 @@ jobs:
         id: deps-key
         run: |
           echo "key=$(git ls-tree HEAD modules/ | cat - tools/build_deps.sh tools/build_python.sh tools/build_libghostty.sh | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
-          echo "zig=$(sha256sum tools/build_libghostty.sh | cut -c1-16)" >> "$GITHUB_OUTPUT"
+          echo "zig=$(git ls-tree HEAD modules/ghostty | cat - tools/build_libghostty.sh | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
 
       # Restore, build, then save right after the build: a later test failure must not
       # discard the deps build (actions/cache saves only when the whole job succeeds).
@@ -67,27 +68,31 @@ jobs:
             __lib_static
           key: deps-release-${{ steps.deps-key.outputs.key }}
 
-      # The Zig toolchain tarball and Zig's global package cache (libghostty-vt's build
-      # dependencies, fetched over https). Only used when the deps cache above misses.
+      # The Zig toolchain tarball and Zig's package caches (libghostty-vt's build
+      # dependencies, fetched over https). Only used when the deps cache above misses; it is
+      # saved only after a build that had no Zig cache, so it is never a tarball-only entry.
       - name: Restore Zig cache
         id: zig-cache
+        if: steps.deps-cache.outputs.cache-hit != 'true'
         uses: actions/cache/restore@v4
         with:
           path: |
             build-deps/dl
             build-deps/zig-global-cache
+            build-deps/zig-pkg
           key: zig-${{ steps.deps-key.outputs.zig }}
 
       - name: Build dependencies
         run: make deps
 
       - name: Save Zig cache
-        if: steps.zig-cache.outputs.cache-hit != 'true'
+        if: steps.deps-cache.outputs.cache-hit != 'true' && steps.zig-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: |
             build-deps/dl
             build-deps/zig-global-cache
+            build-deps/zig-pkg
           key: zig-${{ steps.deps-key.outputs.zig }}
 
       - name: Save built dependencies
@@ -137,7 +142,7 @@ jobs:
         id: deps-key
         run: |
           echo "key=$(git ls-tree HEAD modules/ | cat - tools/build_deps.sh tools/build_python.sh tools/build_libghostty.sh | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
-          echo "zig=$(sha256sum tools/build_libghostty.sh | cut -c1-16)" >> "$GITHUB_OUTPUT"
+          echo "zig=$(git ls-tree HEAD modules/ghostty | cat - tools/build_libghostty.sh | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
 
       - name: Restore built dependencies
         id: deps-cache
@@ -149,15 +154,18 @@ jobs:
             __lib_debug
           key: deps-debug-${{ steps.deps-key.outputs.key }}
 
-      # The Zig toolchain tarball and Zig's global package cache (libghostty-vt's build
-      # dependencies, fetched over https). Only used when the deps cache above misses.
+      # The Zig toolchain tarball and Zig's package caches (libghostty-vt's build
+      # dependencies, fetched over https). Only used when the deps cache above misses; it is
+      # saved only after a build that had no Zig cache, so it is never a tarball-only entry.
       - name: Restore Zig cache
         id: zig-cache
+        if: steps.deps-cache.outputs.cache-hit != 'true'
         uses: actions/cache/restore@v4
         with:
           path: |
             build-deps/dl
             build-deps/zig-global-cache
+            build-deps/zig-pkg
           key: zig-${{ steps.deps-key.outputs.zig }}
 
       - name: Build dependencies (+ pydebug CPython)
@@ -166,12 +174,13 @@ jobs:
           ls __lib_debug/libpython3.*d.so.1.0 >/dev/null 2>&1 || make python-debug
 
       - name: Save Zig cache
-        if: steps.zig-cache.outputs.cache-hit != 'true'
+        if: steps.deps-cache.outputs.cache-hit != 'true' && steps.zig-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: |
             build-deps/dl
             build-deps/zig-global-cache
+            build-deps/zig-pkg
           key: zig-${{ steps.deps-key.outputs.zig }}
 
       - name: Save built dependencies
@@ -211,7 +220,7 @@ jobs:
         id: deps-key
         run: |
           echo "key=$(git ls-tree HEAD modules/ | cat - tools/build_deps.sh tools/build_python.sh tools/build_libghostty.sh | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
-          echo "zig=$(sha256sum tools/build_libghostty.sh | cut -c1-16)" >> "$GITHUB_OUTPUT"
+          echo "zig=$(git ls-tree HEAD modules/ghostty | cat - tools/build_libghostty.sh | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
 
       - name: Restore built dependencies
         id: deps-cache
@@ -223,15 +232,18 @@ jobs:
             __lib_debug
           key: deps-debug-${{ steps.deps-key.outputs.key }}
 
-      # The Zig toolchain tarball and Zig's global package cache (libghostty-vt's build
-      # dependencies, fetched over https). Only used when the deps cache above misses.
+      # The Zig toolchain tarball and Zig's package caches (libghostty-vt's build
+      # dependencies, fetched over https). Only used when the deps cache above misses; it is
+      # saved only after a build that had no Zig cache, so it is never a tarball-only entry.
       - name: Restore Zig cache
         id: zig-cache
+        if: steps.deps-cache.outputs.cache-hit != 'true'
         uses: actions/cache/restore@v4
         with:
           path: |
             build-deps/dl
             build-deps/zig-global-cache
+            build-deps/zig-pkg
           key: zig-${{ steps.deps-key.outputs.zig }}
 
       - name: Build dependencies (+ pydebug CPython)
@@ -240,12 +252,13 @@ jobs:
           ls __lib_debug/libpython3.*d.so.1.0 >/dev/null 2>&1 || make python-debug
 
       - name: Save Zig cache
-        if: steps.zig-cache.outputs.cache-hit != 'true'
+        if: steps.deps-cache.outputs.cache-hit != 'true' && steps.zig-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: |
             build-deps/dl
             build-deps/zig-global-cache
+            build-deps/zig-pkg
           key: zig-${{ steps.deps-key.outputs.zig }}
 
       - name: Save built dependencies
@@ -285,7 +298,7 @@ jobs:
         id: deps-key
         run: |
           echo "key=$(git ls-tree HEAD modules/ | cat - tools/build_deps.sh tools/build_python.sh tools/build_libghostty.sh | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
-          echo "zig=$(sha256sum tools/build_libghostty.sh | cut -c1-16)" >> "$GITHUB_OUTPUT"
+          echo "zig=$(git ls-tree HEAD modules/ghostty | cat - tools/build_libghostty.sh | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
 
       - name: Restore built dependencies
         id: deps-cache
@@ -297,15 +310,18 @@ jobs:
             __lib_debug
           key: deps-debug-${{ steps.deps-key.outputs.key }}
 
-      # The Zig toolchain tarball and Zig's global package cache (libghostty-vt's build
-      # dependencies, fetched over https). Only used when the deps cache above misses.
+      # The Zig toolchain tarball and Zig's package caches (libghostty-vt's build
+      # dependencies, fetched over https). Only used when the deps cache above misses; it is
+      # saved only after a build that had no Zig cache, so it is never a tarball-only entry.
       - name: Restore Zig cache
         id: zig-cache
+        if: steps.deps-cache.outputs.cache-hit != 'true'
         uses: actions/cache/restore@v4
         with:
           path: |
             build-deps/dl
             build-deps/zig-global-cache
+            build-deps/zig-pkg
           key: zig-${{ steps.deps-key.outputs.zig }}
 
       - name: Build dependencies (+ pydebug CPython)
@@ -314,12 +330,13 @@ jobs:
           ls __lib_debug/libpython3.*d.so.1.0 >/dev/null 2>&1 || make python-debug
 
       - name: Save Zig cache
-        if: steps.zig-cache.outputs.cache-hit != 'true'
+        if: steps.deps-cache.outputs.cache-hit != 'true' && steps.zig-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: |
             build-deps/dl
             build-deps/zig-global-cache
+            build-deps/zig-pkg
           key: zig-${{ steps.deps-key.outputs.zig }}
 
       - name: Save built dependencies
