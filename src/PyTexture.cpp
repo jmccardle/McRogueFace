@@ -660,7 +660,7 @@ PyMethodDef PyTexture::methods[] = {
     {"is_wide", (PyCFunction)PyTexture::py_is_wide, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(Texture, is_wide,
          MCRF_SIG("(codepoint: str | int)", "bool"),
-         MCRF_DESC("EXPERIMENTAL. Whether a codepoint is East Asian Wide or Fullwidth (Unicode table), so from_font gives it two tiles (index() and index() + 1). Depends on the codepoint only, not on the texture."),
+         MCRF_DESC("EXPERIMENTAL. Whether a codepoint takes two terminal cells, so from_font gives it two tiles (index() and index() + 1). The table follows libghostty-vt's width rule (East Asian Wide/Fullwidth, regional indicators, U+2E3A/B; marks are never wide; Unicode 18), so a TerminalLayer draws it across the cells its terminal gives it. Depends on the codepoint only, not on the texture."),
          MCRF_ARGS_START
          MCRF_ARG("codepoint", "A one-character str or an int")
          MCRF_RETURNS("bool")

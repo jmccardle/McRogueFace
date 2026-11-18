@@ -27,7 +27,8 @@ namespace {
 
 constexpr uint32_t MAX_CODEPOINT = 0x10FFFF;
 
-// East Asian Width W or F (generated table): these glyphs take two cells, a left and a right tile.
+// Wide in a terminal cell (generated table, libghostty-vt's width rule; #550): these glyphs
+// take two cells, a left and a right tile.
 bool is_wide_codepoint(uint32_t cp)
 {
     const auto* first = EAST_ASIAN_WIDE_RANGES;
@@ -551,7 +552,7 @@ PyObject* PyTexture::py_is_wide(PyTextureObject* self, PyObject* args, PyObject*
     if (!fa) return NULL;
     uint32_t cp;
     if (!parse_codepoint(cp_obj, cp, "codepoint")) return NULL;
-    bool wide = is_wide_codepoint(cp);  // Unicode only: the same answer whether or not the texture has the glyph
+    bool wide = is_wide_codepoint(cp);  // the codepoint only: the same answer whether or not the texture has the glyph
     return PyBool_FromLong(wide);
 }
 
