@@ -172,6 +172,7 @@ jobs:
             __lib_wasm
             build-deps/dl
             build-deps/zig-global-cache
+            build-deps/zig-pkg
             ~/.cache/emscripten
           key: wasm-deps-${{ steps.deps-key.outputs.wasm }}
 
@@ -190,6 +191,7 @@ jobs:
             __lib_wasm
             build-deps/dl
             build-deps/zig-global-cache
+            build-deps/zig-pkg
             ~/.cache/emscripten
           key: wasm-deps-${{ steps.deps-key.outputs.wasm }}
 
@@ -271,6 +273,7 @@ jobs:
             __lib_windows
             build-deps/dl
             build-deps/zig-global-cache
+            build-deps/zig-pkg
           key: windows-deps-${{ steps.deps-key.outputs.windows }}
 
       - name: Build the Windows dependencies (CPython, SFML, libtcod, libghostty-vt)
@@ -284,6 +287,7 @@ jobs:
             __lib_windows
             build-deps/dl
             build-deps/zig-global-cache
+            build-deps/zig-pkg
           key: windows-deps-${{ steps.deps-key.outputs.windows }}
 
       - name: Build the Linux engine
