@@ -26,7 +26,11 @@ if ! command -v emcmake >/dev/null 2>&1; then
 fi
 
 cd "$PROJECT_ROOT"
-git submodule update --init --depth 1 modules/SFML modules/libtcod-headless modules/cpython
+# Every submodule the web build reads: SFML (stb_image, freetype headers), libtcod,
+# CPython, and the header-only RapidXML and json the engine includes on every
+# backend. imgui/imgui-sfml are desktop-only.
+git submodule update --init --depth 1 modules/SFML modules/libtcod-headless modules/cpython \
+    modules/RapidXML modules/json
 git -C modules/libtcod-headless submodule update --init --depth 1 src/vendor/utf8proc
 
 # --- deps/ include links ----------------------------------------------------
