@@ -881,7 +881,7 @@ static void fireStepCallback(std::shared_ptr<UIEntity>& entity, int trigger_int,
 
     if (!data) data = Py_None;
     mcrf::PyRef result(PyObject_CallFunction(callback, "OO", trigger_obj.get(), data));
-    if (PyErr_Occurred()) PyErr_Print();
+    if (PyErr_Occurred()) mcrf::print_callback_exception();
 }
 
 // Whether a trigger on this entity reaches Python at all: an explicit `entity.step`

@@ -478,8 +478,16 @@ static void emscriptenMainLoopCallback(void* arg) {
         return;
     }
     engine->doFrame();
+    if (McRFPy_API::exitPending()) GameEngine::exitForPendingSystemExit();
 }
 #endif
+
+void GameEngine::exitForPendingSystemExit()
+{
+    McRFPy_API::raisePendingExit();
+    PyErr_Print();  // SystemExit: runs atexit (the #468 release included), finalizes, exits
+    std::_Exit(1);  // unreachable: PyErr_Print() on SystemExit never returns
+}
 
 void GameEngine::run()
 {
@@ -518,6 +526,10 @@ void GameEngine::run()
     while (running)
     {
         doFrame();
+        // #557: a callback raised SystemExit. The frame has unwound; exit from here, the
+        // top of the loop, with the code and teardown of a top-level sys.exit()
+        // (PyErr_Print -> Py_Exit: atexit, then finalization).
+        if (McRFPy_API::exitPending()) exitForPendingSystemExit();
     }
 
     // Clean up before exiting the run loop
@@ -543,14 +555,18 @@ void GameEngine::doFrame()
     // cleared/published around the render pass below.
     metrics.beginSimFrame();
 
+    // #557: a callback that raises SystemExit stops the frame's dispatch; the frame
+    // returns, and the loop exits at the top (see run()).
     currentScene()->update();
     testTimers(headless ? simulation_time : runtime.getElapsedTime().asMilliseconds());
+    if (McRFPy_API::exitPending()) return;
 
     // Update Python scenes
     {
         ScopedTimer pyTimer(metrics.pythonScriptTime);
         McRFPy_API::updatePythonScenes(frameTime);
     }
+    if (McRFPy_API::exitPending()) return;
     mcrf::audio::sweep();  // #440: release sounds that finished playing
 
     // Update animations with the whole frame time. A long frame (a stall, a load in a
@@ -560,9 +576,11 @@ void GameEngine::doFrame()
         ScopedTimer animTimer(metrics.animationTime);
         AnimationManager::getInstance().update(frameTime);
     }
+    if (McRFPy_API::exitPending()) return;
 
     if (!headless) {
         sUserInput();
+        if (McRFPy_API::exitPending()) return;
 
 #if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
         // Update ImGui (SFML builds only)
@@ -737,6 +755,7 @@ void GameEngine::testTimers(int now)
     auto it = timers.begin();
     while (it != timers.end())
     {
+        if (McRFPy_API::exitPending()) return;  // #557: a callback asked to exit; no more run
         // Keep a local copy of the timer to prevent use-after-free.
         // If the callback calls stop(), the timer may be marked for removal,
         // but we need the Timer object to survive until test() returns.
@@ -1241,13 +1260,17 @@ float GameEngine::runSimFrame(int ms, float actual_dt) {
 
     // Timers run on simulation_time (not runtime): step() is the deterministic headless
     // clock, which is the whole point of driving time explicitly from a test.
+    // #557: after a callback raised SystemExit nothing else in the frame runs; step() hands
+    // the exit to its caller (see _step).
     testTimers(simulation_time);
+    if (McRFPy_API::exitPending()) return actual_dt;
 
     // Python Scene.update(dt) hook -- the originally-filed omission
     {
         ScopedTimer pyTimer(metrics.pythonScriptTime);
         McRFPy_API::updatePythonScenes(actual_dt);
     }
+    if (McRFPy_API::exitPending()) return actual_dt;
     mcrf::audio::sweep();  // #440: release sounds that finished playing
 
     // Update animations with the whole dt. The old `< 10.0f` "sanity check" made a wide
@@ -1256,6 +1279,7 @@ float GameEngine::runSimFrame(int ms, float actual_dt) {
         ScopedTimer animTimer(metrics.animationTime);
         AnimationManager::getInstance().update(actual_dt);
     }
+    if (McRFPy_API::exitPending()) return actual_dt;
 
     // Advance scene transitions, and finalize them when complete. Without this a
     // transition started headlessly would never end, and the scene never changed.
@@ -1345,6 +1369,7 @@ int GameEngine::advance(int ms) {
         // and every candidate boundary uses remaining > 0), so this terminates.
         const int delta = next - simulation_time;
         runSimFrame(delta, static_cast<float>(delta) / 1000.0f);
+        if (McRFPy_API::exitPending()) break;  // #557: no frame after an exit request
     }
 
     return ms;

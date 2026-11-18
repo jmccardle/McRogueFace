@@ -763,6 +763,9 @@ PyObject* PyInit_mcrfpy()
 // release_python_references(); after that the engine refuses to build it again.
 static PyObject* mcrfpy_module_instance = nullptr;
 static bool python_references_released = false;
+// #557 - the SystemExit a callback raised inside a frame, waiting for the frame to unwind.
+// Only the exception value is kept (no traceback: it would pin the frames that must go).
+static PyObject* pending_system_exit = nullptr;
 
 static PyObject* mcrfpy_atexit_release(PyObject*, PyObject*)
 {
@@ -827,6 +830,7 @@ void McRFPy_API::release_python_references()
             UICollection::release_view((PyUICollectionObject*)w.get());
         }
     }
+    Py_CLEAR(pending_system_exit);
     mcrf::audio::shutdown();
     default_font.reset();
     default_texture.reset();
@@ -2303,6 +2307,10 @@ PyObject* McRFPy_API::_step(PyObject* self, PyObject* args) {
     if (!frameAdvanceAllowed("step")) return NULL;
 
     float actual_dt = game->step(dt);
+    if (exitPending()) {   // #557: a callback raised SystemExit; this frame has unwound
+        raisePendingExit();
+        return NULL;
+    }
     return PyFloat_FromDouble(actual_dt);
 }
 
@@ -2338,7 +2346,12 @@ PyObject* McRFPy_API::_advance(PyObject* self, PyObject* args) {
     }
     if (!frameAdvanceAllowed("advance")) return NULL;
 
-    return PyLong_FromLong(game->advance(static_cast<int>(ms)));
+    long advanced = game->advance(static_cast<int>(ms));
+    if (exitPending()) {   // #557
+        raisePendingExit();
+        return NULL;
+    }
+    return PyLong_FromLong(advanced);
 }
 
 PyObject* McRFPy_API::_exit(PyObject* self, PyObject* args) {
@@ -2837,6 +2850,33 @@ PyObject* McRFPy_API::_logBenchmark(PyObject* self, PyObject* args) {
         PyErr_SetString(PyExc_RuntimeError, e.what());
         return NULL;
     }
+}
+
+bool McRFPy_API::deferSystemExit() {
+    if (!PyErr_ExceptionMatches(PyExc_SystemExit)) return false;
+    // Outside a frame there is nothing to unwind to: callbacks fired from a script's own
+    // top level (scene.activate() ...) keep the old behaviour, which exits right there.
+    if (!game || !game->inFrame()) return false;
+    PyObject *type, *value, *tb;
+    PyErr_Fetch(&type, &value, &tb);
+    PyErr_NormalizeException(&type, &value, &tb);
+    Py_XDECREF(tb);
+    Py_XDECREF(type);
+    if (pending_system_exit) {
+        Py_XDECREF(value);   // the first request wins
+    } else {
+        pending_system_exit = value;
+    }
+    return true;
+}
+
+bool McRFPy_API::exitPending() { return pending_system_exit != nullptr; }
+
+void McRFPy_API::raisePendingExit() {
+    PyObject* value = pending_system_exit;
+    pending_system_exit = nullptr;
+    PyErr_SetObject(PyExc_SystemExit, value);
+    Py_XDECREF(value);
 }
 
 // Exception handling implementation

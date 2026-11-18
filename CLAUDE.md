@@ -816,6 +816,17 @@ GC and module clearing, so the old guards skipped every release made during fina
 Gate: `tests/regression/issue_468_exit_teardown_test.py` (markers on every exit path, and
 no LSan report under `make asan-test`).
 
+**`sys.exit()` in a callback (#557).** It must not finalize under the frame loop's live
+frames. A callback error path that can see `SystemExit` (every user-callback failure inside
+`doFrame()`/`runSimFrame()`) goes through `mcrf::print_callback_exception()` /
+`print_callback_error()`, never a bare `PyErr_Print()`: inside a frame it records the exit
+(`McRFPy_API::deferSystemExit`), the frame stops dispatching (`McRFPy_API::exitPending()`
+checkpoints) and returns, and the exit happens at the top -- `step()`/`advance()` re-raise it
+to their caller, the windowed loop calls `GameEngine::exitForPendingSystemExit()` -- so the
+code, `atexit` and #468 teardown are those of a top-level `sys.exit()`. A new frame phase
+that runs callbacks needs an `exitPending()` check after it. Gate:
+`tests/regression/issue_557_callback_sys_exit_test.py`.
+
 **Frames do not nest (#551).** `step()`/`advance()` from inside any callback raise
 `RuntimeError` (`GameEngine::inFrame()`, checked once in `frameAdvanceAllowed`).
 

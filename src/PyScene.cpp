@@ -94,7 +94,7 @@ static bool tryCallPythonMethod(UIDrawable* drawable, const char* method_name,
             Py_DECREF(result);
             called = true;
         } else {
-            PyErr_Print();
+            mcrf::print_callback_exception();
         }
     }
 
@@ -142,7 +142,7 @@ static bool tryCallPythonMethod(UIDrawable* drawable, const char* method_name,
         // Create Vector object for position
         PyObject* pos = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", mousepos.x, mousepos.y);
         if (!pos) {
-            PyErr_Print();
+            mcrf::print_callback_exception();
             PyErr_Clear();
             Py_XDECREF(method);
             Py_DECREF(pyObj);

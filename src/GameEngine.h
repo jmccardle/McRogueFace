@@ -392,6 +392,9 @@ public:
     // The size of the render target, whether or not it has been created.
     sf::Vector2u renderSize() const;
     void run();
+    // #557: leave the process the way a top-level sys.exit() does, for the SystemExit a
+    // callback raised in the frame that just unwound. Does not return.
+    [[noreturn]] static void exitForPendingSystemExit();
     void doFrame();  // Single frame update - extracted for Emscripten callback support
     bool isRunning() const { return running; }  // Check if engine should continue running
     void sUserInput();

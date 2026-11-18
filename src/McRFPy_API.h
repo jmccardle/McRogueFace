@@ -132,6 +132,15 @@ public:
     static std::atomic<bool> exception_occurred;
     static std::atomic<int> exit_code;
 
+    // #557: a SystemExit raised by a callback inside a frame is recorded here instead of
+    // finalizing the interpreter under the frame. The frame code stops dispatching
+    // callbacks (exitPending()), unwinds, and the exit happens at the top:
+    // raisePendingExit() re-raises it, and PyErr_Print() (or the script's own top level)
+    // exits with the code a top-level sys.exit() would give. GIL-protected.
+    static bool deferSystemExit();   // true if the pending error was a SystemExit taken (or dropped)
+    static bool exitPending();
+    static void raisePendingExit();  // sets the recorded SystemExit as the current error
+
     static void signalPythonException();  // Called by exception handlers
     static bool shouldExit();             // Checked by game loop
 };

@@ -486,7 +486,7 @@ void Entity3D::updateAnimation(float dt)
                 if (result) {
                     Py_DECREF(result);
                 } else {
-                    PyErr_Print();
+                    mcrf::print_callback_exception();
                 }
             }
         }

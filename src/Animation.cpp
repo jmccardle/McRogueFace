@@ -498,6 +498,7 @@ static PyObject* animationValueToPython(const AnimationValue& value) {
 
 void Animation::triggerCallback() {
     if (!pythonCallback) return;
+    if (McRFPy_API::exitPending()) return;  // #557: the frame is unwinding to exit
 
     // Ensure we only trigger once
     if (callbackTriggered) return;

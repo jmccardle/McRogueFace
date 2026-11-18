@@ -1511,7 +1511,7 @@ bool UIGridView::fireCellClick(sf::Vector2i cell, const std::string& button, con
                         Py_DECREF(pyObj);
                         if (!result) {
                             std::cerr << "Cell click method raised an exception:" << std::endl;
-                            PyErr_Print();
+                            mcrf::print_callback_exception();
                             PyErr_Clear();
                         } else {
                             Py_DECREF(result);
@@ -1549,7 +1549,7 @@ bool UIGridView::fireCellEnter(sf::Vector2i cell) {
                         Py_DECREF(pyObj);
                         if (!result) {
                             std::cerr << "Cell enter method raised an exception:" << std::endl;
-                            PyErr_Print();
+                            mcrf::print_callback_exception();
                             PyErr_Clear();
                         } else {
                             Py_DECREF(result);
@@ -1587,7 +1587,7 @@ bool UIGridView::fireCellExit(sf::Vector2i cell) {
                         Py_DECREF(pyObj);
                         if (!result) {
                             std::cerr << "Cell exit method raised an exception:" << std::endl;
-                            PyErr_Print();
+                            mcrf::print_callback_exception();
                             PyErr_Clear();
                         } else {
                             Py_DECREF(result);

@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cfloat>
 #include "PyVector.h"
+#include "McRFPy_API.h"
 #include "PyPositionHelper.h"
 #include "UIDrawable.h"
 #include "UIEntity.h"
@@ -216,12 +217,18 @@ bool float_to_cell(double value, int& out, const char* what)
     return true;
 }
 
+void print_callback_exception()
+{
+    if (McRFPy_API::deferSystemExit()) return;
+    PyErr_Print();
+}
+
 void print_callback_error(const char* what)
 {
     if (!PyErr_ExceptionMatches(PyExc_SystemExit)) {
         std::cerr << what << " callback raised an exception:" << std::endl;
     }
-    PyErr_Print();
+    print_callback_exception();
 }
 
 int dict_steal(PyObject* dict, const char* key, PyObject* value)

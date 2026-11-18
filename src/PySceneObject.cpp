@@ -416,7 +416,7 @@ void PySceneClass::call_on_enter(PySceneObject* self)
         if (result) {
             Py_DECREF(result);
         } else {
-            PyErr_Print();
+            mcrf::print_callback_exception();
         }
         Py_DECREF(method);
     } else {
@@ -434,7 +434,7 @@ void PySceneClass::call_on_exit(PySceneObject* self)
         if (result) {
             Py_DECREF(result);
         } else {
-            PyErr_Print();
+            mcrf::print_callback_exception();
         }
         Py_DECREF(method);
     } else {
@@ -484,7 +484,7 @@ void PySceneClass::call_on_key(PySceneObject* self, const std::string& key, cons
         if (result) {
             Py_DECREF(result);
         } else {
-            PyErr_Print();
+            mcrf::print_callback_exception();
         }
         Py_DECREF(attr);
     } else {
@@ -504,7 +504,7 @@ void PySceneClass::call_on_text(PySceneObject* self, const std::string& utf8)
     if (attr && PyCallable_Check(attr.get()) && attr.get() != Py_None) {
         mcrf::PyRef text(PyUnicode_DecodeUTF8(utf8.data(), utf8.size(), "strict"));
         mcrf::PyRef result(text ? PyObject_CallFunctionObjArgs(attr.get(), text.get(), NULL) : NULL);
-        if (!result) PyErr_Print();
+        if (!result) mcrf::print_callback_exception();
     } else {
         PyErr_Clear();
     }
@@ -527,7 +527,7 @@ void PySceneClass::call_update(PySceneObject* self, float dt)
         if (result) {
             Py_DECREF(result);
         } else {
-            PyErr_Print();
+            mcrf::print_callback_exception();
         }
         Py_DECREF(method);
     } else {
@@ -557,7 +557,7 @@ void PySceneClass::call_on_resize(PySceneObject* self, sf::Vector2u new_size)
         if (result) {
             Py_DECREF(result);
         } else {
-            PyErr_Print();
+            mcrf::print_callback_exception();
         }
         Py_DECREF(method);
     } else {
