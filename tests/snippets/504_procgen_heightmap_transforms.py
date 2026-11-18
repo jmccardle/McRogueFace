@@ -1,10 +1,10 @@
+# mcrf: objects=[Caption,Color,ColorLayer,Grid,HeightMap,NoiseSource,Scene] verified=0.3.6-dev status=ok
 """HeightMap Transform Operations Demo
 
-Demonstrates: scale, clamp, normalize, smooth, kernel_transform
+Demonstrates: scale, clamp, normalize, smooth, sparse_kernel (sharpen, edge detect)
 Shows value manipulation and convolution effects.
 """
 import mcrfpy
-from mcrfpy import automation
 
 GRID_WIDTH, GRID_HEIGHT = 64, 48
 CELL_SIZE = 16
@@ -46,22 +46,23 @@ def run_demo(runtime):
     smoothed.copy_from(base).smooth(3)
 
     # Panel 5: SHARPEN kernel
-    sharpened = mcrfpy.HeightMap((panel_w, panel_h), fill=0.0)
-    sharpened.copy_from(base)
     sharpen_kernel = {
         (0, -1): -1.0, (-1, 0): -1.0, (0, 0): 5.0, (1, 0): -1.0, (0, 1): -1.0
     }
-    sharpened.kernel_transform(sharpen_kernel).clamp(0.0, 1.0)
+    # sparse_kernel returns a NEW HeightMap; base is left as it was
+    sharpened = base.sparse_kernel(sharpen_kernel).clamp(0.0, 1.0)
 
-    # Panel 6: EDGE DETECTION kernel
+    # Panel 6: EDGE DETECTION: each cell minus the mean of its 8 neighbours (a Laplacian).
+    # sparse_kernel divides by the sum of the weights, so the classic zero-sum edge kernel
+    # (-1 x 8 around an 8) would divide by zero; take the neighbour mean and subtract it.
+    neighbour_mean = base.sparse_kernel({
+        (-1, -1): 1.0, (0, -1): 1.0, (1, -1): 1.0,
+        (-1,  0): 1.0,              (1,  0): 1.0,
+        (-1,  1): 1.0, (0,  1): 1.0, (1,  1): 1.0,
+    })
     edges = mcrfpy.HeightMap((panel_w, panel_h), fill=0.0)
     edges.copy_from(base)
-    edge_kernel = {
-        (-1, -1): -1, (0, -1): -1, (1, -1): -1,
-        (-1,  0): -1, (0,  0):  8, (1,  0): -1,
-        (-1,  1): -1, (0,  1): -1, (1,  1): -1,
-    }
-    edges.kernel_transform(edge_kernel).normalize(0.0, 1.0)
+    edges.add(neighbour_mean.scale(-1.0)).normalize(0.0, 1.0)
 
     # Apply to grid
     panels = [
@@ -103,14 +104,11 @@ grid = mcrfpy.Grid(
     layers={}
 )
 grid.fill_color = mcrfpy.Color(0, 0, 0)
-color_layer = grid.add_layer("color", z_index=-1)
+color_layer = mcrfpy.ColorLayer(z_index=-1, name="color")
+grid.add_layer(color_layer)
 scene.children.append(grid)
 
 scene.activate()
 
 # Run the demo
 run_demo(0)
-
-# Take screenshot
-automation.screenshot("procgen_04_heightmap_transforms.png")
-print("Screenshot saved: procgen_04_heightmap_transforms.png")
