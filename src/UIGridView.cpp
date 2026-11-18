@@ -1055,7 +1055,7 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
     self->data->box.setSize(sf::Vector2f(w, h));
     self->data->visible = visible;
     self->data->assignOpacity(opacity);  // the setter's clamp, not a raw store (#540)
-    self->data->z_index = z_index;
+    self->data->initZIndex(z_index, args, kwds, kwlist);  // #552
     if (name) self->data->UIDrawable::name = std::string(name);
 
     self->data->camera_is_default = camera_default;

@@ -47,10 +47,7 @@ static int PyDrawable_set_z_index(PyDrawableObject* self, PyObject* value, void*
     }
 
     int val = PyLong_AsLong(value);
-    self->data->z_index = val;
-
-    // Mark scene as needing resort
-    self->data->notifyZIndexChanged();
+    self->data->assignZIndex(val);  // #552: marks it chosen and the owning collection for a re-sort
 
     return 0;
 }

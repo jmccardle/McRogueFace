@@ -72,6 +72,7 @@ UIDrawable::UIDrawable() : position(0.0f, 0.0f) { click_callable = NULL;  }
 
 UIDrawable::UIDrawable(const UIDrawable& other)
     : z_index(other.z_index),
+      z_index_explicit(other.z_index_explicit),
       name(other.name),
       position(other.position),
       rotation(other.rotation),
@@ -110,6 +111,7 @@ UIDrawable& UIDrawable::operator=(const UIDrawable& other) {
     if (this != &other) {
         // Copy basic members
         z_index = other.z_index;
+        z_index_explicit = other.z_index_explicit;
         name = other.name;
         position = other.position;
         rotation = other.rotation;
@@ -158,6 +160,7 @@ UIDrawable& UIDrawable::operator=(const UIDrawable& other) {
 
 UIDrawable::UIDrawable(UIDrawable&& other) noexcept
     : z_index(other.z_index),
+      z_index_explicit(other.z_index_explicit),
       name(std::move(other.name)),
       position(other.position),
       rotation(other.rotation),
@@ -190,6 +193,7 @@ UIDrawable& UIDrawable::operator=(UIDrawable&& other) noexcept {
 
         // Move basic members
         z_index = other.z_index;
+        z_index_explicit = other.z_index_explicit;
         name = std::move(other.name);
         position = other.position;
         rotation = other.rotation;
@@ -399,14 +403,34 @@ int UIDrawable::set_int(PyObject* self, PyObject* value, void* closure) {
     return 0;
 }
 
+void UIDrawable::initZIndex(int z, PyObject* args, PyObject* kwds, const char* const* kwlist) {
+    // A constructor's z_index counts as chosen only when the caller passed it (#552): a default of 0
+    // is "none", which a collection append replaces with the next free slot.
+    z_index = z;
+    bool given = kwds && PyDict_GetItemString(kwds, "z_index") != nullptr;
+    for (Py_ssize_t i = 0; !given && kwlist[i]; i++) {
+        if (strcmp(kwlist[i], "z_index") == 0) given = i < PyTuple_GET_SIZE(args);
+    }
+    z_index_explicit = given;
+}
+
 void UIDrawable::notifyZIndexChanged() {
     // Mark the current scene as needing sort
     // This works for elements in the scene's ui_elements collection
     McRFPy_API::markSceneNeedsSort();
-    
-    // TODO: In the future, we could add parent tracking to handle Frame children
-    // For now, Frame children will need manual sorting or collection modification
-    // to trigger a resort
+    markParentChildrenNeedSort();
+}
+
+void UIDrawable::markParentChildrenNeedSort() {
+    // #552: a child of a Frame or Grid is drawn from that parent's children vector, which only
+    // re-sorts when told.
+    auto p = parent.lock();
+    if (!p) return;
+    if (p->derived_type() == PyObjectsEnum::UIFRAME) {
+        std::static_pointer_cast<UIFrame>(p)->children_need_sort = true;
+    } else if (p->derived_type() == PyObjectsEnum::UIGRIDVIEW) {
+        std::static_pointer_cast<UIGridView>(p)->children_need_sort = true;
+    }
 }
 
 PyObject* UIDrawable::get_name(PyObject* self, void* closure) {
@@ -520,6 +544,7 @@ void UIDrawable::assignOpacity(float o) {
 }
 
 void UIDrawable::assignZIndex(int z) {
+    z_index_explicit = true;   // #552, even when z equals the current value
     if (z == z_index) return;
     z_index = z;
     notifyZIndexChanged();
