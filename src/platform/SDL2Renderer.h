@@ -17,6 +17,7 @@
 #include <vector>
 #include <unordered_map>
 #include <memory>
+#include "SDL2Types.h"  // BlendMode
 
 // Forward declarations to avoid SDL header in this header
 struct SDL_Window;
@@ -89,7 +90,12 @@ public:
                        const float* colors, const float* texCoords,
                        unsigned int textureId = 0,
                        ShaderType shaderType = ShaderType::Shape,
-                       unsigned int programOverride = 0);
+                       unsigned int programOverride = 0,
+                       const BlendMode& blend = BlendAlpha);
+
+    // #562: set the GL blend state from an sf::BlendMode (separate colour/alpha factors and
+    // equations). Called per draw so a RenderStates' blendMode is honoured.
+    void applyBlendMode(const BlendMode& blend);
 
     // Most recent shader compile/link InfoLog (empty on success). Lets the
     // Python binding surface the real GL error instead of failing silently.

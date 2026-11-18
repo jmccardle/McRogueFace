@@ -177,6 +177,12 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
             box.setPosition(0, 0);  // Render at origin in texture
             box.setOrigin(0, 0);    // No origin offset in texture
             box.setRotation(0);     // No rotation in texture
+            // #562: opacity is applied once, to the whole cached subtree, when the texture is
+            // blitted below -- not also to the box's own colours inside the texture.
+            fill_color.a = original_fill_alpha;
+            outline_color.a = original_outline_alpha;
+            box.setFillColor(fill_color);
+            box.setOutlineColor(outline_color);
             render_texture->draw(box);
 
             // Sort children by z_index if needed
@@ -213,7 +219,9 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
 
             // Apply opacity to render_sprite
             auto sprite_color = render_sprite.getColor();
-            sprite_color.a = static_cast<sf::Uint8>(255 * opacity);
+            // #562: the texture is premultiplied, so opacity scales colour and alpha alike
+            const auto o = static_cast<sf::Uint8>(255 * opacity);
+            sprite_color = sf::Color(o, o, o, o);
             render_sprite.setColor(sprite_color);
 
             // #106: Apply shader if set
@@ -228,9 +236,11 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
                     uniforms->applyTo(*shader->shader);
                 }
 
-                target.draw(render_sprite, shader->shader.get());
+                sf::RenderStates shader_states(shader->shader.get());
+                shader_states.blendMode = kPremultipliedBlend;
+                target.draw(render_sprite, shader_states);
             } else {
-                target.draw(render_sprite);
+                target.draw(render_sprite, kPremultipliedBlend);
             }
         }
     } else {
