@@ -6,7 +6,9 @@
 (b) the default texture assigned on the first draw of a texture-less grid changes the cell size; the
     camera is capped to the nearest valid one.
 Python setters still raise (tests/regression/issue_558_zoom_invariant_test.py). Time is mcrfpy.step(dt)."""
+import os
 import sys
+import tempfile
 import warnings
 import mcrfpy
 
@@ -111,7 +113,7 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     mcrfpy.step(0.01)
     from mcrfpy import automation
-    automation.screenshot("issue_558_camera_cap_shot.png")
+    automation.screenshot(os.path.join(tempfile.mkdtemp(prefix="mcrf558_"), "shot.png"))
 if g.texture is None:
     fails.append("first draw did not assign the default texture")
 else:

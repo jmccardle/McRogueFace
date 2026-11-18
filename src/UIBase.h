@@ -132,7 +132,7 @@ static PyObject* UIDrawable_animate(T* self, PyObject* args, PyObject* kwds)
          MCRF_RAISES("ValueError", "If the name is not an animatable attribute of this drawable") \
          MCRF_RAISES("TypeError", "If the target is not of the attribute's type") \
          MCRF_NOTE("This is a convenience method that creates an Animation, starts it, and adds it to the AnimationManager.") \
-         MCRF_NOTE("A Grid camera value (zoom, size, center) whose END value is outside its limits raises ValueError; mid-flight values that overshoot a limit are capped at it.") \
+         MCRF_NOTE("A Grid camera value (zoom, size, center) whose END value is outside its limits raises ValueError; an elastic or back easing that overshoots a limit shows the limit value for those ticks, then rejoins its curve.") \
      )}, \
     {"realign", (PyCFunction)UIDrawable::py_realign, METH_NOARGS, \
      MCRF_METHOD(Drawable, realign, \

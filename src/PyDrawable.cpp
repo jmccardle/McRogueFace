@@ -135,6 +135,7 @@ static PyObject* PyDrawable_resize(PyDrawableObject* self, PyObject* args, PyObj
         return NULL;
     }
 
+    if (!self->data->checkSize({w, h})) return NULL;   // a Grid's camera invariant (#558)
     self->data->resize(w, h);
     Py_RETURN_NONE;
 }
