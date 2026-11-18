@@ -1171,6 +1171,16 @@ bool terminal_wide(uint32_t cp) {
     return it != last && cp >= it->lo;
 }
 
+// Zero width in a terminal cell (same generator and rule): a combining mark, ZWJ, variation
+// selector, ... attaches to the cell before it and cannot occupy a cell by itself.
+bool terminal_zero_width(uint32_t cp) {
+    const auto* first = ZERO_WIDTH_RANGES;
+    const auto* last = first + sizeof(ZERO_WIDTH_RANGES) / sizeof(ZERO_WIDTH_RANGES[0]);
+    const auto* it = std::lower_bound(first, last, cp,
+        [](const EastAsianWideRange& r, uint32_t c) { return r.hi < c; });
+    return it != last && cp >= it->lo;
+}
+
 // A codepoint the layer may print as text: not a C0 control, DEL or a C1 control.
 bool printable_cp(uint32_t cp) {
     return !(cp < 0x20 || (cp >= 0x7F && cp <= 0x9F));
@@ -1208,6 +1218,12 @@ bool glyph_of(const std::shared_ptr<TerminalLayer>& L, long long index, uint32_t
                      "(send control sequences with write())", index, static_cast<unsigned>(*cp));
         return false;
     }
+    if (terminal_zero_width(*cp)) {
+        PyErr_Format(PyExc_ValueError,
+                     "tile index %lld is U+%04X, which has zero width: it combines with the character "
+                     "before it and cannot occupy a cell by itself", index, static_cast<unsigned>(*cp));
+        return false;
+    }
     *wide = index + 1 < n && fa->tiles[index + 1].kind == FontAtlasData::Tile::GLYPH_RIGHT;
     return true;
 }
@@ -1217,17 +1233,39 @@ bool glyph_of(const std::shared_ptr<TerminalLayer>& L, long long index, uint32_t
 // trace: the cursor, its attributes, origin mode and the character set are saved (DECSC)
 // and restored (DECRC); insert mode and autowrap (DECAWM), which DECSC does not save, are
 // switched off and back on. With autowrap off nothing placed can wrap or scroll the screen.
+// Ask the terminal something and take its reply out of the output queue (it is the layer's
+// question, not the program's): DECRQSS for the left/right margins.
+std::string ask(const std::shared_ptr<TerminalLayer>& L, const std::string& query) {
+    const size_t before = L->pending_output.size();
+    L->feed(query);
+    std::string reply = L->pending_output.substr(before);
+    L->pending_output.resize(before);
+    return reply;
+}
+
 struct Placement {
     std::string pre, post;
     explicit Placement(const std::shared_ptr<TerminalLayer>& L) {
         const bool origin = L->modeEnabled(6, false);
         const bool insert = L->modeEnabled(4, true);
         const bool autowrap = L->modeEnabled(7, false);
-        pre = "\x1b" "7";
+        const bool lr_margins = L->modeEnabled(69, false);
+        std::string margins;   // "l;r", restored exactly
+        if (lr_margins) {
+            const std::string reply = ask(L, "\x1bP$qs\x1b\\");   // DCS 1 $ r Pl ; Pr s ST
+            const size_t a = reply.find("$r"), b = reply.find('s', a == std::string::npos ? 0 : a);
+            if (a == std::string::npos || b == std::string::npos || reply.compare(0, 3, "\x1bP1") != 0)
+                throw std::runtime_error("TerminalLayer: the terminal did not report its left/right margins");
+            margins = reply.substr(a + 2, b - a - 2);
+        }
+        pre = "\x1b" "7";   // DECSC: position, pen, protection, pending wrap, origin, charsets
         if (origin) pre += "\x1b[?6l";
         if (insert) pre += "\x1b[4l";
         if (autowrap) pre += "\x1b[?7l";
+        if (lr_margins) pre += "\x1b[?69l";   // margins off: full width
+        pre += "\x1b[0\"q";                    // DECSCA off: placed cells are unprotected
         pre += "\x1b(B\x0f";
+        if (lr_margins) post += "\x1b[?69h\x1b[" + margins + "s";   // DECSLRM homes; DECRC moves back
         if (insert) post += "\x1b[4h";
         if (autowrap) post += "\x1b[?7h";
         post += "\x1b" "8";
@@ -1735,6 +1773,14 @@ static PyObject* TL_print(PyObject* self, PyObject* args, PyObject* kwds) {
                          "(use write() for raw terminal sequences)", static_cast<unsigned>(cp), i);
             return nullptr;
         }
+        // A zero-width codepoint combines with the character before it; with none (start of
+        // the text, of a line, or after a tab) it would attach to whatever is on screen there.
+        if (terminal_zero_width(cp) && (lines.back().empty() || lines.back().back() == '\t')) {
+            PyErr_Format(PyExc_ValueError,
+                         "print() text: U+%04X at index %zd has zero width and nothing before it to "
+                         "combine with", static_cast<unsigned>(cp), i);
+            return nullptr;
+        }
         lines.back().push_back(cp);
     }
 
@@ -1750,17 +1796,32 @@ static PyObject* TL_print(PyObject* self, PyObject* args, PyObject* kwds) {
             seq = p.pre + sgr;
             for (size_t k = 0; k < lines.size() && py + static_cast<int>(k) < L->grid_y; ++k) {
                 seq += cup(px, py + static_cast<int>(k));
+                // A tab is spaces to the next multiple of 8 columns from the line's start (the
+                // program's tab stops do not apply). Zero-width codepoints follow their base
+                // character: kept with it, dropped with it, and they take no column.
                 int col = px;
+                bool clipped = false;
                 for (uint32_t cp : lines[k]) {
-                    const int adv = cp == '\t' ? (8 - col % 8) : terminal_wide(cp) ? 2 : 1;
-                    if (col + adv > L->grid_x) break;
+                    if (cp == '\t') {
+                        const int to = col + (8 - (col - px) % 8);
+                        while (col < to && col < L->grid_x) { seq += ' '; ++col; }
+                        if (col < to) break;
+                        continue;
+                    }
+                    if (terminal_zero_width(cp)) {
+                        if (!clipped) utf8_append(seq, cp);
+                        continue;
+                    }
+                    const int adv = terminal_wide(cp) ? 2 : 1;
+                    if (col + adv > L->grid_x) { clipped = true; break; }
                     utf8_append(seq, cp);
                     col += adv;
                 }
             }
             seq += p.post;
         } else {
-            // At the cursor the terminal's own wrapping and scrolling apply; "\n" is CR LF.
+            // At the cursor the terminal's own wrapping, scrolling and tab stops apply (a tab is
+            // sent as HT); "\n" is CR LF.
             seq = sgr;
             for (size_t k = 0; k < lines.size(); ++k) {
                 if (k) seq += "\r\n";
@@ -1928,6 +1989,13 @@ static PyObject* TL_apply(PyObject* self, PyObject* args, PyObject* kwds) {
         if (wanted[i] == shown[i]) continue;
         uint32_t cp; int face; bool wide;
         if (!glyph_of(L, wanted[i], &cp, &face, &wide)) { Py_DECREF(r); return nullptr; }
+        if (wide) {
+            Py_DECREF(r);
+            PyErr_Format(PyExc_ValueError,
+                         "tile index %d is a wide glyph (two cells); apply_threshold/apply_ranges set cells "
+                         "one by one and cannot place it (nothing was printed)", wanted[i]);
+            return nullptr;
+        }
         cells.emplace_back(static_cast<int>(i % L->grid_x), static_cast<int>(i / L->grid_x));
     }
     for (const auto& c : cells) {
@@ -2194,6 +2262,18 @@ static PyObject* TL_get_texture(PyObject* self, void*) {
     return PyTexture::pyobject_for(L->texture);
 }
 
+// RuntimeError(msg) with the pending exception as its cause.
+static void raise_with_cause(const char* msg) {
+    PyObject* cause = PyErr_GetRaisedException();
+    PyErr_SetString(PyExc_RuntimeError, msg);
+    PyObject* err = PyErr_GetRaisedException();
+    if (cause) {
+        PyException_SetContext(err, Py_NewRef(cause));
+        PyException_SetCause(err, cause);
+    }
+    PyErr_SetRaisedException(err);
+}
+
 // The atlas a TerminalLayer gets when it is given none: mcrfpy.default_font at 16 px with
 // Texture.from_font's default codepoints. Shared by every layer that uses it while one is
 // alive (the cache holds it weakly, so nothing outlives the layers); a new default_font
@@ -2205,7 +2285,11 @@ static bool default_atlas(std::shared_ptr<PyTexture>* out) {
     if (!mod) return false;
     PyObject* font = PyObject_GetAttrString(mod, "default_font");
     Py_DECREF(mod);
-    if (!font) return false;
+    if (!font) {
+        raise_with_cause("TerminalLayer: no texture= given, and the engine's default font "
+                         "(mcrfpy.default_font) is not available; pass a Texture.from_font atlas");
+        return false;
+    }
     if (!PyObject_TypeCheck(font, &mcrfpydef::PyFontType)) {
         Py_DECREF(font);
         PyErr_SetString(PyExc_RuntimeError, "TerminalLayer: no texture= given and mcrfpy.default_font is not a Font");
@@ -2219,7 +2303,11 @@ static bool default_atlas(std::shared_ptr<PyTexture>* out) {
     }
     PyObject* tex = PyObject_CallMethod(reinterpret_cast<PyObject*>(&mcrfpydef::PyTextureType), "from_font", "Oi", font, 16);
     Py_DECREF(font);
-    if (!tex) return false;
+    if (!tex) {
+        raise_with_cause("TerminalLayer: no texture= given, and the default atlas could not be built "
+                         "from mcrfpy.default_font; pass a Texture.from_font atlas");
+        return false;
+    }
     *out = reinterpret_cast<PyTextureObject*>(tex)->data;
     Py_DECREF(tex);
     cached = *out;
@@ -2441,8 +2529,8 @@ static PyMethodDef TL_methods[] = {
          MCRF_SIG("(text: str, pos=None, fg=None, bg=None, bold=False, italic=False, underline=False, blink=False, inverse=False, strike=False, faint=False)", "None"),
          MCRF_DESC("Draw text from game code, as terminal control sequences written to the terminal: at the cursor (which moves past it; the terminal wraps and scrolls as usual), or at pos with the cursor saved and restored around it. Attributes apply to this text only."),
          MCRF_ARGS_START
-         MCRF_ARG("text", "Printable text, newlines and tabs. At the cursor a newline continues at column 0 of the next line")
-         MCRF_ARG("pos", "Cell (x, y) to print at, leaving the cursor where it was; None prints at the cursor. Placed text never wraps or scrolls: each line is clipped at the right edge, a newline continues at pos's column on the next row, and lines below the bottom row are dropped")
+         MCRF_ARG("text", "Printable text, newlines and tabs. Zero-width codepoints (combining marks, ZWJ, ...) combine with the character before them and take no column; one with nothing before it raises. At the cursor a newline continues at column 0 of the next line")
+         MCRF_ARG("pos", "Cell (x, y) to print at, leaving the cursor where it was; None prints at the cursor. Placed text never wraps or scrolls: each line is clipped at the right edge, a newline continues at pos's column on the next row, lines below the bottom row are dropped, and a tab is spaces to the next multiple of 8 columns counted from pos's column (at the cursor a tab is HT, so the program's tab stops apply)")
          MCRF_ARG("fg", "Foreground: a Color, (r, g, b) tuple or colour name (truecolor), or a palette index 0-255; None for the default")
          MCRF_ARG("bg", "Background, as fg")
          MCRF_ARG("bold", "Bold (the atlas's bold face, else drawn twice)")
@@ -2498,7 +2586,7 @@ static PyMethodDef TL_methods[] = {
          MCRF_ARGS_START
          MCRF_ARG("pos", "Cell as (x, y) tuple, list, or Vector")
          MCRF_ARG("index", "A glyph tile of the layer's texture")
-         MCRF_RAISES("ValueError", "The index has no codepoint (-1, the box, the white tile, a right half, out of range), or is a wide glyph at the last column")
+         MCRF_RAISES("ValueError", "The index has no codepoint (-1, the box, the white tile, a right half, out of range), its codepoint has zero width (a combining mark cannot occupy a cell) or is a control, or it is a wide glyph at the last column")
          MCRF_RAISES("IndexError", "If coordinates are out of bounds")
      )},
     {"fill", (PyCFunction)TL_fill, METH_VARARGS,
@@ -2528,7 +2616,7 @@ static PyMethodDef TL_methods[] = {
          MCRF_ARG("range", "Value range as (min, max) inclusive")
          MCRF_ARG("tile", "A glyph tile of the layer's texture")
          MCRF_RETURNS("self for method chaining")
-         MCRF_RAISES("ValueError", "The tile has no codepoint (nothing is printed)")
+         MCRF_RAISES("ValueError", "The tile has no codepoint, has zero width, or is a wide glyph (cells are set one by one); nothing is printed")
      )},
     {"apply_ranges", (PyCFunction)TL_apply<apply_ranges_kw>, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(TerminalLayer, apply_ranges,
@@ -2538,7 +2626,7 @@ static PyMethodDef TL_methods[] = {
          MCRF_ARG("source", "Source heightmap (must match layer dimensions)")
          MCRF_ARG("ranges", "List of ((min, max), tile_index) tuples")
          MCRF_RETURNS("self for method chaining")
-         MCRF_RAISES("ValueError", "A tile has no codepoint (nothing is printed)")
+         MCRF_RAISES("ValueError", "A tile has no codepoint, has zero width, or is a wide glyph; nothing is printed")
      )},
     {"edit", (PyCFunction)TL_edit, METH_NOARGS,
      MCRF_METHOD(TerminalLayer, edit,
@@ -2624,7 +2712,15 @@ PyTypeObject mcrfpydef::PyTerminalLayerType = {
         "colours, faint halves the foreground, bold/italic use the atlas's faces or are faked (drawn twice /\n"
         "sheared), underline (single, double) / strike / overline are quads at the font's metrics, blink\n"
         "follows blink_interval on the engine clock. The cursor is drawn over the cached chunks.\n"
-        "Default-background cells are transparent unless background is set.\n\n"
+        "Default-background cells are transparent unless background is set. Reverse video (DECSCNM) swaps\n"
+        "the default colours only; cells with explicit colours keep them (as Ghostty draws it).\n\n"
+        "Placed drawing (set, fill, fill_rect, apply_*, print(pos=), clear_line) saves and restores the\n"
+        "cursor, pen, protection, charsets, origin, insert, autowrap and left/right margins, and never\n"
+        "wraps or scrolls. Known limits, from what the emulator's API exposes: it uses DECSC/DECRC, so\n"
+        "the program's own saved cursor (ESC 7) is replaced by the placement's; REP after a placement\n"
+        "repeats the placed character; placed cells take an open OSC 8 hyperlink. While a synchronized-\n"
+        "output hold (mode 2026) lasts, reads (at, screen_text, cursor, edit, GridPoint) show the held\n"
+        "frame, what is on screen, until it ends (by the program, or after 1 s of engine time).\n\n"
         "Example:\n"
         "    term = mcrfpy.TerminalLayer(grid_size=(80, 24))\n"
         "    grid = mcrfpy.Grid(grid_size=(80, 24), texture=term.texture, layers=[term])\n"

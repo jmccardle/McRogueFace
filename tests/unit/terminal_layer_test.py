@@ -649,6 +649,112 @@ out.clear()
 m.mouse((1, 1), mcrfpy.MouseButton.LEFT, mcrfpy.InputState.PRESSED)
 test("URxvt (1015) format", out == [b"\x1b[32;2;2M"], f"{out}")
 
+# --- re-review: placement leaves the program's state alone ----------------------------------
+# The test shape: the same program state on two terminals, the placed draw on one only, the
+# program's output continued on both; the screens must agree outside the drawn cells, and so must
+# the terminal's answers about its state (cursor report, DECRQSS pen and margins, DECRQM modes).
+print("=== placement and program state ===")
+STATE_QUERIES = [b"\x1b[6n", b"\x1bP$qm\x1b\\", b"\x1bP$qr\x1b\\", b"\x1bP$qs\x1b\\"] + \
+                [b"\x1b[?%d$p" % m for m in (6, 7, 69, 25, 1)] + [b"\x1b[4$p"]
+
+
+def answers(t, out):
+    got = []
+    for q in STATE_QUERIES:
+        out.clear()
+        t.write(q)
+        got.append(b"".join(out))
+    return got
+
+
+def twin(setup, draw, after, drawn, cols=20, rows=6):
+    a, out_a = term(cols, rows)
+    b, out_b = term(cols, rows)
+    for t in (a, b):
+        t.write(setup)
+    draw(a)
+    for t in (a, b):
+        t.write(after)
+    sa, sb = lines(a), lines(b)
+    diff = [(x, y) for y in range(rows) for x in range(cols)
+            if (sa[y][x:x + 1] or " ") != (sb[y][x:x + 1] or " ") and (x, y) not in drawn]
+    return diff, answers(a, out_a) == answers(b, out_b), a, b
+
+
+MODES = {
+    "plain": b"",
+    "origin+region": b"\x1b[2;5r\x1b[?6h",
+    "insert": b"\x1b[4h",
+    "autowrap off": b"\x1b[?7l",
+    "left/right margins": b"\x1b[?69h\x1b[5;10s",
+    "DEC graphics": b"\x1b(0",
+    "pen set": b"\x1b[1;4;31;42m",
+    "pending wrap": b"\x1b[1;20HZ",
+    "everything": b"\x1b[2;5r\x1b[?6h\x1b[4h\x1b[?69h\x1b[5;10s\x1b(0\x1b[1;31m",
+}
+for label, setup in MODES.items():
+    # The draws go to rows 0 and 5, which the program's own output below never reaches.
+    drawn = {(x, 0) for x in range(20)} | {(x, 5) for x in range(20)}
+    placed = []
+
+    def draw(t):
+        t.fill_rect((0, 5), (20, 1), I("@"))
+        t.print("0123456789ABCDEFGHIJ", pos=(0, 0))
+        placed.extend([lines(t)[0], lines(t)[5]])
+
+    diff, same, a, b = twin(setup + b"\x1b[3;7H", draw, b"qrs\r\nnext", drawn)
+    test(f"{label}: the program continues exactly as without the draw", diff == [], f"{diff}")
+    test(f"{label}: cursor, pen, margins and modes report the same", same)
+    test(f"{label}: the placed cells are all drawn, full width",
+         placed == ["0123456789ABCDEFGHIJ", "@" * 20], f"{placed}")
+
+# protection: placed cells are unprotected; the program's protection is as before
+diff, same, a, b = twin(b"\x1b[1\"q", lambda t: t.set((5, 1), I("@")), b"P\x1b[2;1H", {(5, 1)})
+test("a protected pen does not protect placed cells", (a.write(b"\x1b[?2J"), lines(a)[1])[1].strip() == "", repr(lines(a)[1]))
+test("...and the program's protection stays on", lines(a)[0][:1] == "P" and same, repr(lines(a)[0]))
+
+# tabs in print(pos=) are the layer's 8 columns from pos, not the program's stops
+t, out = term(20, 2)
+t.write(b"\x1b[3g\x1bH")   # clear all tab stops, set one at column 0 only
+t.write(b"xxxxxxxxxxxxxxxxxxxx")
+t.print("a\tb", pos=(3, 1))
+test("print(pos=) expands a tab to spaces up to 8 columns from its start", lines(t)[1] == "   a       b", repr(lines(t)[1]))
+t.write(b"\x1b[2;1H")
+t.print("\tc")
+test("print() at the cursor sends HT: the program's tab stops apply (none after column 0: the last column)",
+     lines(t)[1][19:] == "c", repr(lines(t)[1]))
+
+# --- zero-width codepoints -------------------------------------------------------------------------
+print("=== zero width ===")
+TZ = mcrfpy.Texture.from_font(BOLD, 16, codepoints=[(0x20, 0x7E), 0x301])   # DejaVu has U+0301
+z, out = term(10, 2)
+z = mcrfpy.TerminalLayer(texture=TZ, grid_size=(10, 2))
+z.write(b"ABCDEFG")
+raises("set() of a combining mark", ValueError, lambda: z.set((5, 0), TZ.index(0x301)), "zero width")
+raises("fill_rect() of a combining mark", ValueError, lambda: z.fill_rect((0, 1), (3, 1), TZ.index(0x301)), "zero width")
+test("...nothing changed", z.screen_text().split("\n")[0] == "ABCDEFG")
+raises("print() starting with a combining mark", ValueError, lambda: z.print("\u0301", pos=(5, 0)), "zero width")
+raises("...or one after a newline", ValueError, lambda: z.print("a\n\u0301b", pos=(5, 0)))
+raises("...or after a tab", ValueError, lambda: z.print("a\t\u0301"))
+z.print("AB\u200dCD", pos=(7, 1))
+test("a zero-width codepoint after a base takes no column when clipping", z.screen_text().split("\n")[1] == "       AB\u200dC",
+     repr(z.screen_text().split("\n")[1]))
+z.print("e\u0301", pos=(0, 1))
+test("a combining mark after its base is kept", z.screen_text().split("\n")[1].startswith("e\u0301"),
+     repr(z.screen_text().split("\n")[1]))
+
+# --- apply_* is all-or-nothing --------------------------------------------------------------------
+print("=== apply_* atomic ===")
+aw = mcrfpy.TerminalLayer(texture=TW, grid_size=(5, 2))
+aw.write(b"abcde\r\nfghij")
+hm_full = mcrfpy.HeightMap((5, 2))
+hm_full.fill(0.5)
+raises("apply_threshold with a wide glyph raises up front", ValueError,
+       lambda: aw.apply_threshold(hm_full, (0.0, 1.0), TW.index(0x65E5)), "wide")
+test("...and prints nothing", aw.screen_text() == "abcde\nfghij", repr(aw.screen_text()))
+raises("apply_ranges with a wide glyph", ValueError, lambda: aw.apply_ranges(hm_full, [((0.0, 1.0), TW.index(0x65E5))]))
+test("...prints nothing", aw.screen_text() == "abcde\nfghij")
+
 print()
 if errors:
     print(f"FAIL: {len(errors)} check(s) failed")
