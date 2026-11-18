@@ -55,6 +55,14 @@ void UIEntity::setGrid(const std::shared_ptr<GridData>& owner)
         if (owner) owner->markDirty();
     }
     grid_ = owner;
+    // #560: the perspective map's size always agrees with the grid it describes. A map sized for
+    // another grid is dropped (reallocated lazily); a same-sized one is kept, as before.
+    if (perspective_map && owner &&
+        (perspective_map->width() != owner->grid_w || perspective_map->height() != owner->grid_h)) {
+        perspective_map.reset();
+        prev_fov_x0 = prev_fov_y0 = prev_fov_x1 = prev_fov_y1 = 0;
+        perspective_full_demote_pending = false;
+    }
     // Last statement: releasing the pin can drop the last reference to the wrapper,
     // and with it this entity, when the caller holds no shared_ptr of its own.
     syncIdentityPin();
@@ -229,8 +237,11 @@ PyObject* UIEntity::at(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     }
 
     // No perspective yet or cell not visible -> None
+    // Indexed by the MAP's own dimensions, and bounded by them (#560): the map is the buffer.
     if (!entity->perspective_map) Py_RETURN_NONE;
-    uint8_t state = entity->perspective_map->data()[y * entity->getGrid()->grid_w + x];
+    const int pm_w = entity->perspective_map->width();
+    if (x >= pm_w || y >= entity->perspective_map->height()) Py_RETURN_NONE;
+    uint8_t state = entity->perspective_map->data()[y * pm_w + x];
     if (state != PyPerspective::VISIBLE) Py_RETURN_NONE;
 
     // Construct a GridPoint wrapper (same pattern as grid.at(x, y)).
