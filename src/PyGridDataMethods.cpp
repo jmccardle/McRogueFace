@@ -172,12 +172,6 @@ PyObject* PyGridData::py_observe(PyGridDataObject* self, PyObject* args, PyObjec
         if (!PyPosition_FromObjectInt(origin_obj, &ox, &oy)) {
             return NULL;
         }
-        if (ox < 0 || ox >= self->data->grid_w || oy < 0 || oy >= self->data->grid_h) {
-            PyErr_Format(PyExc_ValueError,
-                "origin (%d, %d) is out of bounds for grid of size (%d, %d)",
-                ox, oy, self->data->grid_w, self->data->grid_h);
-            return NULL;
-        }
     }
 
     // has_finite_radius distinguishes an explicit positive radius from
@@ -207,6 +201,16 @@ PyObject* PyGridData::py_observe(PyGridDataObject* self, PyObject* args, PyObjec
 
     TCOD_fov_algorithm_t algorithm;
     if (!PyFOV::from_arg(algorithm_obj, &algorithm)) {
+        return NULL;
+    }
+
+    // #558: the origin is bounds-checked only AFTER every conversion (the algorithm's conversion is user
+    // code that can re-initialise the grid), against the grid as it is when it is used
+    if (has_origin &&
+        (ox < 0 || ox >= self->data->grid_w || oy < 0 || oy >= self->data->grid_h)) {
+        PyErr_Format(PyExc_ValueError,
+            "origin (%d, %d) is out of bounds for grid of size (%d, %d)",
+            ox, oy, self->data->grid_w, self->data->grid_h);
         return NULL;
     }
 
@@ -679,23 +683,33 @@ PyObject* PyGridData::py_apply_threshold(PyGridDataObject* self, PyObject* args,
         return nullptr;
     }
 
-    if (hmap->heightmap->w != self->data->grid_w || hmap->heightmap->h != self->data->grid_h) {
-        PyErr_Format(PyExc_ValueError,
-            "HeightMap size (%d, %d) does not match Grid size (%d, %d)",
-            hmap->heightmap->w, hmap->heightmap->h, self->data->grid_w, self->data->grid_h);
-        return nullptr;
-    }
-
     bool set_walkable = (walkable_obj != Py_None);
     bool set_transparent = (transparent_obj != Py_None);
     bool walkable_value = false;
     bool transparent_value = false;
 
+    // #558: every conversion (__float__ above, __bool__ here) BEFORE the size check: user code can
+    // re-initialise the HeightMap or the grid, which makes an earlier check stale.
     if (set_walkable) {
-        walkable_value = PyObject_IsTrue(walkable_obj);
+        const int t = PyObject_IsTrue(walkable_obj);
+        if (t < 0) return nullptr;
+        walkable_value = t != 0;
     }
     if (set_transparent) {
-        transparent_value = PyObject_IsTrue(transparent_obj);
+        const int t = PyObject_IsTrue(transparent_obj);
+        if (t < 0) return nullptr;
+        transparent_value = t != 0;
+    }
+
+    if (!hmap->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+    if (hmap->heightmap->w != self->data->grid_w || hmap->heightmap->h != self->data->grid_h) {
+        PyErr_Format(PyExc_ValueError,
+            "HeightMap size (%d, %d) does not match Grid size (%d, %d)",
+            hmap->heightmap->w, hmap->heightmap->h, self->data->grid_w, self->data->grid_h);
+        return nullptr;
     }
 
     for (int y = 0; y < self->data->grid_h; y++) {
@@ -744,13 +758,6 @@ PyObject* PyGridData::py_apply_ranges(PyGridDataObject* self, PyObject* args) {
         return nullptr;
     }
 
-    if (hmap->heightmap->w != self->data->grid_w || hmap->heightmap->h != self->data->grid_h) {
-        PyErr_Format(PyExc_ValueError,
-            "HeightMap size (%d, %d) does not match Grid size (%d, %d)",
-            hmap->heightmap->w, hmap->heightmap->h, self->data->grid_w, self->data->grid_h);
-        return nullptr;
-    }
-
     struct RangeEntry {
         float min, max;
         bool set_walkable, set_transparent;
@@ -789,16 +796,33 @@ PyObject* PyGridData::py_apply_ranges(PyGridDataObject* self, PyObject* args) {
         PyObject* walkable_val = PyDict_GetItemString(props_dict, "walkable");
         re.set_walkable = (walkable_val != nullptr);
         if (re.set_walkable) {
-            re.walkable_value = PyObject_IsTrue(walkable_val);
+            const int t = PyObject_IsTrue(walkable_val);
+            if (t < 0) return nullptr;
+            re.walkable_value = t != 0;
         }
 
         PyObject* transparent_val = PyDict_GetItemString(props_dict, "transparent");
         re.set_transparent = (transparent_val != nullptr);
         if (re.set_transparent) {
-            re.transparent_value = PyObject_IsTrue(transparent_val);
+            const int t = PyObject_IsTrue(transparent_val);
+            if (t < 0) return nullptr;
+            re.transparent_value = t != 0;
         }
 
         entries.push_back(re);
+    }
+
+    // #558: the size check AFTER every conversion (the loop above runs user code: __float__,
+    // __bool__) so it describes the maps as they are now.
+    if (!hmap->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+    if (hmap->heightmap->w != self->data->grid_w || hmap->heightmap->h != self->data->grid_h) {
+        PyErr_Format(PyExc_ValueError,
+            "HeightMap size (%d, %d) does not match Grid size (%d, %d)",
+            hmap->heightmap->w, hmap->heightmap->h, self->data->grid_w, self->data->grid_h);
+        return nullptr;
     }
 
     for (int y = 0; y < self->data->grid_h; y++) {

@@ -82,6 +82,12 @@ PyObject* animate(const std::shared_ptr<Target>& target, const char* type_name,
         if (a.delta && target->getProperty(a.property, current)) end += current;
         if (!target->checkFloatTarget(a.property, end)) return nullptr;
     }
+    if (kind == AnimKind::Vector) {
+        sf::Vector2f end = std::get<sf::Vector2f>(value);
+        sf::Vector2f current;
+        if (a.delta && target->getProperty(a.property, current)) end += current;
+        if (!target->checkVec2Target(a.property, end)) return nullptr;
+    }
     auto animation = std::make_shared<Animation>(a.property, value, a.duration, a.easing,
                                                  a.delta, a.loop, a.callback);
     start(*animation, target);

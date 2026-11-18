@@ -179,8 +179,11 @@ int UIEntityCollection::setitem(PyUIEntityCollectionObject* self, Py_ssize_t ind
         if (self->grid) {
             self->grid->spatial_hash.remove(*it);
         }
-        (*it)->setGrid(nullptr);
+        // #558: erase FIRST (holding the entity); releasing the grid link can run a subclass's
+        // __del__ (user code) that mutates this list, so `it` must be dead by then
+        std::shared_ptr<UIEntity> victim = *it;
         list->erase(it);
+        victim->setGrid(nullptr);
         return 0;
     }
 
@@ -235,11 +238,12 @@ PyObject* UIEntityCollection::concat(PyUIEntityCollectionObject* self, PyObject*
         return NULL;
     }
 
-    Py_ssize_t self_len = self->data->size();
+    // #558: __len__ is user code that can change this collection: read our size AFTER it
     Py_ssize_t other_len = PySequence_Length(other);
     if (other_len == -1) {
         return NULL;
     }
+    Py_ssize_t self_len = self->data->size();
 
     PyObject* result_list = PyList_New(self_len + other_len);
     if (!result_list) {
@@ -305,9 +309,11 @@ PyObject* UIEntityCollection::subscript(PyUIEntityCollectionObject* self, PyObje
     } else if (PySlice_Check(key)) {
         Py_ssize_t start, stop, step, slicelength;
 
-        if (PySlice_GetIndicesEx(key, self->data->size(), &start, &stop, &step, &slicelength) < 0) {
+        // #558: unpack (the slice's __index__ is user code) BEFORE reading the collection size
+        if (PySlice_Unpack(key, &start, &stop, &step) < 0) {
             return NULL;
         }
+        slicelength = PySlice_AdjustIndices(self->data->size(), &start, &stop, step);
 
         PyObject* result_list = PyList_New(slicelength);
         if (!result_list) {
@@ -342,12 +348,17 @@ int UIEntityCollection::ass_subscript(PyUIEntityCollectionObject* self, PyObject
     } else if (PySlice_Check(key)) {
         Py_ssize_t start, stop, step, slicelength;
 
-        if (PySlice_GetIndicesEx(key, self->data->size(), &start, &stop, &step, &slicelength) < 0) {
+        // #558: unpack (the slice's __index__ is user code) BEFORE reading the collection size
+        if (PySlice_Unpack(key, &start, &stop, &step) < 0) {
             return -1;
         }
 
         // Handle deletion
         if (value == NULL) {
+            slicelength = PySlice_AdjustIndices(self->data->size(), &start, &stop, step);
+            // #558: erase from the list FIRST (holding the removed entities), release the grid
+            // link (an identity-pin release: a subclass __del__ is user code) only afterwards
+            std::vector<std::shared_ptr<UIEntity>> removed;
             if (step == 1) {
                 // Contiguous slice deletion
                 auto start_it = self->data->begin();
@@ -355,12 +366,11 @@ int UIEntityCollection::ass_subscript(PyUIEntityCollectionObject* self, PyObject
                 auto stop_it = self->data->begin();
                 std::advance(stop_it, stop);
 
-                // Clear grid refs and remove from spatial hash
                 for (auto it = start_it; it != stop_it; ++it) {
                     if (self->grid) {
                         self->grid->spatial_hash.remove(*it);
                     }
-                    (*it)->setGrid(nullptr);
+                    removed.push_back(*it);
                 }
                 self->data->erase(start_it, stop_it);
             } else {
@@ -377,10 +387,11 @@ int UIEntityCollection::ass_subscript(PyUIEntityCollectionObject* self, PyObject
                     if (self->grid) {
                         self->grid->spatial_hash.remove(*it);
                     }
-                    (*it)->setGrid(nullptr);
+                    removed.push_back(*it);
                     self->data->erase(it);
                 }
             }
+            for (auto& e : removed) e->setGrid(nullptr);  // last: may run user code (#436)
             return 0;
         }
 
@@ -393,6 +404,8 @@ int UIEntityCollection::ass_subscript(PyUIEntityCollectionObject* self, PyObject
         std::vector<std::shared_ptr<UIEntity>> new_items;
         if (!entity_items(value, "EntityCollection slice assignment", new_items)) return -1;
         Py_ssize_t value_len = static_cast<Py_ssize_t>(new_items.size());
+        // #558: the collection size only now, after every conversion above
+        slicelength = PySlice_AdjustIndices(self->data->size(), &start, &stop, step);
         if (step != 1 && slicelength != value_len) {
             PyErr_Format(PyExc_ValueError,
                 "attempt to assign sequence of size %zd to extended slice of size %zd",

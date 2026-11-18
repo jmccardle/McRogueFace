@@ -1413,12 +1413,13 @@ PyObject* PyBSPNode::get_adjacent_tiles(PyBSPNodeObject* self, void* closure)
 // Method: contains(pos) -> bool
 PyObject* PyBSPNode::contains(PyBSPNodeObject* self, PyObject* args, PyObject* kwds)
 {
-    if (!checkValid(self)) return nullptr;
-
+    // #558: convert the position FIRST: its conversion can run user code that clears or re-splits
+    // the BSP, which makes this node stale; the validity check must come after.
     int x, y;
     if (!PyPosition_ParseInt(args, kwds, &x, &y)) {
         return nullptr;
     }
+    if (!checkValid(self)) return nullptr;
 
     return PyBool_FromLong(TCOD_bsp_contains(self->node, x, y));
 }

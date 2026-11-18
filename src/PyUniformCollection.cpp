@@ -265,7 +265,11 @@ PyObject* PyUniformCollectionType::mp_subscript(PyObject* obj, PyObject* key) {
 int PyUniformCollectionType::mp_ass_subscript(PyObject* obj, PyObject* key, PyObject* value) {
     PyUniformCollectionObject* self = (PyUniformCollectionObject*)obj;
 
-    if (!self->owner.lock() || !self->collection) {
+    // #558: HOLD the owner for the whole call. `collection` is a raw pointer into the owner
+    // drawable's storage; converting the value (PyFloat_AsDouble runs __float__ on an int subclass
+    // or a tuple item: user code) could destroy the owner and leave it dangling.
+    const auto owner_hold = self->owner.lock();
+    if (!owner_hold || !self->collection) {
         PyErr_SetString(PyExc_RuntimeError, "UniformCollection is not valid (owner destroyed)");
         return -1;
     }

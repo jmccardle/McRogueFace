@@ -466,7 +466,13 @@ int PyDiscreteMap::init(PyDiscreteMapObject* self, PyObject* args, PyObject* kwd
         Py_XDECREF(live);
     }
     self->data.reset();
-    Py_XDECREF(self->enum_type);
+    // The cached views point into the buffer just freed: clear them NOW, so a failure below (or any
+    // user code that runs before the new storage is installed) sees "not initialized", not a
+    // dangling pointer. The old enum is released LAST (its __del__ is user code).
+    self->values = nullptr;
+    self->w = 0;
+    self->h = 0;
+    PyObject* const old_enum_type = self->enum_type;
     self->enum_type = nullptr;
 
     // Construct shared-ownership C++ storage (issue #294)
@@ -474,6 +480,7 @@ int PyDiscreteMap::init(PyDiscreteMapObject* self, PyObject* args, PyObject* kwd
         self->data = std::make_shared<DiscreteMap>(
             width, height, static_cast<uint8_t>(fill_value));
     } catch (const std::bad_alloc&) {
+        Py_XDECREF(old_enum_type);
         PyErr_SetString(PyExc_MemoryError, "Failed to allocate DiscreteMap");
         return -1;
     }
@@ -490,8 +497,12 @@ int PyDiscreteMap::init(PyDiscreteMapObject* self, PyObject* args, PyObject* kwd
     }
 
     // #430: the map the user built comes back as this very object.
-    if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;
+    if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) {
+        Py_XDECREF(old_enum_type);
+        return -1;
+    }
 
+    Py_XDECREF(old_enum_type);  // user code (__del__) may run here: the object is fully consistent
     return 0;
 }
 
@@ -514,8 +525,10 @@ PyObject* PyDiscreteMap::repr(PyObject* obj)
 
     if (self->values) {
         ss << "<DiscreteMap (" << self->w << " x " << self->h << ")";
-        if (self->enum_type && self->enum_type != Py_None) {
-            PyObject* name = PyObject_GetAttrString(self->enum_type, "__name__");
+        // hold the enum across the attribute lookup (user code can re-initialise this map, which releases it)
+        mcrf::PyRef enum_hold = mcrf::hold(self->enum_type);
+        if (enum_hold && enum_hold.get() != Py_None) {
+            PyObject* name = PyObject_GetAttrString(enum_hold.get(), "__name__");
             if (name) {
                 ss << " enum=" << PyUnicode_AsUTF8(name);
                 Py_DECREF(name);
@@ -598,7 +611,7 @@ PyObject* PyDiscreteMap::fill(PyDiscreteMapObject* self, PyObject* args, PyObjec
 
     // Parse region parameters
     MapRegion region;
-    if (!parseMapRegionScalar(self->w, self->h, pos, size, region)) {
+    if (!parseMapRegionScalar(self, pos, size, region)) {
         return nullptr;
     }
 
@@ -654,11 +667,24 @@ PyObject* PyDiscreteMap::get(PyDiscreteMapObject* self, PyObject* args, PyObject
 PyObject* PyDiscreteMap::set(PyDiscreteMapObject* self, PyObject* args, PyObject* kwds)
 {
     static const char* kwlist[] = {"x", "y", "value", nullptr};
-    int x, y;
+    PyObject* x_obj;
+    PyObject* y_obj;
     PyObject* value_obj;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "iiO", const_cast<char**>(kwlist),
-                                     &x, &y, &value_obj)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OOO", const_cast<char**>(kwlist),
+                                     &x_obj, &y_obj, &value_obj)) {
+        return nullptr;
+    }
+
+    // #558: convert ALL arguments first (x, y like every other cell: floats floor, __index__
+    // objects, range-checked); the value's .value / __index__ can re-initialise the map, so the
+    // bounds check comes after every conversion.
+    int x, y;
+    if (!PyPosition_IntFromObject(x_obj, &x, "x") || !PyPosition_IntFromObject(y_obj, &y, "y")) {
+        return nullptr;
+    }
+    int value;
+    if (!parseIntValue(value_obj, &value)) {
         return nullptr;
     }
 
@@ -672,11 +698,6 @@ PyObject* PyDiscreteMap::set(PyDiscreteMapObject* self, PyObject* args, PyObject
         PyErr_Format(PyExc_IndexError,
             "Position (%d, %d) out of bounds for DiscreteMap of size (%d, %d)",
             x, y, self->w, self->h);
-        return nullptr;
-    }
-
-    int value;
-    if (!parseIntValue(value_obj, &value)) {
         return nullptr;
     }
 
@@ -727,21 +748,25 @@ int PyDiscreteMap::subscript_assign(PyDiscreteMapObject* self, PyObject* key, Py
         return -1;
     }
 
+    // #558: key AND value first; the value's .value / __index__ can re-initialise the map
     int x, y;
     if (!PyPosition_FromObjectInt(key, &x, &y)) {
         return -1;
     }
+    int ival;
+    if (!parseIntValue(value, &ival)) {
+        return -1;
+    }
 
+    if (!self->values) {
+        PyErr_SetString(PyExc_RuntimeError, "DiscreteMap not initialized");
+        return -1;
+    }
     // Bounds check
     if (x < 0 || x >= self->w || y < 0 || y >= self->h) {
         PyErr_Format(PyExc_IndexError,
             "Position (%d, %d) out of bounds for DiscreteMap of size (%d, %d)",
             x, y, self->w, self->h);
-        return -1;
-    }
-
-    int ival;
-    if (!parseIntValue(value, &ival)) {
         return -1;
     }
 
@@ -781,7 +806,7 @@ PyObject* PyDiscreteMap::add(PyDiscreteMapObject* self, PyObject* args, PyObject
     if (parseIntValue(other_obj, &scalar_val)) {
         // Scalar add
         MapRegion region;
-        if (!parseMapRegionScalar(self->w, self->h, pos, size, region)) {
+        if (!parseMapRegionScalar(self, pos, size, region)) {
             return nullptr;
         }
         // A negative scalar subtracts: widen to int, then saturate (#520).
@@ -803,8 +828,7 @@ PyObject* PyDiscreteMap::add(PyDiscreteMapObject* self, PyObject* args, PyObject
         if (!other) return nullptr;
 
         MapRegion region;
-        if (!parseMapRegion(self->w, self->h, other->w, other->h,
-                           pos, source_pos, size, region)) {
+        if (!parseMapRegion(self, other, pos, source_pos, size, region)) {
             return nullptr;
         }
         MapOps::add<Uint8Policy>(self->values, OperandView(self, other).p, region);
@@ -837,7 +861,7 @@ PyObject* PyDiscreteMap::subtract(PyDiscreteMapObject* self, PyObject* args, PyO
     if (parseIntValue(other_obj, &scalar_val)) {
         // Scalar subtract (add negative)
         MapRegion region;
-        if (!parseMapRegionScalar(self->w, self->h, pos, size, region)) {
+        if (!parseMapRegionScalar(self, pos, size, region)) {
             return nullptr;
         }
         // Subtract by adding negative (with saturation)
@@ -860,8 +884,7 @@ PyObject* PyDiscreteMap::subtract(PyDiscreteMapObject* self, PyObject* args, PyO
         if (!other) return nullptr;
 
         MapRegion region;
-        if (!parseMapRegion(self->w, self->h, other->w, other->h,
-                           pos, source_pos, size, region)) {
+        if (!parseMapRegion(self, other, pos, source_pos, size, region)) {
             return nullptr;
         }
         MapOps::subtract<Uint8Policy>(self->values, OperandView(self, other).p, region);
@@ -889,7 +912,7 @@ PyObject* PyDiscreteMap::multiply(PyDiscreteMapObject* self, PyObject* args, PyO
     }
 
     MapRegion region;
-    if (!parseMapRegionScalar(self->w, self->h, pos, size, region)) {
+    if (!parseMapRegionScalar(self, pos, size, region)) {
         return nullptr;
     }
 
@@ -921,8 +944,7 @@ PyObject* PyDiscreteMap::copy_from(PyDiscreteMapObject* self, PyObject* args, Py
     if (!other) return nullptr;
 
     MapRegion region;
-    if (!parseMapRegion(self->w, self->h, other->w, other->h,
-                       pos, source_pos, size, region)) {
+    if (!parseMapRegion(self, other, pos, source_pos, size, region)) {
         return nullptr;
     }
 
@@ -954,8 +976,7 @@ PyObject* PyDiscreteMap::dmap_max(PyDiscreteMapObject* self, PyObject* args, PyO
     if (!other) return nullptr;
 
     MapRegion region;
-    if (!parseMapRegion(self->w, self->h, other->w, other->h,
-                       pos, source_pos, size, region)) {
+    if (!parseMapRegion(self, other, pos, source_pos, size, region)) {
         return nullptr;
     }
 
@@ -987,8 +1008,7 @@ PyObject* PyDiscreteMap::dmap_min(PyDiscreteMapObject* self, PyObject* args, PyO
     if (!other) return nullptr;
 
     MapRegion region;
-    if (!parseMapRegion(self->w, self->h, other->w, other->h,
-                       pos, source_pos, size, region)) {
+    if (!parseMapRegion(self, other, pos, source_pos, size, region)) {
         return nullptr;
     }
 
@@ -1024,8 +1044,7 @@ PyObject* PyDiscreteMap::bitwise_and(PyDiscreteMapObject* self, PyObject* args, 
     if (!other) return nullptr;
 
     MapRegion region;
-    if (!parseMapRegion(self->w, self->h, other->w, other->h,
-                       pos, source_pos, size, region)) {
+    if (!parseMapRegion(self, other, pos, source_pos, size, region)) {
         return nullptr;
     }
 
@@ -1057,8 +1076,7 @@ PyObject* PyDiscreteMap::bitwise_or(PyDiscreteMapObject* self, PyObject* args, P
     if (!other) return nullptr;
 
     MapRegion region;
-    if (!parseMapRegion(self->w, self->h, other->w, other->h,
-                       pos, source_pos, size, region)) {
+    if (!parseMapRegion(self, other, pos, source_pos, size, region)) {
         return nullptr;
     }
 
@@ -1090,8 +1108,7 @@ PyObject* PyDiscreteMap::bitwise_xor(PyDiscreteMapObject* self, PyObject* args, 
     if (!other) return nullptr;
 
     MapRegion region;
-    if (!parseMapRegion(self->w, self->h, other->w, other->h,
-                       pos, source_pos, size, region)) {
+    if (!parseMapRegion(self, other, pos, source_pos, size, region)) {
         return nullptr;
     }
 
@@ -1269,18 +1286,25 @@ PyObject* PyDiscreteMap::to_bool(PyDiscreteMapObject* self, PyObject* args, PyOb
         return nullptr;
     }
 
-    if (!self->values) {
+    if (!self->values || !self->data) {
         PyErr_SetString(PyExc_RuntimeError, "DiscreteMap not initialized");
         return nullptr;
     }
 
+    // #558: the conditions below run user code (.value, a set's __iter__, the predicate callable)
+    // that can re-initialise this map and free its buffer. Hold the map's storage (shared
+    // ownership) and read ONLY through it, so the loops see one consistent buffer and size.
+    const std::shared_ptr<DiscreteMap> held = self->data;
+    const uint8_t* const values = held->data();
+    const int map_w = held->width(), map_h = held->height();
+
     // Create new DiscreteMap
-    PyDiscreteMapObject* result = CreateNewDiscreteMap(self->w, self->h);
+    PyDiscreteMapObject* result = CreateNewDiscreteMap(map_w, map_h);
     if (!result) {
         return nullptr;
     }
 
-    size_t total = static_cast<size_t>(self->w) * static_cast<size_t>(self->h);
+    size_t total = static_cast<size_t>(map_w) * static_cast<size_t>(map_h);
 
     // Case 1: Integer - match exactly
     int int_val;
@@ -1292,7 +1316,7 @@ PyObject* PyDiscreteMap::to_bool(PyDiscreteMapObject* self, PyObject* args, PyOb
         }
         uint8_t target = static_cast<uint8_t>(int_val);
         for (size_t i = 0; i < total; i++) {
-            result->values[i] = (self->values[i] == target) ? 1 : 0;
+            result->values[i] = (values[i] == target) ? 1 : 0;
         }
         return (PyObject*)result;
     }
@@ -1330,7 +1354,7 @@ PyObject* PyDiscreteMap::to_bool(PyDiscreteMapObject* self, PyObject* args, PyOb
         }
 
         for (size_t i = 0; i < total; i++) {
-            result->values[i] = match[self->values[i]] ? 1 : 0;
+            result->values[i] = match[values[i]] ? 1 : 0;
         }
         return (PyObject*)result;
     }
@@ -1338,7 +1362,7 @@ PyObject* PyDiscreteMap::to_bool(PyDiscreteMapObject* self, PyObject* args, PyOb
     // Case 3: Callable - predicate function
     if (PyCallable_Check(condition)) {
         for (size_t i = 0; i < total; i++) {
-            PyObject* arg = PyLong_FromLong(self->values[i]);
+            PyObject* arg = PyLong_FromLong(values[i]);
             PyObject* res = PyObject_CallOneArg(condition, arg);
             Py_DECREF(arg);
 
@@ -1447,21 +1471,12 @@ PyObject* PyDiscreteMap::from_bytes(PyTypeObject* type, PyObject* args, PyObject
         return nullptr;
     }
 
+    // size: the integer position helper (Vector / tuple / list / 2-sequence; floats floor; out of
+    // int range is OverflowError instead of wrapping)
     int w = 0, h = 0;
-    if (!PyArg_ParseTuple(size_obj, "ii", &w, &h)) {
-        PyErr_Clear();
-        if (PyTuple_Check(size_obj) && PyTuple_GET_SIZE(size_obj) == 2) {
-            w = (int)PyLong_AsLong(PyTuple_GET_ITEM(size_obj, 0));
-            h = (int)PyLong_AsLong(PyTuple_GET_ITEM(size_obj, 1));
-            if (PyErr_Occurred()) {
-                PyBuffer_Release(&buffer);
-                return nullptr;
-            }
-        } else {
-            PyBuffer_Release(&buffer);
-            PyErr_SetString(PyExc_TypeError, "size must be a (width, height) tuple");
-            return nullptr;
-        }
+    if (!PyPosition_FromObjectInt(size_obj, &w, &h, "size")) {
+        PyBuffer_Release(&buffer);
+        return nullptr;
     }
 
     if (w <= 0 || h <= 0 || w > 8192 || h > 8192) {
@@ -1569,18 +1584,19 @@ PyObject* PyDiscreteMap::from_heightmap(PyTypeObject* type, PyObject* args, PyOb
         PyObject* max_obj = PyTuple_GetItem(range_obj, 1);
 
         if (PyFloat_Check(min_obj)) rm.min_val = (float)PyFloat_AsDouble(min_obj);
-        else if (PyLong_Check(min_obj)) rm.min_val = (float)PyLong_AsLong(min_obj);
+        else if (PyLong_Check(min_obj)) rm.min_val = (float)PyLong_AsDouble(min_obj);
         else {
             PyErr_SetString(PyExc_TypeError, "range values must be numeric");
             return nullptr;
         }
 
         if (PyFloat_Check(max_obj)) rm.max_val = (float)PyFloat_AsDouble(max_obj);
-        else if (PyLong_Check(max_obj)) rm.max_val = (float)PyLong_AsLong(max_obj);
+        else if (PyLong_Check(max_obj)) rm.max_val = (float)PyLong_AsDouble(max_obj);
         else {
             PyErr_SetString(PyExc_TypeError, "range values must be numeric");
             return nullptr;
         }
+        if (PyErr_Occurred()) return nullptr;  // an int beyond double range (OverflowError)
 
         int target_val;
         if (!parseIntValue(target_obj, &target_val)) {

@@ -386,6 +386,11 @@ public:
     // The value a float animation would end at, checked as assigning it is checked
     // (#463): false with a Python error set. Only properties with a range override it.
     virtual bool checkFloatTarget(const std::string& name, float final_value) const { return true; }
+    // The same for a Vector2f animation target ("size", "center", ...)
+    virtual bool checkVec2Target(const std::string& name, const sf::Vector2f& final_value) const { return true; }
+    // A new size about to be assigned from Python (size, w, h, resize()): false with a Python error set
+    // when the drawable cannot take it (a Grid whose camera arithmetic would overflow, #558).
+    virtual bool checkSize(sf::Vector2f s) const { return true; }
 
     // #106: Shader uniform property helpers for animation support
     // These methods handle "shader.uniform_name" property paths

@@ -568,21 +568,6 @@ PyObject* UIFrame::repr(PyUIFrameObject* self)
 
 int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
 {
-    // Initialize children first. A re-run __init__ replaces the vector, so the cached
-    // `children` wrapper (which views the old vector) must stop answering for it (#430).
-    if (self->data->children_serial != 0) {
-        mcrf::unregister_wrapper(self->data->children_serial);
-        self->data->children_serial = 0;
-    }
-    // #468: detach the old children, as removeFromParent() would. Dropping the vector
-    // alone left each pinned child and its wrapper keeping each other alive forever.
-    if (auto old = std::move(self->data->children)) {
-        for (auto& child : *old) {
-            if (child) child->setParent(nullptr);
-        }
-    }
-    self->data->children = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();
-    
     // Never reset weakreflist here: tp_new zero-fills it, and a re-run __init__ would
     // orphan the wrapper cache's weak reference (a use-after-free, #468).
     
@@ -627,7 +612,7 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
                                      &parent_obj)) {
         return -1;
     }
-    
+
     // pos / size: the checked converter (Vector, (x, y) pair, ...; nan/inf and out-of-range
     // are errors, #540 item 12). Without pos / size, the x / y / w / h keywords are used.
     if (pos_obj) {
@@ -706,6 +691,27 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
     // Process children argument if provided. #442: through children.extend(), the
     // same path as frame.children.extend(): every child is type- and cycle-checked
     // before any is added, and each is detached from its old parent first.
+    // Reset the children only AFTER every argument parsed and converted: a failed parse or conversion used
+    // to leave the frame with its children already detached (#558). A re-run __init__ replaces the vector, so the cached
+    // `children` wrapper (which views the old vector) must stop answering for it (#430).
+    if (self->data->children_serial != 0) {
+        mcrf::unregister_wrapper(self->data->children_serial);
+        self->data->children_serial = 0;
+    }
+    // #468: detach the old children, as removeFromParent() would. Dropping the vector alone left
+    // each pinned child and its wrapper keeping each other alive forever. The NEW vector is in place
+    // BEFORE any child is released: setParent(nullptr) drops an identity pin, which can run a
+    // subclass's __del__ (user code) that touches frame.children -- it must never see a null vector.
+    {
+        auto old = std::exchange(self->data->children,
+                                 std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>());
+        if (old) {
+            for (auto& child : *old) {
+                if (child) child->setParent(nullptr);
+            }
+        }
+    }
+
     if (children_arg && children_arg != Py_None) {
         PyObject* children = PyObject_GetAttrString((PyObject*)self, "children");
         if (!children) return -1;

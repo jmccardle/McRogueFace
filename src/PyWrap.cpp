@@ -176,6 +176,13 @@ bool to_int(PyObject* value, int& out, const char* what)
         return true;
     }
     if (PyFloat_Check(value)) return to_int(PyFloat_AsDouble(value), out, what);
+    if (PyIndex_Check(value)) {  // numpy integers and other __index__ objects (#558)
+        PyObject* idx = PyNumber_Index(value);
+        if (!idx) return false;
+        const bool ok = to_int(idx, out, what);
+        Py_DECREF(idx);
+        return ok;
+    }
     PyErr_Format(PyExc_TypeError, "%s must be a number", what);
     return false;
 }

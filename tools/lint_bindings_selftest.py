@@ -173,6 +173,70 @@ int Foo::init(PyObject* self, PyObject* args) {
     link_child(coll, child);
     return 0;
 }""", [("adopt-unchecked", "child->setParent()"), ("adopt-unchecked", "link_child()")]),
+    ("tp_name compared with strcmp (#559)", """
+int Binding::init(PyObject* self, PyObject* target) {
+    const char* type_name = Py_TYPE(target)->tp_name;
+    if (strcmp(type_name, "mcrfpy.Frame") == 0) return 1;
+    return 0;
+}""", [("type-by-name", "strcmp() on tp_name")]),
+    ("tp_name compared with a literal, and used in a message: only the compare is flagged", """
+PyObject* f(PyObject* o) {
+    if (std::string(Py_TYPE(o)->tp_name) == "mcrfpy.Frame") return nullptr;
+    PyErr_Format(PyExc_TypeError, "got %s", Py_TYPE(o)->tp_name);
+    return nullptr;
+}""", [("type-by-name", "tp_name compared with a string literal")]),
+    ("a type fetched from the module at call time (#559)", """
+PyObject* g(PyObject* o) {
+    PyTypeObject* t = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "VoxelGrid");
+    if (!PyObject_TypeCheck(o, t)) return nullptr;
+    return o;
+}""", [("type-by-name", "type looked up in the module at call time")]),
+    ("static type check, and a tp_name in a message only: ok", """
+PyObject* h(PyObject* o) {
+    if (!PyObject_TypeCheck(o, &mcrfpydef::PyVoxelGridType)) {
+        PyErr_Format(PyExc_TypeError, "not a VoxelGrid: %s", Py_TYPE(o)->tp_name);
+        return nullptr;
+    }
+    return o;
+}""", []),
+    ("bounds check, then a conversion, then the write (#558)", """
+PyObject* Layer::set(PyColorLayerObject* self, PyObject* pos_obj, PyObject* color_obj) {
+    int x, y;
+    if (!PyPosition_FromObjectInt(pos_obj, &x, &y)) return NULL;
+    if (x < 0 || x >= self->data->grid_x || y < 0 || y >= self->data->grid_y) return NULL;
+    sf::Color color;
+    if (!PyColor::to_color(color_obj, color)) return NULL;
+    self->data->at(x, y) = color;
+    Py_RETURN_NONE;
+}""", [("check-then-convert", "self->data checked before PyColor::to_color()")]),
+    ("convert first, then check and write: ok; re-check after the conversion: ok", """
+PyObject* Layer::set(PyColorLayerObject* self, PyObject* pos_obj, PyObject* color_obj) {
+    int x, y;
+    if (!PyPosition_FromObjectInt(pos_obj, &x, &y)) return NULL;
+    sf::Color color;
+    if (!PyColor::to_color(color_obj, color)) return NULL;
+    if (x < 0 || x >= self->data->grid_x || y < 0 || y >= self->data->grid_y) return NULL;
+    self->data->at(x, y) = color;
+    Py_RETURN_NONE;
+}
+PyObject* Layer::set2(PyColorLayerObject* self, PyObject* pos_obj, PyObject* color_obj) {
+    int x, y;
+    if (!PyPosition_FromObjectInt(pos_obj, &x, &y)) return NULL;
+    if (x >= self->data->grid_x) return NULL;
+    if (!WarnTileIndexAbove(*self->data, 3)) return NULL;
+    if (x >= self->data->grid_x) return NULL;
+    self->data->at(x, y) = 1;
+    Py_RETURN_NONE;
+}""", []),
+    ("null checks and call-result checks are not bounds checks: ok", """
+PyObject* Layer::f(PyColorLayerObject* self, PyObject* a) {
+    if (!self->data) return NULL;
+    if (apply(self->data, a) < 0) return NULL;
+    int x;
+    if (!PyPosition_FromObjectInt(a, &x, &x)) return NULL;
+    self->data->at(x, 0) = 1;
+    return nullptr;
+}""", []),
     ("link after the cycle check, unlink, and the helper itself: ok", """
 static void link_child(Coll* self, std::shared_ptr<UIDrawable> d) { d->setParent(self->owner.lock()); }
 PyObject* append(Coll* self, PyObject* o) {

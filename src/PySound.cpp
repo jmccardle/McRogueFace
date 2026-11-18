@@ -323,7 +323,15 @@ int PySound::set_loop(PySoundObject* self, PyObject* value, void* closure)
         PyErr_SetString(PyExc_RuntimeError, "Sound object is invalid");
         return -1;
     }
-    self->data->setLoop(PyObject_IsTrue(value));
+    // #558: PyObject_IsTrue runs __bool__ (user code) -- evaluate it BEFORE the data pointer is
+    // taken (C++17 sequences `self->data->setLoop` before its argument); -1 is an error, not true
+    const int loop = PyObject_IsTrue(value);
+    if (loop < 0) return -1;
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Sound object is invalid");
+        return -1;
+    }
+    self->data->setLoop(loop != 0);
     return 0;
 }
 

@@ -143,7 +143,11 @@ public:
     unsigned int rotationTextureSize = 0;
 
     // Property system for animations
-    bool checkFloatTarget(const std::string& name, float final_value) const override;  // zoom > 0 (#540)
+    bool checkFloatTarget(const std::string& name, float final_value) const override;  // the camera invariant (#558)
+    bool checkVec2Target(const std::string& name, const sf::Vector2f& final_value) const override;
+    bool checkSize(sf::Vector2f s) const override;  // the camera invariant (#558)
+    // false with a Python error set if changing the cell size from `old` to `now` would violate it
+    bool checkCellSize(sf::Vector2i old, sf::Vector2i now) const;
     bool setProperty(const std::string& name, float value) override;
     bool setProperty(const std::string& name, const sf::Vector2f& value) override;
     bool setProperty(const std::string& name, const sf::Color& value) override;

@@ -191,9 +191,12 @@ int UICollection::setitem(PyUICollectionObject* self, Py_ssize_t index, PyObject
 
     // Handle deletion
     if (value == NULL) {
-        // #122: Clear the parent before removing
-        unlink_child((*self->data)[index]);
+        // #558: erase FIRST (holding the element): unlinking releases the identity pin, which can run
+        // a subclass's __del__ (user code) that mutates this collection; `index` must be dead by then
+        std::shared_ptr<UIDrawable> removed = (*self->data)[index];
         self->data->erase(self->data->begin() + index);
+        // #122: Clear the parent (user code may run here: the collection is consistent)
+        unlink_child(removed);
         // #288: Invalidate parent Frame's render cache
         auto owner_ptr = self->owner.lock();
         if (owner_ptr) {
@@ -222,19 +225,24 @@ int UICollection::setitem(PyUICollectionObject* self, Py_ssize_t index, PyObject
     // again afterwards rather than trusting `index`.
     new_drawable->removeFromParent();
     auto pos = std::find(vec->begin(), vec->end(), old_drawable);
+    if (pos == vec->end()) {  // removeFromParent ran user code (a __del__) that removed it
+        PyErr_SetString(PyExc_ValueError, "the element being replaced left the collection");
+        return -1;
+    }
     index = pos - vec->begin();
 
-    // #122: Clear parent of old element
-    unlink_child(old_drawable);
+    // Replace the element NOW, before anything below can run user code (#558): unlinking the old
+    // element releases its identity pin, whose __del__ could mutate this collection
+    (*vec)[index] = new_drawable;
 
     // Preserve the z_index of the replaced element
     new_drawable->z_index = old_z_index;
 
+    // #122: Clear parent of old element (user code may run here: the collection is consistent)
+    unlink_child(old_drawable);
+
     // #377: parent to the scene, not to a null owner, when this is a scene collection
     link_child(self, new_drawable);
-
-    // Replace the element
-    (*vec)[index] = new_drawable;
 
     // Mark scene as needing resort after replacing element
     McRFPy_API::markSceneNeedsSort();
@@ -278,11 +286,12 @@ PyObject* UICollection::concat(PyUICollectionObject* self, PyObject* other) {
         return NULL;
     }
     
-    Py_ssize_t self_len = self->data->size();
+    // #558: __len__ is user code that can change this collection: read our size AFTER it
     Py_ssize_t other_len = PySequence_Length(other);
     if (other_len == -1) {
         return NULL;  // Error already set
     }
+    Py_ssize_t self_len = self->data->size();
     
     PyObject* result_list = PyList_New(self_len + other_len);
     if (!result_list) {
@@ -374,11 +383,14 @@ PyObject* UICollection::subscript(PyUICollectionObject* self, PyObject* key) {
     } else if (PySlice_Check(key)) {
         // Handle slice
         Py_ssize_t start, stop, step, slicelength;
-        
-        if (PySlice_GetIndicesEx(key, self->data->size(), &start, &stop, &step, &slicelength) < 0) {
+
+        // #558: PySlice_GetIndicesEx evaluated the size BEFORE running the slice's __index__ (user
+        // code that can change this collection): unpack first, adjust against the size after
+        if (PySlice_Unpack(key, &start, &stop, &step) < 0) {
             return NULL;
         }
-        
+        slicelength = PySlice_AdjustIndices(self->data->size(), &start, &stop, step);
+
         PyObject* result_list = PyList_New(slicelength);
         if (!result_list) {
             return NULL;
@@ -412,12 +424,14 @@ int UICollection::ass_subscript(PyUICollectionObject* self, PyObject* key, PyObj
     } else if (PySlice_Check(key)) {
         // Handle slice assignment/deletion
         Py_ssize_t start, stop, step, slicelength;
-        
-        if (PySlice_GetIndicesEx(key, self->data->size(), &start, &stop, &step, &slicelength) < 0) {
+
+        // #558: unpack the slice (its __index__ is user code) BEFORE reading the collection size
+        if (PySlice_Unpack(key, &start, &stop, &step) < 0) {
             return -1;
         }
-        
+
         if (value == NULL) {
+            slicelength = PySlice_AdjustIndices(self->data->size(), &start, &stop, step);
             // Deletion
             if (step != 1) {
                 // For non-contiguous slices, delete from highest to lowest to maintain indices
@@ -427,18 +441,23 @@ int UICollection::ass_subscript(PyUICollectionObject* self, PyObject* key, PyObj
                 }
                 // Sort in descending order and delete
                 std::sort(indices.begin(), indices.end(), std::greater<Py_ssize_t>());
+                // #558: erase first, holding the removed elements; unlinking a child releases its
+                // identity pin, which can run a subclass's __del__ (user code) that mutates this
+                // collection -- every index and iterator must be dead by then
+                std::vector<std::shared_ptr<UIDrawable>> removed;
                 for (Py_ssize_t idx : indices) {
-                    // #377: unlink before erasing -- a slice delete used to leave the
-                    // removed child pointing at a parent that no longer contains it
-                    unlink_child((*self->data)[idx]);
+                    removed.push_back((*self->data)[idx]);
                     self->data->erase(self->data->begin() + idx);
                 }
+                // #377: unlink -- a slice delete used to leave the removed child pointing at a
+                // parent that no longer contains it
+                for (auto& d : removed) unlink_child(d);
             } else {
                 // Contiguous slice - can delete in one go
-                for (Py_ssize_t i = start; i < stop; i++) {
-                    unlink_child((*self->data)[i]);
-                }
+                std::vector<std::shared_ptr<UIDrawable>> removed(self->data->begin() + start,
+                                                                  self->data->begin() + stop);
                 self->data->erase(self->data->begin() + start, self->data->begin() + stop);
+                for (auto& d : removed) unlink_child(d);  // user code may run here: nothing is live
             }
             
             // Mark scene as needing resort after slice deletion
@@ -492,6 +511,9 @@ int UICollection::ass_subscript(PyUICollectionObject* self, PyObject* key, PyObj
                 new_items.push_back(drawable);
             }
             
+            // #558: the collection size only now, after every conversion above
+            slicelength = PySlice_AdjustIndices(self->data->size(), &start, &stop, step);
+
             if (step != 1 && slicelength != value_len) {
                 PyErr_Format(PyExc_ValueError,
                     "attempt to assign sequence of size %zd to extended slice of size %zd",
@@ -797,11 +819,16 @@ PyObject* UICollection::pop(PyUICollectionObject* self, PyObject* args)
     // Get the element before removing
     std::shared_ptr<UIDrawable> drawable = (*vec)[index];
 
-    // #122: Clear the parent before removing
-    unlink_child(drawable);
+    // #558: take the Python wrapper FIRST (it keeps the object, and its __del__, from running at the
+    // unlink below), remove the element from the vector, and only then unlink: releasing the identity
+    // pin can run user code that mutates this collection, so no index may outlive the erase
+    PyObject* result = convertDrawableToPython(drawable);
+    if (!result) return NULL;
 
-    // Remove from vector
     vec->erase(vec->begin() + index);
+
+    // #122: Clear the parent
+    unlink_child(drawable);
 
     McRFPy_API::markSceneNeedsSort();
 
@@ -811,8 +838,7 @@ PyObject* UICollection::pop(PyUICollectionObject* self, PyObject* args)
         owner_ptr->markContentDirty();
     }
 
-    // Convert to Python object and return
-    return convertDrawableToPython(drawable);
+    return result;
 }
 
 // #418: the same per-item teardown as remove()/pop(), for every member at once.

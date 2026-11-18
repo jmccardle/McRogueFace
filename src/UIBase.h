@@ -70,6 +70,7 @@ static PyObject* UIDrawable_resize(T* self, PyObject* args, PyObject* kwds)
         return NULL;
     }
 
+    if (!self->data->checkSize({w, h})) return NULL;  // a Grid's camera invariant (#558)
     self->data->resize(w, h);
     Py_RETURN_NONE;
 }

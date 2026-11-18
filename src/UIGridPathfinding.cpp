@@ -928,6 +928,18 @@ PyObject* UIGridPathfinding::Grid_find_path(PyGridDataObject* self, PyObject* ar
         return NULL;
     }
 
+    // #558: the heuristic conversion (an enum's .value can be user code) comes BEFORE the positions are
+    // bounds-checked against the grid, so the check describes the grid as it is when it is used.
+    TCOD_heuristic_func_t heuristic_func = nullptr;
+    if (heuristic_obj && heuristic_obj != Py_None) {
+        int hval = 0;
+        if (!PyHeuristic::from_arg(heuristic_obj, &hval)) {
+            return NULL;
+        }
+        heuristic_func = PyHeuristic::get_function(hval);
+        PyHeuristic::set_path_diagonal_cost(diagonal_cost);  // for OCTILE
+    }
+
     int x1, y1, x2, y2;
     if (!ExtractPosition(start_obj, &x1, &y1, self->data.get(), "start")) {
         return NULL;
@@ -941,17 +953,6 @@ PyObject* UIGridPathfinding::Grid_find_path(PyGridDataObject* self, PyObject* ar
         x2 < 0 || x2 >= self->data->grid_w || y2 < 0 || y2 >= self->data->grid_h) {
         PyErr_SetString(PyExc_ValueError, "Position out of grid bounds");
         return NULL;
-    }
-
-    // Resolve heuristic selection before any allocations so we fail fast on bad args.
-    TCOD_heuristic_func_t heuristic_func = nullptr;
-    if (heuristic_obj && heuristic_obj != Py_None) {
-        int hval = 0;
-        if (!PyHeuristic::from_arg(heuristic_obj, &hval)) {
-            return NULL;
-        }
-        heuristic_func = PyHeuristic::get_function(hval);
-        PyHeuristic::set_path_diagonal_cost(diagonal_cost);  // for OCTILE
     }
 
     // Mark-and-restore: temporarily block cells occupied by entities with collide label
@@ -1130,7 +1131,11 @@ PyObject* UIGridPathfinding::Grid_get_dijkstra_map(PyGridDataObject* self, PyObj
         return NULL;
     }
 
-    GridData* grid = self->data.get();
+    // #558: hold the map for the whole call. The radius / root conversions below run user code that
+    // can re-run grid.__init__ (replacing self->data); everything here (bounds, radius, cache, the
+    // new DijkstraMap) then consistently describes THIS grid, which stays alive.
+    const std::shared_ptr<GridData> grid_hold = self->data;
+    GridData* grid = grid_hold.get();
 
     // #445: radius of the field's window. Default: the whole grid, up to 511 (a field
     // of at most 1023 x 1023), so grids up to 1023 on a side are unchanged.
@@ -1196,7 +1201,7 @@ PyObject* UIGridPathfinding::Grid_get_dijkstra_map(PyGridDataObject* self, PyObj
 
     // #445: the map blocks the collide= cells in its own window copy; the grid's
     // TCODMap is no longer marked and restored around the computation.
-    auto dijkstra = std::make_shared<DijkstraMap>(self->data, roots, diagonal_cost, radius,
+    auto dijkstra = std::make_shared<DijkstraMap>(grid_hold, roots, diagonal_cost, radius,
                                                   heuristic, blocked);
 
     if (cacheable) {

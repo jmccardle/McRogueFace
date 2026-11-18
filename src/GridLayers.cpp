@@ -1065,6 +1065,12 @@ int PyGridLayerAPI::ColorLayer_init(PyColorLayerObject* self, PyObject* args, Py
         // assignment wrapped 2**32 + 3 to 3), floats floor, held references (#540)
         if (!PyPosition_FromObjectInt(grid_size_obj, &grid_x, &grid_y, "grid_size")) return -1;
 
+        // Positive, like Grid(grid_size=): a negative size used to be accepted and fill() "worked" on it
+        if (grid_x <= 0 || grid_y <= 0) {
+            PyErr_SetString(PyExc_ValueError, "ColorLayer dimensions must be positive integers");
+            return -1;
+        }
+
         // #212 - Validate against GRID_MAX
         if (grid_x > GRID_MAX || grid_y > GRID_MAX) {
             PyErr_Format(PyExc_ValueError,
@@ -1129,10 +1135,14 @@ PyObject* PyGridLayerAPI::ColorLayer_set(PyColorLayerObject* self, PyObject* arg
         return NULL;
     }
 
+    // #558: convert BOTH arguments first; the bounds check below must see the layer as it is AFTER
+    // any user code (a conversion that re-initialises the layer to 1x1 made it stale).
     int x, y;
     if (!PyPosition_FromObjectInt(pos_obj, &x, &y)) {
         return NULL;
     }
+    sf::Color color;
+    if (!PyColor::to_color(color_obj, color)) return NULL;  // #450
 
     if (!self->data) {
         PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
@@ -1143,9 +1153,6 @@ PyObject* PyGridLayerAPI::ColorLayer_set(PyColorLayerObject* self, PyObject* arg
         PyErr_SetString(PyExc_IndexError, "Cell coordinates out of bounds");
         return NULL;
     }
-
-    sf::Color color;
-    if (!PyColor::to_color(color_obj, color)) return NULL;  // #450
 
     self->data->at(x, y) = color;
     self->data->markDirty(x, y);  // Mark only the affected chunk
@@ -1191,18 +1198,23 @@ int PyGridLayerAPI::ColorLayer_subscript_assign(PyColorLayerObject* self, PyObje
         PyErr_SetString(PyExc_TypeError, "cannot delete ColorLayer cells");
         return -1;
     }
+    // #558: convert the key AND the value first; the bounds check must see the layer as it is after
+    // any user code (a conversion that re-initialises the layer to 1x1 made the check stale).
     int x, y;
     if (!parse_subscript_key(key, &x, &y)) return -1;
+    sf::Color color;
+    if (!PyColor::to_color(value, color)) return -1;  // #450: was clamp / 1.5->255 / None->White
 
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return -1;
+    }
     if (x < 0 || x >= self->data->grid_x || y < 0 || y >= self->data->grid_y) {
         PyErr_Format(PyExc_IndexError,
             "Position (%d, %d) out of bounds for ColorLayer of size (%d, %d)",
             x, y, self->data->grid_x, self->data->grid_y);
         return -1;
     }
-
-    sf::Color color;
-    if (!PyColor::to_color(value, color)) return -1;  // #450: was clamp / 1.5->255 / None->White
 
     self->data->at(x, y) = color;
     self->data->markDirty(x, y);
@@ -1285,33 +1297,17 @@ PyObject* PyGridLayerAPI::ColorLayer_draw_fov(PyColorLayerObject* self, PyObject
         return NULL;
     }
 
-    if (!self->data) {
-        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
-        return NULL;
-    }
-
-    if (!self->grid) {
-        PyErr_SetString(PyExc_RuntimeError, "Layer is not attached to a grid");
-        return NULL;
-    }
-
-    // Parse source position: the integer position helper (floor, range-checked, Vector by type)
+    // #558: convert ALL arguments first (each conversion can run user code that detaches the layer
+    // from its grid or re-initialises it), THEN validate the layer's state and use it.
+    // Source position: the integer position helper (floor, range-checked, Vector by type)
     int source_x, source_y;
     if (!PyPosition_FromObjectInt(source_obj, &source_x, &source_y, "source")) return NULL;
 
-    // Get radius from grid if not specified
-    if (radius < 0) {
-        radius = self->grid->fov_radius;
-    }
-
-    // Get FOV algorithm
+    // FOV algorithm (None = the grid's, resolved below)
     TCOD_fov_algorithm_t algorithm;
     bool was_none = false;
     if (!PyFOV::from_arg(fov_obj, &algorithm, &was_none)) {
         return NULL;
-    }
-    if (was_none) {
-        algorithm = self->grid->fov_algorithm;
     }
 
     // Default colors for FOV visualization
@@ -1322,6 +1318,25 @@ PyObject* PyGridLayerAPI::ColorLayer_draw_fov(PyColorLayerObject* self, PyObject
     if (!ParseOptionalColorArg(visible_obj, visible_color)) return NULL;
     if (!ParseOptionalColorArg(discovered_obj, discovered_color)) return NULL;
     if (!ParseOptionalColorArg(unknown_obj, unknown_color)) return NULL;
+
+    // No user code runs from here on.
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return NULL;
+    }
+
+    if (!self->grid) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer is not attached to a grid");
+        return NULL;
+    }
+
+    // Get radius from grid if not specified
+    if (radius < 0) {
+        radius = self->grid->fov_radius;
+    }
+    if (was_none) {
+        algorithm = self->grid->fov_algorithm;
+    }
 
     self->data->drawFOV(source_x, source_y, radius, algorithm, visible_color, discovered_color, unknown_color);
     Py_RETURN_NONE;
@@ -1445,6 +1460,21 @@ PyObject* PyGridLayerAPI::ColorLayer_apply_hmap_threshold(PyColorLayerObject* se
     }
 
     // Apply threshold
+    // #558: the conversions above (__float__, colour constructors, the tile-index warning hook) run user
+    // code that can re-initialise the layer or the HeightMap, so what was validated before them is
+    // stale. Validate AGAIN, with no Python between this and the loops below.
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return NULL;
+    }
+    if (!hmap->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap is not initialized");
+        return NULL;
+    }
+    if (!ValidateHeightMapSize(hmap, self->data->grid_x, self->data->grid_y)) {
+        return NULL;
+    }
+
     int width = self->data->grid_x;
     int height = self->data->grid_y;
 
@@ -1514,6 +1544,21 @@ PyObject* PyGridLayerAPI::ColorLayer_apply_gradient(PyColorLayerObject* self, Py
     }
 
     // Apply gradient
+    // #558: the conversions above (__float__, colour constructors, the tile-index warning hook) run user
+    // code that can re-initialise the layer or the HeightMap, so what was validated before them is
+    // stale. Validate AGAIN, with no Python between this and the loops below.
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return NULL;
+    }
+    if (!hmap->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap is not initialized");
+        return NULL;
+    }
+    if (!ValidateHeightMapSize(hmap, self->data->grid_x, self->data->grid_y)) {
+        return NULL;
+    }
+
     int width = self->data->grid_x;
     int height = self->data->grid_y;
     float range_span = range_max - range_min;
@@ -1650,6 +1695,21 @@ PyObject* PyGridLayerAPI::ColorLayer_apply_ranges(PyColorLayerObject* self, PyOb
     }
 
     // Apply all ranges in order (later ranges override)
+    // #558: the conversions above (__float__, colour constructors, the tile-index warning hook) run user
+    // code that can re-initialise the layer or the HeightMap, so what was validated before them is
+    // stale. Validate AGAIN, with no Python between this and the loops below.
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return NULL;
+    }
+    if (!hmap->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap is not initialized");
+        return NULL;
+    }
+    if (!ValidateHeightMapSize(hmap, self->data->grid_x, self->data->grid_y)) {
+        return NULL;
+    }
+
     int width = self->data->grid_x;
     int height = self->data->grid_y;
 
@@ -2000,6 +2060,12 @@ int PyGridLayerAPI::TileLayer_init(PyTileLayerObject* self, PyObject* args, PyOb
         // assignment wrapped 2**32 + 3 to 3), floats floor, held references (#540)
         if (!PyPosition_FromObjectInt(grid_size_obj, &grid_x, &grid_y, "grid_size")) return -1;
 
+        // Positive, like Grid(grid_size=): a negative size used to be accepted and fill() "worked" on it
+        if (grid_x <= 0 || grid_y <= 0) {
+            PyErr_SetString(PyExc_ValueError, "TileLayer dimensions must be positive integers");
+            return -1;
+        }
+
         // #212 - Validate against GRID_MAX
         if (grid_x > GRID_MAX || grid_y > GRID_MAX) {
             PyErr_Format(PyExc_ValueError,
@@ -2106,6 +2172,12 @@ PyObject* PyGridLayerAPI::TileLayer_set(PyTileLayerObject* self, PyObject* args)
     }
 
     if (!WarnTileIndexAbove(*self->data, index)) return NULL;
+    // #558: the warning hook is user code (warnings.showwarning / a filter); it can re-initialise the
+    // layer, so the bounds check above is stale: check again before writing.
+    if (!self->data || x >= self->data->grid_x || y >= self->data->grid_y) {
+        PyErr_SetString(PyExc_IndexError, "Cell coordinates out of bounds");
+        return NULL;
+    }
     self->data->at(x, y) = index;
     self->data->markDirty(x, y);  // Mark only the affected chunk
     Py_RETURN_NONE;
@@ -2166,6 +2238,11 @@ int PyGridLayerAPI::TileLayer_subscript_assign(PyTileLayerObject* self, PyObject
     int stored;
     if (!TileIndexToInt(index, &stored)) return -1;
     if (!WarnTileIndexAbove(*self->data, stored)) return -1;
+    // #558: the warning hook is user code and can re-initialise the layer: check again before writing
+    if (!self->data || x >= self->data->grid_x || y >= self->data->grid_y) {
+        PyErr_SetString(PyExc_IndexError, "Cell coordinates out of bounds");
+        return -1;
+    }
 
     self->data->at(x, y) = stored;
     self->data->markDirty(x, y);
@@ -2265,6 +2342,21 @@ PyObject* PyGridLayerAPI::TileLayer_apply_threshold(PyTileLayerObject* self, PyO
     if (!WarnTileIndexAbove(*self->data, tile_index)) return NULL;
 
     // Apply threshold
+    // #558: the conversions above (__float__, colour constructors, the tile-index warning hook) run user
+    // code that can re-initialise the layer or the HeightMap, so what was validated before them is
+    // stale. Validate AGAIN, with no Python between this and the loops below.
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return NULL;
+    }
+    if (!hmap->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap is not initialized");
+        return NULL;
+    }
+    if (!ValidateHeightMapSize(hmap, self->data->grid_x, self->data->grid_y)) {
+        return NULL;
+    }
+
     int width = self->data->grid_x;
     int height = self->data->grid_y;
 
@@ -2370,6 +2462,21 @@ PyObject* PyGridLayerAPI::TileLayer_apply_ranges(PyTileLayerObject* self, PyObje
     if (!WarnTileIndexAbove(*self->data, highest)) return NULL;
 
     // Apply all ranges in order (later ranges override)
+    // #558: the conversions above (__float__, colour constructors, the tile-index warning hook) run user
+    // code that can re-initialise the layer or the HeightMap, so what was validated before them is
+    // stale. Validate AGAIN, with no Python between this and the loops below.
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return NULL;
+    }
+    if (!hmap->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap is not initialized");
+        return NULL;
+    }
+    if (!ValidateHeightMapSize(hmap, self->data->grid_x, self->data->grid_y)) {
+        return NULL;
+    }
+
     int width = self->data->grid_x;
     int height = self->data->grid_y;
 
