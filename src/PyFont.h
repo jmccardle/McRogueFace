@@ -45,6 +45,11 @@ public:
     // metrics() for Python-facing paths: ValueError, or RuntimeError in MCRF_HEADLESS.
     bool metricsOrRaise(unsigned int characterSize, Metrics& out);
     static PyObject* py_metrics(PyFontObject* self, PyObject* args, PyObject* kwds);
+    // #547: the FT_Face (typeless, as in sf::Font) this font rasterises from; nullptr in an
+    // MCRF_HEADLESS build. SFML desktop: the metrics face. SDL2/web: the backend's own face.
+    // Callers set the pixel size themselves; the face is shared and its size is not stable.
+    void* ftFace();
+    const std::string& sourcePath() const { return source; }
     static PyMethodDef methods[];
     // #478: whether the file loaded (SFML's face, and on desktop our own metrics face).
     bool loaded() const { return load_ok; }
