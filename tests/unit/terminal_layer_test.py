@@ -196,6 +196,36 @@ test("DECTCEM hides", t.cursor_visible is False)
 t.write(b"\x1b[?25h")
 test("DECTCEM shows", t.cursor_visible is True)
 
+# --- synchronized output (mode 2026) ----------------------------------------------------------
+print("=== synchronized output ===")
+t, out = term()
+t.write(b"before")
+t.write(b"\x1b[?2026h\r\x1b[Kduring")
+test("while the program holds the frame, the old one is shown", lines(t)[0] == "before", repr(lines(t)[0]))
+test("...and the cells match it", t.at(0, 0) == I("b"))
+t.write(b"\x1b[?2026l")
+test("released: the new frame", lines(t)[0] == "during", repr(lines(t)[0]))
+t.write(b"\x1b[?2026h\r\x1b[Knever released")
+test("held again", lines(t)[0] == "during")
+g_hold = mcrfpy.Grid(grid_size=(20, 5), texture=TEX, layers=[t])
+mcrfpy.step(1.1)
+test("a hold longer than 1 s of engine time is ended by the clock (nothing written)",
+     t.at(0, 0) == I("n") and lines(t)[0] == "never released", repr(lines(t)[0]))
+
+# --- palette ------------------------------------------------------------------------------------
+print("=== palette ===")
+t, out = term()
+p = t.palette
+p[1] = mcrfpy.Color(1, 2, 3)
+t.palette = p
+test("palette setter", (t.palette[1].r, t.palette[1].g, t.palette[1].b) == (1, 2, 3))
+raises("palette needs 256 colours", ValueError, lambda: setattr(t, "palette", p[:10]))
+t.palette = None
+test("palette None restores the built-in one", t.palette[1] != mcrfpy.Color(1, 2, 3))
+t.write(b"\x1b]4;2;rgb:10/20/30\x1b\\")
+test("OSC 4 changes show in palette", (t.palette[2].r, t.palette[2].g, t.palette[2].b) == (0x10, 0x20, 0x30),
+     f"{t.palette[2]}")
+
 # --- on_output: replies, re-entrancy, exceptions -------------------------------------------
 print("=== on_output ===")
 t, out = term()

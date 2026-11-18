@@ -289,6 +289,7 @@ void TerminalLayer::feed(const uint8_t* data, size_t len) {
     if (len == 0) return;
     ghostty_terminal_vt_write(term_, data, len);   // never fails: malformed input is absorbed
     needs_sync_ = true;
+    updateBlinkRegistration();   // a synchronized-output hold may have begun or ended
     if (callback_failed_) {
         callback_failed_ = false;
         throw std::runtime_error("libghostty-vt: a terminal callback failed (out of memory?)");
@@ -533,7 +534,9 @@ void TerminalLayer::prepareRead() {
 // =============================================================================
 
 void TerminalLayer::updateBlinkRegistration() {
-    const bool want = blink_interval_ms_ > 0 && (blink_cells_ > 0 || (cursor_blinking_ && show_cursor));
+    // Ticked while something depends on the clock: blinking cells, a blinking cursor, or a
+    // synchronized-output hold that must end after kHoldTimeoutMs even if nothing is written.
+    const bool want = held_ || (blink_interval_ms_ > 0 && (blink_cells_ > 0 || (cursor_blinking_ && show_cursor)));
     if (want == registered_) return;
     registered_ = want;
     if (want) {
@@ -551,6 +554,17 @@ void TerminalLayer::updateBlinkRegistration() {
 }
 
 void TerminalLayer::tick(int now_ms) {
+    // Must not change the registry (tickAll is iterating it): registration follows at the next sync.
+    if (held_ && now_ms - hold_start_ms_ >= kHoldTimeoutMs) {
+        try {
+            endHold();
+        } catch (const std::exception& e) {
+            PyErr_Format(PyExc_RuntimeError, "TerminalLayer '%s': %s", name.c_str(), e.what());
+            mcrf::print_callback_exception();
+        }
+        needs_sync_ = true;
+        notifyGrid();
+    }
     if (blink_interval_ms_ <= 0) return;
     const bool on = ((now_ms / blink_interval_ms_) % 2) == 0;
     if (on == blink_on_) return;

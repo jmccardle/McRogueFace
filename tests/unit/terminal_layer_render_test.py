@@ -122,6 +122,21 @@ t.background = None
 img = shot()
 test("background=None is transparent again", cell_px(img, 11, 2, *MID) == BLUE)
 
+pal = t.palette
+pal[1] = mcrfpy.Color(1, 2, 3)
+t.palette = pal
+t.write(f"\x1b[3;1H\x1b[31m{FULL}\x1b[0m".encode())
+img = shot()
+test("a palette change recolours palette cells", cell_px(img, 0, 2, *MID) == (1, 2, 3) and
+     cell_px(img, 3, 0, *MID) == (1, 2, 3), f"{cell_px(img, 0, 2, *MID)} {cell_px(img, 3, 0, *MID)}")
+t.write(b"\x1b[?5h")   # DECSCNM: the whole screen in reverse video
+img = shot()
+test("DECSCNM: default cells show the default foreground as background", cell_px(img, 11, 2, *MID) == (255, 255, 255),
+     f"{cell_px(img, 11, 2, *MID)}")
+t.write(b"\x1b[?5l")
+img = shot()
+test("DECSCNM off: transparent again", cell_px(img, 11, 2, *MID) == BLUE)
+
 # --- lines ---------------------------------------------------------------------------------
 print("=== underline / strike / overline ===")
 t = mcrfpy.TerminalLayer(texture=TEX, grid_size=(6, 1), z_index=-1)
@@ -255,6 +270,17 @@ test("moving the cursor repaints no chunk", t.chunk_repaints == before, f"{t.chu
 t.write(b"\x1b[1;71HX")  # the same character again: no change
 shot()
 test("rewriting identical content repaints nothing", t.chunk_repaints == before, f"{t.chunk_repaints - before}")
+
+# A synchronized-output hold the program never ends: the clock ends it and the view redraws,
+# with nothing written and nothing read in between.
+t.write(b"\x1b[2J\x1b[H\x1b[5m\x1b[0m")
+t.write(f"\x1b[?2026h{FULL}".encode())
+img = shot()
+test("held frame shown", cell_px(img, 0, 0, *MID) == BLUE, f"{cell_px(img, 0, 0, *MID)}")
+mcrfpy.step(1.1)
+img = shot()
+test("hold ended by the engine clock, frame redrawn", cell_px(img, 0, 0, *MID) == (255, 255, 255),
+     f"{cell_px(img, 0, 0, *MID)}")
 
 # --- cursor ---------------------------------------------------------------------------------------
 print("=== cursor ===")
