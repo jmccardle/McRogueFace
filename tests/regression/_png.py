@@ -5,8 +5,14 @@ import struct
 import zlib
 
 
-def read_png(path):
-    """Return (width, height, channels, pixel bytes)."""
+def read_png(path, crop_w=None, crop_h=None):
+    """Return (width, height, channels, pixel bytes).
+
+    With crop_w / crop_h, decode only the top-left crop_w x crop_h pixels and return that crop
+    (width and height are then the crop's, so (x, y) indexing is unchanged inside it). This is exact:
+    un-filtering a row needs only the row above and the bytes to its left. The pure-Python filter loop
+    over a whole 1024x768 screenshot costs ~0.7 s (several times that under the debug CPython build),
+    so a test that inspects a small corner should crop."""
     with open(path, "rb") as f:
         data = f.read()
     assert data[:8] == b"\x89PNG\r\n\x1a\n", "not a PNG"
@@ -27,7 +33,11 @@ def read_png(path):
             break
     raw = zlib.decompress(idat)
     channels = 3 if color == 2 else 4
-    stride = width * channels
+    full_stride = width * channels
+    out_w = min(width, crop_w) if crop_w else width
+    out_h = min(height, crop_h) if crop_h else height
+    stride = out_w * channels
+    height, width = out_h, out_w
     out = bytearray(height * stride)
     prev = bytearray(stride)
     p = 0
@@ -35,7 +45,7 @@ def read_png(path):
         filt = raw[p]
         p += 1
         line = bytearray(raw[p:p + stride])
-        p += stride
+        p += full_stride
         if filt == 1:
             for i in range(channels, stride):
                 line[i] = (line[i] + line[i - channels]) & 0xFF

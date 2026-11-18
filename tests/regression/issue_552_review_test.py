@@ -35,7 +35,7 @@ def fr(x=0, y=0, color=RED, **kw):
 
 
 def pixel(path, x, y):
-    w, h, ch, px = read_png(path)
+    w, h, ch, px = read_png(path, x + 1, y + 1)  # only the sampled pixel's corner (exact)
     o = (y * w + x) * ch
     return tuple(px[o:o + 3])
 
