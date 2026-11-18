@@ -89,7 +89,7 @@ Permission is granted to anyone to use this software for any purpose, including 
   - Highway 1.2.0: Apache-2.0 OR BSD-3-Clause; taken under BSD-3-Clause.
   - uucode 0.2.0: MIT; its Unicode data tables are under the Unicode License v3.
   - translate-c 2.0.0 (its C builtin helpers): MIT.
-  - The Zig standard library (and, in the Windows build, Zig's compiler runtime): MIT.
+  - The Zig standard library: MIT. (Zig's compiler runtime is not linked: it is removed from the archives.)
   - Bjoern Hoehrmann's DFA UTF-8 decoder, on which Ghostty's and uucode's decoders are based: MIT.
 * A build-time-only tool (the aro C frontend, used by translate-c) ships nothing.
 

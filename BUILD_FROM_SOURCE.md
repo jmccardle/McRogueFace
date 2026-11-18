@@ -68,8 +68,9 @@ is ignored with a message. An up-to-date staged archive needs neither Zig nor th
   with a warm cache. `--clean` rebuilds. Uncommitted edits inside `modules/ghostty` are not
   noticed by the up-to-date check: use `--clean` after making them.
 - **Archive.** One static archive serves the Release, debug and sanitizer builds. Zig's
-  `compiler_rt` member is removed from the Linux and WebAssembly archives (its weak `memcpy` &
-  co. would capture the engine's own calls); libgcc supplies the helpers it provided.
+  `compiler_rt` member is removed from the Linux and Windows archives (its weak `memcpy` &
+  co. would capture the engine's own calls); libgcc supplies the helpers it provided. The
+  WebAssembly archive contains none.
   `curl` and `xz` are needed only to download Zig.
 - **Windows and WebAssembly** variants are built by `build_deps_windows.sh` and
   `build_deps_wasm.sh` (into `__lib_windows/ghostty-vt/` and `__lib_wasm/ghostty-vt/`).

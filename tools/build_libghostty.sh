@@ -186,30 +186,30 @@ done
 
 # --- Post-process the archive -------------------------------------------------
 # Members are named by their absolute path in the build cache; repack them under their
-# base names. On ELF/wasm targets Zig's compiler_rt member is dropped: it holds weak
+# base names. Zig's compiler_rt member is dropped: it holds weak
 # definitions of memcpy, memset, strlen, __stack_chk_fail, ... that the linker would bind
 # the ENGINE's own calls to (bypassing libc, and the sanitizers' interceptors). What it
 # also provides (128-bit integer and soft-float helpers) comes from libgcc / the toolchain.
-# (A Windows .lib is left as built; see BUILD_FROM_SOURCE.md.)
 STAGE="$DEPS_DIR/ghostty-repack-$TARGET"
 rm -rf "$STAGE"; mkdir -p "$STAGE/x"
 members="$("$ZIG" ar t "$PREFIX/lib/$ARCHIVE_NAME")"
 dups="$(echo "$members" | sed 's#.*/##' | sort | uniq -d)"
 [ -z "$dups" ] || die "archive has members with the same base name: $dups"
-if [ "$TARGET" = windows ]; then
-    cp "$PREFIX/lib/$ARCHIVE_NAME" "$STAGE/$ARCHIVE_NAME"
-else
-    (cd "$STAGE/x" && "$ZIG" ar x "$PREFIX/lib/$ARCHIVE_NAME")
-    rm -f "$STAGE"/x/compiler_rt.o
-    [ -z "$(ls "$STAGE/x" | grep -i 'compiler_rt' || true)" ] || die "compiler_rt member not removed"
-    if [ "$TARGET" = native ]; then
-        # The C++ members carry the build host's absolute paths (ELF file symbols);
-        # dropping local symbols leaves everything the linker needs.
-        command -v objcopy >/dev/null || die "objcopy not found (apt install binutils)"
-        for o in "$STAGE"/x/*.o; do objcopy --strip-unneeded "$o"; done
-    fi
-    (cd "$STAGE/x" && "$ZIG" ar crs "$STAGE/$ARCHIVE_NAME" *)
+(cd "$STAGE/x" && "$ZIG" ar x "$PREFIX/lib/$ARCHIVE_NAME")
+rm -f "$STAGE"/x/compiler_rt.*
+[ -z "$(ls "$STAGE/x" | grep -i 'compiler_rt' || true)" ] || die "compiler_rt member not removed"
+# The C++ members carry the build host's absolute paths (symbol tables); dropping local
+# symbols leaves everything the linker needs. (wasm objects: no tool here, none needed.)
+case "$TARGET" in
+    native)  OBJCOPY=objcopy ;;
+    windows) OBJCOPY=x86_64-w64-mingw32-objcopy ;;
+    *)       OBJCOPY="" ;;
+esac
+if [ -n "$OBJCOPY" ]; then
+    command -v "$OBJCOPY" >/dev/null || die "$OBJCOPY not found (apt install binutils / binutils-mingw-w64-x86-64)"
+    for o in "$STAGE"/x/*; do "$OBJCOPY" --strip-unneeded "$o"; done
 fi
+(cd "$STAGE/x" && "$ZIG" ar crs "$STAGE/$ARCHIVE_NAME" *)
 
 mkdir -p "$DEST/lib" "$DEST/include"
 cp "$STAGE/$ARCHIVE_NAME" "$DEST/lib/"
