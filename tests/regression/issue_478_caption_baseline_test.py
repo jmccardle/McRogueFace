@@ -78,10 +78,14 @@ def shot(name):
     path = os.path.join(TMPDIR, name + ".png")
     mcrfpy.step(0)  # the screenshot shows the last complete frame; draw this one (#529)
     automation.screenshot(path)
-    return _png.read_png(path)
+    return _png.read_png(path, *CROP)
 
 
 GX, GY = 40, 40
+# Everything drawn lies within x < 180, y < 160 (the largest content: section 3's captions, the zoom 2
+# grid ends at 136 x 160); the masks below search the whole decoded image, so the crop must hold all of it.
+# Decoding only this corner of the 1024x768 screenshot (exact, see _png.read_png) skips the rest.
+CROP = (256, 192)
 
 print("1. TOP: a Caption at a grid cell's top-left draws exactly over the cell's tile glyph")
 for zoom in (1, 2):

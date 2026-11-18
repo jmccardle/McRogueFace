@@ -20,14 +20,21 @@ entity scale to (zoom, zoom) fails section 4, and
 dropping the stretch from sprite_offset fails its check in section 4.
 """
 import os
-import struct
 import sys
 import tempfile
 import warnings
-import zlib
 
 import mcrfpy
 from mcrfpy import automation
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # --exec does not
+from _png import read_png  # noqa: E402
+
+# Decode only the top-left corner every check reads (exact, see _png.read_png). Sections 1, 1b, 2, 4, 5
+# read x < 210, y < 300 (plus the 4 px margin expect_cell looks in); section 3's 1000 px wide row sits at
+# y 30..114.
+CROP = (256, 304)
+WIDE_CROP = (1008, 120)
 
 TMPDIR = tempfile.mkdtemp(prefix="mcrf480_")
 failures = []
@@ -40,69 +47,15 @@ def check(cond, msg):
         failures.append(msg)
 
 
-def read_png(path):
-    with open(path, "rb") as f:
-        data = f.read()
-    assert data[:8] == b"\x89PNG\r\n\x1a\n", "not a PNG"
-    pos = 8
-    idat = b""
-    width = height = color = None
-    while pos < len(data):
-        (length,) = struct.unpack(">I", data[pos:pos + 4])
-        ctype = data[pos + 4:pos + 8]
-        chunk = data[pos + 8:pos + 8 + length]
-        pos += 12 + length
-        if ctype == b"IHDR":
-            width, height, depth, color, _, _, interlace = struct.unpack(">IIBBBBB", chunk)
-            assert depth == 8 and color in (2, 6) and interlace == 0
-        elif ctype == b"IDAT":
-            idat += chunk
-        elif ctype == b"IEND":
-            break
-    raw = zlib.decompress(idat)
-    channels = 3 if color == 2 else 4
-    stride = width * channels
-    out = bytearray(height * stride)
-    prev = bytearray(stride)
-    p = 0
-    for y in range(height):
-        filt = raw[p]
-        p += 1
-        line = bytearray(raw[p:p + stride])
-        p += stride
-        if filt == 1:
-            for i in range(channels, stride):
-                line[i] = (line[i] + line[i - channels]) & 0xFF
-        elif filt == 2:
-            for i in range(stride):
-                line[i] = (line[i] + prev[i]) & 0xFF
-        elif filt == 3:
-            for i in range(stride):
-                a = line[i - channels] if i >= channels else 0
-                line[i] = (line[i] + ((a + prev[i]) >> 1)) & 0xFF
-        elif filt == 4:
-            for i in range(stride):
-                a = line[i - channels] if i >= channels else 0
-                b = prev[i]
-                c = prev[i - channels] if i >= channels else 0
-                pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
-                pr = a if (pa <= pb and pa <= pc) else (b if pb <= pc else c)
-                line[i] = (line[i] + pr) & 0xFF
-        elif filt != 0:
-            raise AssertionError("bad PNG filter %d" % filt)
-        out[y * stride:(y + 1) * stride] = line
-        prev = line
-    return width, height, channels, bytes(out)
-
-
 class Shot:
-    def __init__(self, name):
+    def __init__(self, name, crop=CROP):
         path = os.path.join(TMPDIR, name + ".png")
         mcrfpy.step(0)  # the screenshot shows the last complete frame; draw this one (#529)
         automation.screenshot(path)
-        self.w, self.h, self.ch, self.px = read_png(path)
+        self.w, self.h, self.ch, self.px = read_png(path, *crop)
 
     def rgb(self, x, y):
+        assert 0 <= x < self.w and 0 <= y < self.h, "pixel (%d, %d) is outside the decoded crop %dx%d" % (x, y, self.w, self.h)
         i = (y * self.w + x) * self.ch
         return tuple(self.px[i:i + 3])
 
@@ -237,7 +190,7 @@ saved = os.dup(2)
 with open(errpath, "wb") as ef:
     os.dup2(ef.fileno(), 2)
     try:
-        s = Shot("fallback")
+        s = Shot("fallback", WIDE_CROP)
     finally:
         os.dup2(saved, 2)
         os.close(saved)

@@ -11,15 +11,19 @@ texture off, set values, put it back" must work), so:
     call, on the write only. Negative values never warn.
 """
 import os
-import struct
 import sys
 import tempfile
 import warnings
-import zlib
 
 import mcrfpy
 from mcrfpy import automation
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # --exec does not
+from _png import read_png  # noqa: E402
+
+# The checks sample px(x * 8 + 4, 4) for x < 8, so x <= 60, y = 4; decoding only this corner of the
+# 1024x768 screenshot (exact, see _png.read_png) skips the rest.
+CROP = (64, 8)
 TMPDIR = tempfile.mkdtemp(prefix="mcrf524_")
 failures = []
 
@@ -30,67 +34,15 @@ def check(cond, msg):
         failures.append(msg)
 
 
-def read_png(path):
-    with open(path, "rb") as f:
-        data = f.read()
-    assert data[:8] == b"\x89PNG\r\n\x1a\n", "not a PNG"
-    pos = 8
-    idat = b""
-    width = height = color = None
-    while pos < len(data):
-        (length,) = struct.unpack(">I", data[pos:pos + 4])
-        ctype = data[pos + 4:pos + 8]
-        chunk = data[pos + 8:pos + 8 + length]
-        pos += 12 + length
-        if ctype == b"IHDR":
-            width, height, depth, color, _, _, interlace = struct.unpack(">IIBBBBB", chunk)
-            assert depth == 8 and color in (2, 6) and interlace == 0
-        elif ctype == b"IDAT":
-            idat += chunk
-        elif ctype == b"IEND":
-            break
-    raw = zlib.decompress(idat)
-    channels = 3 if color == 2 else 4
-    stride = width * channels
-    out = bytearray(height * stride)
-    prev = bytearray(stride)
-    p = 0
-    for y in range(height):
-        filt = raw[p]
-        p += 1
-        line = bytearray(raw[p:p + stride])
-        p += stride
-        if filt == 1:
-            for i in range(channels, stride):
-                line[i] = (line[i] + line[i - channels]) & 0xFF
-        elif filt == 2:
-            for i in range(stride):
-                line[i] = (line[i] + prev[i]) & 0xFF
-        elif filt == 3:
-            for i in range(stride):
-                a = line[i - channels] if i >= channels else 0
-                line[i] = (line[i] + ((a + prev[i]) >> 1)) & 0xFF
-        elif filt == 4:
-            for i in range(stride):
-                a = line[i - channels] if i >= channels else 0
-                b = prev[i]
-                c = prev[i - channels] if i >= channels else 0
-                pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
-                pr = a if (pa <= pb and pa <= pc) else (b if pb <= pc else c)
-                line[i] = (line[i] + pr) & 0xFF
-        elif filt != 0:
-            raise AssertionError("bad PNG filter %d" % filt)
-        out[y * stride:(y + 1) * stride] = line
-        prev = line
-    return width, height, channels, bytes(out)
-
-
-
 def shot(name):
     path = os.path.join(TMPDIR, name + ".png")
     automation.screenshot(path)
-    w, h, ch, px = read_png(path)
-    return lambda x, y: tuple(px[(y * w + x) * ch:(y * w + x) * ch + 3])
+    w, h, ch, px = read_png(path, *CROP)
+
+    def at(x, y):
+        assert x < w and y < h, "pixel (%d, %d) is outside the decoded crop %dx%d" % (x, y, w, h)
+        return tuple(px[(y * w + x) * ch:(y * w + x) * ch + 3])
+    return at
 
 
 def sheet(colors, name):
