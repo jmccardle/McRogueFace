@@ -88,12 +88,12 @@ def handle_keypress(key: mcrfpy.Key, action: mcrfpy.InputState) -> None:
 
     Args:
         key: The mcrfpy.Key that changed (e.g. Key.UP, Key.ESCAPE, Key.A)
-        action: mcrfpy.InputState.PRESSED or RELEASED
+        action: mcrfpy.InputState.PRESSED, REPEATED or RELEASED
 
     Note:
         We only process PRESSED to avoid double-triggering on key release.
     """
-    if action != mcrfpy.InputState.PRESSED:
+    if action == mcrfpy.InputState.RELEASED:  # act on PRESSED and REPEATED: a held key keeps moving (#549)
         return
 
     # Movement keys (both arrow keys and WASD)

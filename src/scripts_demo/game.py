@@ -607,7 +607,7 @@ class Game:
 
     # -- Input ----------------------------------------------------------------
     def on_key(self, key, state):
-        if state != mcrfpy.InputState.PRESSED:
+        if state == mcrfpy.InputState.RELEASED:  # PRESSED and REPEATED: a held key keeps moving (#549)
             return
 
         if self.game_over:

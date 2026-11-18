@@ -80,10 +80,10 @@ def handle_keys(key, action) -> None:
 
     Args:
         key: A mcrfpy.Key enum value (e.g., Key.W, Key.UP)
-        action: A mcrfpy.InputState enum value (PRESSED or RELEASED)
+        action: A mcrfpy.InputState enum value (PRESSED, REPEATED or RELEASED)
     """
-    # Only respond to key press, not release
-    if action != mcrfpy.InputState.PRESSED:
+    # Respond to key press and key repeat, not release
+    if action == mcrfpy.InputState.RELEASED:  # act on PRESSED and REPEATED: a held key keeps moving (#549)
         return
 
     # Get current player position

@@ -127,10 +127,10 @@ def handle_keys(key: mcrfpy.Key, state: mcrfpy.InputState) -> None:
 
     Args:
         key: The mcrfpy.Key that changed (e.g. Key.W, Key.UP, Key.ESCAPE)
-        state: mcrfpy.InputState.PRESSED or RELEASED
+        state: mcrfpy.InputState.PRESSED, REPEATED or RELEASED
     """
     # Only process key press events, not releases
-    if state != mcrfpy.InputState.PRESSED:
+    if state == mcrfpy.InputState.RELEASED:  # act on PRESSED and REPEATED: a held key keeps moving (#549)
         return
 
     # Movement deltas: (dx, dy)

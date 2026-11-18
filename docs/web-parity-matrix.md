@@ -65,7 +65,7 @@ cross-backend assertion. It proves, from the running desktop/headless build:
 - **Enum inventory parity** — `mcrfpy.Key` has exactly the 101 SFML-ordered members
   (A=0…Z=25, Num0-9, Escape=36 … Pause=100, plus `UNKNOWN=-1`); `mcrfpy.MouseButton`
   has the 5 physical buttons (Left=0…XButton2=4) plus synthetic `SCROLL_UP=10`/
-  `SCROLL_DOWN=11`; `mcrfpy.InputState` is `PRESSED=0`/`RELEASED=1`.
+  `SCROLL_DOWN=11`; `mcrfpy.InputState` is `PRESSED=0`/`RELEASED=1`/`REPEATED=2` (#549).
 - **Value uniqueness & contiguity** — real key values are unique and contiguous
   `0..KeyCount-1`, `UNKNOWN` is the only negative. This contiguous range is exactly what
   the SDL stub `enum Key` and `sdlScancodeToSfKey()` enumerate, so every value has an SDL

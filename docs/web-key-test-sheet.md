@@ -49,6 +49,7 @@ Record PASS / FAIL and what you saw. "Expected" is what the desktop build does.
 | 12 | Run `mcrfpy.window.profiler_key = mcrfpy.Key.F6`, press F6, then F3 | F6 behaves as in #10; F3 now reaches `on_key` | #503 |
 | 13 | Run `mcrfpy.window.console_key = mcrfpy.window.profiler_key` | raises (the three tools cannot share a key) | #496 |
 | 14 | Browser shortcuts: press F5, Ctrl+R, F11, Ctrl+W | the page must not be left in a stuck state; note any key the page swallows that the browser should keep (and the reverse) | #495 |
+| 15 | Hold `a` down for a second, release | `key A PRESSED`, then `key A REPEATED` once per auto-repeat, then `key A RELEASED` (never a second `PRESSED`); hold `a`, switch tab, release there, return, press `a` -> `PRESSED` again | #549 |
 
 ## Report
 
