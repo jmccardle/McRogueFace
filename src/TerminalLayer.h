@@ -59,9 +59,18 @@ public:
     // ---- terminal ---------------------------------------------------------------------
     bool hasTerminal() const { return term_ != nullptr; }
     size_t scrollback() const { return scrollback_; }
-    // Program output in. Requires hasTerminal(). Replies collect in pending_output.
+    // Program output in. Requires hasTerminal(). Replies collect in pending_output. Layer
+    // input queued by submit() while the program's output stopped mid-sequence is applied the
+    // moment its sequence completes inside this stream.
     void feed(const uint8_t* data, size_t len);
     void feed(const std::string& s) { feed(reinterpret_cast<const uint8_t*>(s.data()), s.size()); }
+
+    // Terminal input written by the layer itself (the helpers, set/fill/...). Applied now if the
+    // program's stream is at ground, otherwise queued until it is (a write() that ends inside a
+    // sequence must not have the layer's bytes spliced into it). `placed`: wrap it so it lands
+    // at absolute cells and leaves the program's state as it was (see placementWrap).
+    void submit(const std::string& body, bool placed);
+    bool hasQueuedInput() const { return !queued_.empty(); }
 
     // Refresh the cells from the emulator if anything changed since the last sync.
     // `notify`: report changed chunks to the grid (false inside the render pass).
@@ -134,6 +143,11 @@ public:
 
 private:
     void createTerminal(int cols, int rows);
+    void writeRaw(const uint8_t* data, size_t len);
+    void writeRaw(const std::string& s) { writeRaw(reinterpret_cast<const uint8_t*>(s.data()), s.size()); }
+    bool atGround() const;
+    std::string placementWrap(const std::string& body);
+    void applyQueued();
     void applyDefaultColours();
     void freeAll() noexcept;
     void updateBlinkRegistration();
@@ -163,7 +177,9 @@ private:
     std::vector<int> chunk_blink_;   // blinking cells per chunk
     int blink_cells_ = 0;
 
-    bool callback_failed_ = false;   // a library callback could not do its job (reported by the caller)
+    bool callback_failed_ = false;
+    struct Queued { std::string body; bool placed; };
+    std::vector<Queued> queued_;   // layer input waiting for the program's stream to reach ground   // a library callback could not do its job (reported by the caller)
     bool needs_sync_ = true;
     bool force_full_ = true;
     bool screen_reverse_ = false;

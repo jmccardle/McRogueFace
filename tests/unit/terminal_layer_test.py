@@ -768,6 +768,68 @@ test("...and prints nothing", aw.screen_text() == "abcde\nfghij", repr(aw.screen
 raises("apply_ranges with a wide glyph", ValueError, lambda: aw.apply_ranges(hm_full, [((0.0, 1.0), TW.index(0x65E5))]))
 test("...prints nothing", aw.screen_text() == "abcde\nfghij")
 
+# --- layer input never splits a program sequence ---------------------------------------------
+print("=== layer input waits for the program's sequence ===")
+t, out = term(20, 3)
+t.write(b"\x1b[3")                 # a PTY read ended inside a CSI
+t.set((5, 1), I("Z"))
+test("a placement requested mid-sequence waits (reads show it after the sequence completes)",
+     t.at(5, 1) != I("Z"), f"{t.at(5, 1)}")
+t.write(b"1mX")
+test("the program's sequence is intact", lines(t)[0] == "X", repr(t.screen_text()))
+test("...and the placement is applied when it completes", t.at(5, 1) == I("Z"))
+t.write(b"\x1b[0m")
+t.move(0, 2)
+t.write(b"\x1b]2;ti")
+t.print("hud", pos=(10, 2))
+t.write(b"tle\x07")
+test("an OSC split around a placement keeps its text", t.title == "title" and lines(t)[2][10:] == "hud",
+     f"{t.title!r} {t.screen_text()!r}")
+
+t, out = term(20, 3)
+t.write(b"\x1b[?69h\x1b[2;8s\x1bP$qm")   # margins on; a DECRQSS from the program, not finished
+t.set((5, 1), I("Z"))
+out.clear()
+t.write(b"\x1b\\")
+test("the program's DECRQSS reply reaches on_output", out == [b"\x1bP1$r0m\x1b\\"], f"{out}")
+out.clear()
+t.write(b"\x1bP$qs\x1b\\")
+test("...and its margins are as it set them", out == [b"\x1bP1$r2;8s\x1b\\"], f"{out}")
+test("...and the placed cell is drawn", t.at(5, 1) == I("Z"))
+t, out = term(20, 3)
+t.write(b"\x1b]11;?")
+t.set((5, 1), I("Z"))
+out.clear()
+t.write(b"\x1b\\")
+test("a split OSC 11 query is answered and the placement applied",
+     len(out) == 1 and out[0].startswith(b"\x1b]11;rgb:") and t.at(5, 1) == I("Z"), f"{out}")
+
+# a combining mark after a glyph in the last column is dropped (it would attach to the cell before)
+mz = mcrfpy.TerminalLayer(texture=TZ, grid_size=(10, 2))
+mz.print("xy\u0301z", pos=(8, 1))
+test("a mark after a last-column glyph is dropped", mz.screen_text().split("\n")[1] == "        xy",
+     repr(mz.screen_text().split("\n")[1]))
+
+# apply_* is one placement: an on_output failure afterwards does not leave it half done
+t, out = term(5, 2)
+t.write(b"abcde\r\nfghij")
+
+
+def raise_after_queueing(data):
+    t.write(b"\x1b[6n")    # its reply stays queued
+    raise Boom("on_output failed")
+
+
+t.on_output = raise_after_queueing
+raises("a raising on_output", Boom, lambda: t.write(b"\x1b[6n"))
+t.on_output = boom
+hm5 = mcrfpy.HeightMap((5, 2))
+hm5.fill(0.5)
+raises("apply_threshold delivers the queued reply and its exception propagates", Boom,
+       lambda: t.apply_threshold(hm5, (0.0, 1.0), I("#")))
+test("...after every cell was set", t.screen_text() == "#####\n#####", repr(t.screen_text()))
+t.on_output = None
+
 print()
 if errors:
     print(f"FAIL: {len(errors)} check(s) failed")

@@ -8,6 +8,7 @@
 #include <cmath>
 #include <sstream>
 #include <stdexcept>
+#include <regex>
 #include <unordered_set>
 
 #include "EastAsianWide.h"
@@ -292,6 +293,87 @@ void TerminalLayer::textureChanged() {
 
 void TerminalLayer::feed(const uint8_t* data, size_t len) {
     if (!term_) throw std::logic_error("TerminalLayer has no size yet");
+    size_t off = 0;
+    // Queued layer input goes in at the first point the program's stream reaches ground.
+    while (!queued_.empty() && off < len) {
+        GhosttyTerminalWriteStop stop = GHOSTTY_INIT_SIZED(GhosttyTerminalWriteStop);
+        const GhosttyResult r = ghostty_terminal_vt_write_until(term_, data + off, len - off,
+                                                                GHOSTTY_TERMINAL_BOUNDARY_GROUND, &stop);
+        if (r == GHOSTTY_NO_VALUE) { off = len; break; }   // all consumed, still inside a sequence
+        ck(r, "ghostty_terminal_vt_write_until");
+        off += stop.consumed;
+        applyQueued();
+    }
+    if (off < len) writeRaw(data + off, len - off);
+    else {
+        needs_sync_ = true;
+        notifyGrid();
+    }
+}
+
+bool TerminalLayer::atGround() const {
+    bool ground = true;
+    ck(ghostty_terminal_get(term_, GHOSTTY_TERMINAL_DATA_VT_GROUND, &ground), "ghostty_terminal_get(VT_GROUND)");
+    return ground;
+}
+
+void TerminalLayer::submit(const std::string& body, bool placed) {
+    if (!term_) throw std::logic_error("TerminalLayer has no size yet");
+    if (!queued_.empty() || !atGround()) {
+        queued_.push_back({body, placed});
+        return;
+    }
+    writeRaw(placed ? placementWrap(body) : body);
+}
+
+void TerminalLayer::applyQueued() {
+    std::vector<Queued> q;
+    q.swap(queued_);
+    for (const auto& e : q) writeRaw(e.placed ? placementWrap(e.body) : e.body);
+}
+
+// Wrap layer input so that it lands at absolute cells in plain ASCII, never writes outside
+// the cells it targets and leaves the program's state as it was: the cursor, its pen,
+// protection, pending wrap, origin mode and the character sets are saved (DECSC) and restored
+// (DECRC); insert mode, autowrap (DECAWM) and the left/right margins (DECLRMM), which DECSC
+// does not save, are switched off and restored exactly; DECSCA is off for the placed cells.
+// Called at ground only.
+std::string TerminalLayer::placementWrap(const std::string& body) {
+    const bool origin = modeEnabled(6, false);
+    const bool insert = modeEnabled(4, true);
+    const bool autowrap = modeEnabled(7, false);
+    const bool lr_margins = modeEnabled(69, false);
+    std::string margins;   // "l;r", restored exactly
+    if (lr_margins) {
+        // DECRQSS: the reply is the layer's, not the program's. Only exactly
+        // ESC P 1 $ r <digits> ; <digits> s ESC \ is taken out of the output; anything else
+        // stays where it is and nothing has been changed.
+        const size_t before = pending_output.size();
+        writeRaw(std::string("\x1bP$qs\x1b\\"));
+        const std::string reply = pending_output.substr(before);
+        static const std::regex shape("^\x1bP1\\$r([0-9]+;[0-9]+)s\x1b\\\\$");
+        std::smatch m;
+        if (!std::regex_match(reply, m, shape))
+            throw std::runtime_error("TerminalLayer: the terminal did not report its left/right margins");
+        margins = m[1].str();
+        pending_output.resize(before);
+    }
+    std::string pre = "\x1b" "7";
+    if (origin) pre += "\x1b[?6l";
+    if (insert) pre += "\x1b[4l";
+    if (autowrap) pre += "\x1b[?7l";
+    if (lr_margins) pre += "\x1b[?69l";
+    pre += "\x1b[0\"q";
+    pre += "\x1b(B\x0f";
+    std::string post;
+    if (lr_margins) post += "\x1b[?69h\x1b[" + margins + "s";   // DECSLRM homes; DECRC moves back
+    if (insert) post += "\x1b[4h";
+    if (autowrap) post += "\x1b[?7h";
+    post += "\x1b" "8";
+    return pre + body + post;
+}
+
+void TerminalLayer::writeRaw(const uint8_t* data, size_t len) {
     if (len == 0) return;
     ghostty_terminal_vt_write(term_, data, len);   // never fails: malformed input is absorbed
     needs_sync_ = true;
@@ -1147,6 +1229,18 @@ bool flush(const std::shared_ptr<TerminalLayer>& L) {
     return ok;
 }
 
+// Layer input (see TerminalLayer::submit), then deliver whatever the terminal answered.
+bool submit_and_flush(const std::shared_ptr<TerminalLayer>& L, const std::string& body, bool placed) {
+    if (!require_size(L)) return false;
+    try {
+        L->submit(body, placed);
+    } catch (const std::exception& e) {
+        raise_from(e);
+        return false;
+    }
+    return flush(L);
+}
+
 // Feed terminal input, then deliver whatever the terminal answered.
 bool feed_and_flush(const std::shared_ptr<TerminalLayer>& L, const std::string& bytes) {
     if (!require_size(L)) return false;
@@ -1229,48 +1323,6 @@ bool glyph_of(const std::shared_ptr<TerminalLayer>& L, long long index, uint32_t
 }
 
 // Wrap terminal input written by the layer (not by the program) so that it lands at
-// absolute cells in plain ASCII, never writes outside the cells it targets and leaves no
-// trace: the cursor, its attributes, origin mode and the character set are saved (DECSC)
-// and restored (DECRC); insert mode and autowrap (DECAWM), which DECSC does not save, are
-// switched off and back on. With autowrap off nothing placed can wrap or scroll the screen.
-// Ask the terminal something and take its reply out of the output queue (it is the layer's
-// question, not the program's): DECRQSS for the left/right margins.
-std::string ask(const std::shared_ptr<TerminalLayer>& L, const std::string& query) {
-    const size_t before = L->pending_output.size();
-    L->feed(query);
-    std::string reply = L->pending_output.substr(before);
-    L->pending_output.resize(before);
-    return reply;
-}
-
-struct Placement {
-    std::string pre, post;
-    explicit Placement(const std::shared_ptr<TerminalLayer>& L) {
-        const bool origin = L->modeEnabled(6, false);
-        const bool insert = L->modeEnabled(4, true);
-        const bool autowrap = L->modeEnabled(7, false);
-        const bool lr_margins = L->modeEnabled(69, false);
-        std::string margins;   // "l;r", restored exactly
-        if (lr_margins) {
-            const std::string reply = ask(L, "\x1bP$qs\x1b\\");   // DCS 1 $ r Pl ; Pr s ST
-            const size_t a = reply.find("$r"), b = reply.find('s', a == std::string::npos ? 0 : a);
-            if (a == std::string::npos || b == std::string::npos || reply.compare(0, 3, "\x1bP1") != 0)
-                throw std::runtime_error("TerminalLayer: the terminal did not report its left/right margins");
-            margins = reply.substr(a + 2, b - a - 2);
-        }
-        pre = "\x1b" "7";   // DECSC: position, pen, protection, pending wrap, origin, charsets
-        if (origin) pre += "\x1b[?6l";
-        if (insert) pre += "\x1b[4l";
-        if (autowrap) pre += "\x1b[?7l";
-        if (lr_margins) pre += "\x1b[?69l";   // margins off: full width
-        pre += "\x1b[0\"q";                    // DECSCA off: placed cells are unprotected
-        pre += "\x1b(B\x0f";
-        if (lr_margins) post += "\x1b[?69h\x1b[" + margins + "s";   // DECSLRM homes; DECRC moves back
-        if (insert) post += "\x1b[4h";
-        if (autowrap) post += "\x1b[?7h";
-        post += "\x1b" "8";
-    }
-};
 
 
 std::string cup(int x, int y) {
@@ -1295,24 +1347,16 @@ bool fill_through_terminal(const std::shared_ptr<TerminalLayer>& L, int x1, int 
     std::string glyph;
     utf8_append(glyph, cp);
     const int count = wide ? w / 2 : w;
-    std::string seq;
-    try {
-        Placement p(L);
-        seq = p.pre + face_sgr(face);
-        for (int y = y1; y < y2; ++y) {
-            seq += cup(x1, y);
-            if (count > 0) {
-                seq += glyph;
-                if (count > 1) seq += "\x1b[" + std::to_string(count - 1) + "b";   // REP
-            }
-            if (odd_tail) seq += cup(x2 - 1, y) + "\x1b[0m \x1b[0" + face_sgr(face).substr(3);
+    std::string seq = face_sgr(face);
+    for (int y = y1; y < y2; ++y) {
+        seq += cup(x1, y);
+        if (count > 0) {
+            seq += glyph;
+            if (count > 1) seq += "\x1b[" + std::to_string(count - 1) + "b";   // REP
         }
-        seq += p.post;
-    } catch (const std::exception& e) {
-        raise_from(e);
-        return false;
+        if (odd_tail) seq += cup(x2 - 1, y) + "\x1b[0m " + face_sgr(face);
     }
-    return feed_and_flush(L, seq);
+    return submit_and_flush(L, seq, true);
 }
 
 bool check_cell(const std::shared_ptr<TerminalLayer>& L, int x, int y) {
@@ -1731,7 +1775,7 @@ static PyObject* TL_move(PyObject* self, PyObject* args, PyObject* kwds) {
     if (!PyPosition_ParseInt(args, kwds, &x, &y)) return nullptr;
     auto L = layer_of(self);
     if (!L || !require_size(L) || !check_cell(L, x, y)) return nullptr;
-    if (!feed_and_flush(L, cup(x, y))) return nullptr;
+    if (!submit_and_flush(L, cup(x, y), false)) return nullptr;
     Py_RETURN_NONE;
 }
 
@@ -1792,8 +1836,7 @@ static PyObject* TL_print(PyObject* self, PyObject* args, PyObject* kwds) {
         if (has_pos) {
             // Placed text stays inside the layer: each line starts at pos's column on the next
             // row, a line is clipped at the right edge, and lines below the bottom row are dropped.
-            Placement p(L);
-            seq = p.pre + sgr;
+            seq = sgr;
             for (size_t k = 0; k < lines.size() && py + static_cast<int>(k) < L->grid_y; ++k) {
                 seq += cup(px, py + static_cast<int>(k));
                 // A tab is spaces to the next multiple of 8 columns from the line's start (the
@@ -1809,7 +1852,9 @@ static PyObject* TL_print(PyObject* self, PyObject* args, PyObject* kwds) {
                         continue;
                     }
                     if (terminal_zero_width(cp)) {
-                        if (!clipped) utf8_append(seq, cp);
+                        // With autowrap off, a mark after a glyph in the last column would attach
+                        // to the cell before it; such marks are dropped.
+                        if (!clipped && col < L->grid_x) utf8_append(seq, cp);
                         continue;
                     }
                     const int adv = terminal_wide(cp) ? 2 : 1;
@@ -1818,7 +1863,6 @@ static PyObject* TL_print(PyObject* self, PyObject* args, PyObject* kwds) {
                     col += adv;
                 }
             }
-            seq += p.post;
         } else {
             // At the cursor the terminal's own wrapping, scrolling and tab stops apply (a tab is
             // sent as HT); "\n" is CR LF.
@@ -1833,14 +1877,14 @@ static PyObject* TL_print(PyObject* self, PyObject* args, PyObject* kwds) {
         raise_from(e);
         return nullptr;
     }
-    if (!feed_and_flush(L, seq)) return nullptr;
+    if (!submit_and_flush(L, seq, has_pos)) return nullptr;
     Py_RETURN_NONE;
 }
 
 static PyObject* TL_clear(PyObject* self, PyObject* Py_UNUSED(args)) {
     auto L = layer_of(self);
     if (!L) return nullptr;
-    if (!feed_and_flush(L, "\x1b[0m\x1b[H\x1b[2J")) return nullptr;
+    if (!submit_and_flush(L, "\x1b[0m\x1b[H\x1b[2J", false)) return nullptr;
     Py_RETURN_NONE;
 }
 
@@ -1864,15 +1908,8 @@ static PyObject* TL_clear_line(PyObject* self, PyObject* args, PyObject* kwds) {
         PyErr_Format(PyExc_IndexError, "line %ld is outside 0..%d", y, L->grid_y - 1);
         return nullptr;
     }
-    std::string seq;
-    try {
-        Placement p(L);
-        seq = p.pre + (has_y ? cup(0, static_cast<int>(y)) : std::string()) + "\x1b[0m\x1b[2K" + p.post;
-    } catch (const std::exception& e) {
-        raise_from(e);
-        return nullptr;
-    }
-    if (!feed_and_flush(L, seq)) return nullptr;
+    const std::string seq = (has_y ? cup(0, static_cast<int>(y)) : std::string()) + "\x1b[0m\x1b[2K";
+    if (!submit_and_flush(L, seq, true)) return nullptr;
     Py_RETURN_NONE;
 }
 
@@ -1998,10 +2035,16 @@ static PyObject* TL_apply(PyObject* self, PyObject* args, PyObject* kwds) {
         }
         cells.emplace_back(static_cast<int>(i % L->grid_x), static_cast<int>(i / L->grid_x));
     }
+    // One placement for every changed cell, applied in one go: an on_output exception afterwards
+    // cannot leave it half done.
+    std::string body;
     for (const auto& c : cells) {
-        const int index = wanted[static_cast<size_t>(c.second) * L->grid_x + c.first];
-        if (!set_through_terminal(L, c.first, c.second, index)) { Py_DECREF(r); return nullptr; }
+        uint32_t cp; int face; bool wide;
+        glyph_of(L, wanted[static_cast<size_t>(c.second) * L->grid_x + c.first], &cp, &face, &wide);
+        body += cup(c.first, c.second) + face_sgr(face);
+        utf8_append(body, cp);
     }
+    if (!cells.empty() && !submit_and_flush(L, body, true)) { Py_DECREF(r); return nullptr; }
     return r;
 }
 
@@ -2530,7 +2573,7 @@ static PyMethodDef TL_methods[] = {
          MCRF_DESC("Draw text from game code, as terminal control sequences written to the terminal: at the cursor (which moves past it; the terminal wraps and scrolls as usual), or at pos with the cursor saved and restored around it. Attributes apply to this text only."),
          MCRF_ARGS_START
          MCRF_ARG("text", "Printable text, newlines and tabs. Zero-width codepoints (combining marks, ZWJ, ...) combine with the character before them and take no column; one with nothing before it raises. At the cursor a newline continues at column 0 of the next line")
-         MCRF_ARG("pos", "Cell (x, y) to print at, leaving the cursor where it was; None prints at the cursor. Placed text never wraps or scrolls: each line is clipped at the right edge, a newline continues at pos's column on the next row, lines below the bottom row are dropped, and a tab is spaces to the next multiple of 8 columns counted from pos's column (at the cursor a tab is HT, so the program's tab stops apply)")
+         MCRF_ARG("pos", "Cell (x, y) to print at, leaving the cursor where it was; None prints at the cursor. Placed text never wraps or scrolls: each line is clipped at the right edge, a newline continues at pos's column on the next row, lines below the bottom row are dropped, a combining mark after a glyph in the last column is dropped, and a tab is spaces to the next multiple of 8 columns counted from pos's column (at the cursor a tab is HT, so the program's tab stops apply)")
          MCRF_ARG("fg", "Foreground: a Color, (r, g, b) tuple or colour name (truecolor), or a palette index 0-255; None for the default")
          MCRF_ARG("bg", "Background, as fg")
          MCRF_ARG("bold", "Bold (the atlas's bold face, else drawn twice)")
@@ -2723,7 +2766,10 @@ PyTypeObject mcrfpydef::PyTerminalLayerType = {
         "the program's own saved cursor (ESC 7) is replaced by the placement's; REP after a placement\n"
         "repeats the placed character; placed cells take an open OSC 8 hyperlink. While a synchronized-\n"
         "output hold (mode 2026) lasts, reads (at, screen_text, cursor, edit, GridPoint) show the held\n"
-        "frame, what is on screen, until it ends (by the program, or after 1 s of engine time).\n\n"
+        "frame, what is on screen, until it ends (by the program, or after 1 s of engine time).\n"
+        "The layer's own input (helpers, set, fill, ...) never splits a program sequence: if the\n"
+        "program's last write() stopped inside one, it waits and is applied the moment that sequence\n"
+        "completes in a later write(); reads show it only from then.\n\n"
         "Example:\n"
         "    term = mcrfpy.TerminalLayer(grid_size=(80, 24))\n"
         "    grid = mcrfpy.Grid(grid_size=(80, 24), texture=term.texture, layers=[term])\n"
