@@ -500,7 +500,12 @@ static PyMethodDef mcrfpyMethods[] = {
                    "interpreter mid-frame: the frame stops dispatching and unwinds, and step() "
                    "re-raises the SystemExit to its caller (#557). If a background thread drives "
                    "the clock, that caller is the thread, and, as for any SystemExit outside the "
-                   "main thread, it only ends that thread.")
+                   "main thread, it only ends that thread. A sys.exit() raised in a callback "
+                   "dispatched for another thread (one holding mcrfpy.lock() that called "
+                   "automation.*) is not raised there: it is deferred to the clock owner, which "
+                   "exits the process when its frame unwinds. Under -i, as for a top-level "
+                   "sys.exit() in this engine, a callback's sys.exit() is printed and the game "
+                   "carries on.")
          MCRF_LINK("docs/frame-lock.md", "The frame barrier: rules, budget, and failure modes")
      )},
     {"advance", McRFPy_API::_advance, METH_VARARGS,
@@ -2163,6 +2168,7 @@ PyObject* McRFPy_API::_sceneUI(PyObject* self, PyObject* args) {
 
 // Internal use - called by PySceneObject::activate()
 PyObject* McRFPy_API::_setScene(PyObject* self, PyObject* args) {
+	if (propagatePendingExit()) return NULL;  // #557
 	const char* newscene;
 	const char* transition_str = nullptr;
 	float duration = 0.0f;
@@ -2341,6 +2347,7 @@ static bool frameAdvanceAllowed(const char* fname)
 
 // #153 - Headless simulation control
 PyObject* McRFPy_API::_step(PyObject* self, PyObject* args) {
+    if (propagatePendingExit()) return NULL;  // #557
     PyObject* dt_obj = Py_None;
     if (!PyArg_ParseTuple(args, "|O", &dt_obj)) return NULL;
 
@@ -2385,6 +2392,7 @@ PyObject* McRFPy_API::_step(PyObject* self, PyObject* args) {
 
 // #396 - Bounded simulation advance with per-interval timer semantics
 PyObject* McRFPy_API::_advance(PyObject* self, PyObject* args) {
+    if (propagatePendingExit()) return NULL;  // #557
     PyObject* ms_obj = nullptr;
     if (!PyArg_ParseTuple(args, "O", &ms_obj)) return NULL;
 
@@ -2946,6 +2954,11 @@ bool McRFPy_API::exitPending() { return pending_system_exit != nullptr; }
 
 bool McRFPy_API::propagatePendingExit() {
     if (!pending_system_exit) return false;
+    // Only the thread that runs the frame exits the process. An exit requested by a callback
+    // dispatched for another thread (one holding mcrfpy.lock() that called automation.*)
+    // stays pending for the clock owner, which acts on it when its frame unwinds: raising it
+    // here would just end that thread (Python's rule for SystemExit off the main thread).
+    if (!game || !game->ownsClock()) return false;
     raisePendingExit();
     return true;
 }

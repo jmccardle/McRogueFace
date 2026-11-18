@@ -899,6 +899,7 @@ static mcrf::PyRef entityPayload(const std::shared_ptr<UIEntity>& e) {
 }
 
 PyObject* PyGridData::py_step(PyGridDataObject* self, PyObject* args, PyObject* kwds) {
+    if (McRFPy_API::propagatePendingExit()) return NULL;  // #557: nothing after an exit request
     static const char* kwlist[] = {"n", "turn_order", nullptr};
     int n = 1;
     PyObject* turn_order_filter = nullptr;

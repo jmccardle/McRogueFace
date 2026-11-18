@@ -841,7 +841,13 @@ building a callback's argument). Inside a frame that records the `SystemExit`
   that dispatches callbacks should end with `propagatePendingExit()`.
 A `SystemExit` re-raised out of `step()` on a background thread that drives the clock (#411)
 ends only that thread (Python's rule for `SystemExit` off the main thread); it does not exit
-the process. Gate: `tests/regression/issue_557_callback_sys_exit_test.py`.
+the process. An exit requested by a callback dispatched for a NON-owner thread (one holding
+`mcrfpy.lock()` that called `automation.*`) is not raised in that thread (`propagatePendingExit`
+only raises on the clock owner): it stays pending and the owner exits the process when its
+frame unwinds. A binding entered with an exit already pending raises it first, before doing
+anything; every `automation.*` event injector and the `Scene` constructor are such bindings.
+Under `-i` a callback's `sys.exit()` is printed and the game continues, as a top-level one does
+in this engine. Gate: `tests/regression/issue_557_callback_sys_exit_test.py`.
 
 **Frames do not nest (#551).** `step()`/`advance()` from inside any callback raise
 `RuntimeError`, windowed as well (it used to return 0.0 there): `GameEngine::inFrame()`,

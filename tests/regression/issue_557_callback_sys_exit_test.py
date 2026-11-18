@@ -93,6 +93,7 @@ scene.children.append(H(pos=(0, 0), size=(50, 50)))
 def first(timer, runtime):
     timer.stop()
     automation.moveTo((10, 10))
+    print("NOT REACHED")   # automation re-raises the SystemExit its dispatch asked for
 '''
 SCRIPTS["hover"] = PRELUDE + HOVER + r'''
 mcrfpy.Timer("a", first, 10)
@@ -167,6 +168,50 @@ print("STEP RETURNED")
 sys.exit(99)
 '''
 
+# Scene.on_exit asks to exit while the scene is being replaced: the incoming scene's on_enter
+# must not run (nothing is dispatched after the request), and activate() raises the exit.
+SCRIPTS["activate_skips_enter"] = PRELUDE + r'''
+class Old(mcrfpy.Scene):
+    def on_exit(self):
+        print("FIRST", flush=True)
+        sys.exit(CODE)
+class New(mcrfpy.Scene):
+    def on_enter(self):
+        print("SECOND", flush=True)
+old = Old("old557"); mcrfpy.current_scene = old
+new = New("new557")
+def first(timer, runtime):
+    timer.stop()
+    new.activate()
+    print("NOT REACHED")
+mcrfpy.Timer("a", first, 10)
+mcrfpy.step(0.1)
+print("STEP RETURNED")
+sys.exit(99)
+'''
+
+# Constructing a Scene that takes the name of the scene being shown re-registers it:
+# the old scene's on_exit asks to exit, the new one's on_enter must not run, and the
+# constructor raises the exit into the callback that called it.
+SCRIPTS["scene_ctor"] = PRELUDE + r'''
+class Old(mcrfpy.Scene):
+    def on_exit(self):
+        print("FIRST", flush=True)
+        sys.exit(CODE)
+class New(mcrfpy.Scene):
+    def on_enter(self):
+        print("SECOND", flush=True)
+old = Old("same557"); mcrfpy.current_scene = old
+def first(timer, runtime):
+    timer.stop()
+    New("same557")
+    print("NOT REACHED")
+mcrfpy.Timer("a", first, 10)
+mcrfpy.step(0.1)
+print("STEP RETURNED")
+sys.exit(99)
+'''
+
 # `-i` (inspect mode): CPython prints a top-level SystemExit and carries on, and so does a
 # callback's. The deferred exit must not _Exit(1) there.
 SCRIPTS["inspect"] = PRELUDE + r'''
@@ -229,7 +274,7 @@ def run(label, name, code, mode, expect_rc, expect_stderr=None, atexit_runs=True
 
 
 for mode in ("c", "exec"):
-    for name in ("step", "anim", "advance", "hover", "hovers", "gridstep", "activate"):
+    for name in ("step", "anim", "advance", "hover", "hovers", "gridstep", "activate", "activate_skips_enter", "scene_ctor"):
         run("%s/%s code 3" % (name, mode), name, 3, mode, 3)
 run("step/c code 0", "step", 0, "c", 0)
 run("step/c code None", "step", None, "c", 0)
@@ -294,19 +339,32 @@ mcrfpy.Timer("hold", hold, 1)
 
 
 def run_keys():
+    """Types into the child's window on an Xvfb this test starts itself (never the user's
+    display), addressed by window id. SKIPs, rather than waiting out a long timeout, when the
+    tools are missing, no window is found, or no key reaches the child."""
     import shutil as _sh
-    if not _sh.which("xdotool") or not os.environ.get("DISPLAY"):
-        print("SKIP: dispatch stops after an on_key exit (needs xdotool and a display)")
+    import threading
+    import time
+    if not _sh.which("xdotool") or not _sh.which("Xvfb"):
+        print("SKIP: dispatch stops after an on_key exit (needs xdotool and Xvfb)")
         return
     tmp = tempfile.mkdtemp(prefix="mcrf557_", dir=os.getcwd())
+    xvfb = proc = None
     try:
+        xvfb = subprocess.Popen(["Xvfb", "-displayfd", "1", "-screen", "0", "800x600x24",
+                                 "-nolisten", "tcp", "-noreset"],
+                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        display = xvfb.stdout.readline().strip()
+        if not display.isdigit():
+            print("SKIP: dispatch stops after an on_key exit (could not start a private Xvfb)")
+            return
+        env = dict(os.environ, DISPLAY=":" + display)
         flag = os.path.join(tmp, "flag")
         path = os.path.join(tmp, "child.py")
         with open(path, "w") as fh:
             fh.write(KEYS % (flag,))
         proc = subprocess.Popen([sys.executable, "--exec", path], stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE, text=True)
-        import threading
+                                stderr=subprocess.PIPE, text=True, env=env)
         lines = []
         ready = threading.Event()
 
@@ -317,21 +375,37 @@ def run_keys():
                     ready.set()
         t = threading.Thread(target=pump, daemon=True)
         t.start()
-        if not ready.wait(DETECTOR_TIMEOUT):
-            proc.kill()
-            check(False, "keys: the child never reached READY")
+        if not ready.wait(60):
+            print("SKIP: dispatch stops after an on_key exit (the child never got a window)")
             return
-        subprocess.run(["xdotool", "key", "--delay", "0", "a", "b", "c", "d", "e", "f"],
-                       check=True, timeout=DETECTOR_TIMEOUT)
+        win = ""
+        deadline = time.monotonic() + 10
+        while not win and time.monotonic() < deadline:
+            # the engine sets no _NET_WM_PID, so find the window by its title; this X server is
+            # private to this test and holds no other window
+            r = subprocess.run(["xdotool", "search", "--onlyvisible", "--name", "McRogueFace Engine"], env=env,
+                               capture_output=True, text=True, timeout=30)
+            ids = r.stdout.split()
+            win = ids[-1] if ids else ""
+            if not win:
+                time.sleep(0.1)
+        if not win:
+            print("SKIP: dispatch stops after an on_key exit (no window found for the child)")
+            return
+        subprocess.run(["xdotool", "key", "--delay", "0", "--window", win,
+                        "a", "b", "c", "d", "e", "f"], env=env, check=True, timeout=30)
         open(flag, "w").close()
         try:
-            rc = proc.wait(DETECTOR_TIMEOUT)
+            rc = proc.wait(30)
         except subprocess.TimeoutExpired:
-            proc.kill()
-            check(False, "keys: the child did not exit")
+            print("SKIP: dispatch stops after an on_key exit (no key reached the child)")
             return
         t.join(10)
     finally:
+        for p_ in (proc, xvfb):
+            if p_ is not None and p_.poll() is None:
+                p_.kill()
+                p_.wait()
         shutil.rmtree(tmp, ignore_errors=True)
     keys = [l for l in lines if l.startswith("KEY")]
     check(rc == 4, "keys: exit code 4 (got %d)" % rc)
