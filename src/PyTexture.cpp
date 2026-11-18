@@ -618,7 +618,7 @@ PyMethodDef PyTexture::methods[] = {
          MCRF_SIG("(font: Font, size: int, codepoints=[(0x20, 0x7E), (0x2500, 0x257F)], cell: tuple[int, int] = None, bold: Font = None, italic: Font = None)", "Texture"),
          MCRF_DESC("EXPERIMENTAL (not part of the 1.0 freeze). Rasterise a font once into a static tile atlas of white-on-transparent glyphs. "
                    "Tile 0 is a box (drawn for codepoints the texture lacks), tile 1 is a solid white tile, then the glyphs in codepoint order, "
-                   "then the bold and italic faces' glyphs. A wide (East Asian Wide/Fullwidth) glyph takes two adjacent tiles."),
+                   "then the bold and italic faces' glyphs. A wide (East Asian Wide/Fullwidth) glyph takes two adjacent tiles. The underline and strike-through stripes are kept inside the cell."),
          MCRF_ARGS_START
          MCRF_ARG("font", "The Font to rasterise")
          MCRF_ARG("size", "Pixel size, 1 to 2048 (a Caption's font_size)")
@@ -627,8 +627,8 @@ PyMethodDef PyTexture::methods[] = {
          MCRF_ARG("bold", "Font for the bold face; its glyphs for the same codepoints go in the same atlas")
          MCRF_ARG("italic", "Font for the italic face")
          MCRF_RETURNS("Texture: sprite_width/height is the cell; use index() to map codepoints to tiles")
-         MCRF_RAISES("ValueError", "size, cell or codepoints is invalid, no codepoint is in the font, a glyph is a colour bitmap, or the atlas would exceed the maximum texture size")
-         MCRF_RAISES("TypeError", "font/bold/italic is not a Font, or codepoints has the wrong type")
+         MCRF_RAISES("ValueError", "size, cell or codepoints is invalid, no codepoint is in any of the fonts, a glyph is a colour bitmap, or the atlas would exceed the maximum texture size")
+         MCRF_RAISES("TypeError", "font/bold/italic is not a Font, codepoints has the wrong type (a bare (a, b) tuple is rejected as ambiguous; a bool is not a codepoint), or cell is not a pair of ints")
          MCRF_RAISES("RuntimeError", "no display (#451), or an MCRF_HEADLESS build with no font rasterizer")
          MCRF_NOTE("Glyphs larger than the cell are clipped and listed in clipped (variant_clipped). Bold-italic is not a face of its own: index(..., bold=True, italic=True) gives the bold tile.")
      )},
@@ -636,8 +636,9 @@ PyMethodDef PyTexture::methods[] = {
      MCRF_METHOD(Texture, index,
          MCRF_SIG("(codepoint: str | int, bold: bool = False, italic: bool = False)", "int"),
          MCRF_DESC("EXPERIMENTAL. Tile index of a codepoint in a texture built by from_font; the left half's index for a wide glyph (the right half is index + 1). "
-                   "Returns 0 (the box tile) for a codepoint the requested face lacks. When the texture has no bold (italic) face, "
-                   "the regular tile is returned; check variants to know whether to fake the style."),
+                   "A requested bold/italic face that the texture lacks, or that lacks this codepoint, falls back to the regular tile "
+                   "(glyph(tile) says which face a tile is from, so the caller can fake the style). Returns 0, the box tile, only "
+                   "when no usable face has the codepoint."),
          MCRF_ARGS_START
          MCRF_ARG("codepoint", "A one-character str or an int")
          MCRF_ARG("bold", "Look in the bold face, if the texture has one")
@@ -659,10 +660,10 @@ PyMethodDef PyTexture::methods[] = {
     {"is_wide", (PyCFunction)PyTexture::py_is_wide, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(Texture, is_wide,
          MCRF_SIG("(codepoint: str | int)", "bool"),
-         MCRF_DESC("EXPERIMENTAL. Whether a codepoint occupies two tiles (index() and index() + 1) in a texture built by from_font."),
+         MCRF_DESC("EXPERIMENTAL. Whether a codepoint is East Asian Wide or Fullwidth (Unicode table), so from_font gives it two tiles (index() and index() + 1). Depends on the codepoint only, not on the texture."),
          MCRF_ARGS_START
          MCRF_ARG("codepoint", "A one-character str or an int")
-         MCRF_RETURNS("bool: False also for a codepoint the texture lacks")
+         MCRF_RETURNS("bool")
          MCRF_RAISES("ValueError", "the texture was not built by from_font, or codepoint is invalid")
      )},
     {"hsl_shift", (PyCFunction)PyTexture::hsl_shift, METH_VARARGS | METH_KEYWORDS,

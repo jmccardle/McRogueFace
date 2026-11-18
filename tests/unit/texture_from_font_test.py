@@ -1,8 +1,11 @@
 """#547 Texture.from_font: a static glyph atlas with codepoint <-> tile lookup (EXPERIMENTAL API).
 
 Pixels are checked by drawing tiles through a real TileLayer at 1:1 over a blue background and
-reading the screenshot: a pixel's red channel is then the glyph's alpha (white over blue), and
-exactly 0 means transparent.
+reading the screenshot. White over blue gives R == G, and R == 0 means transparent. How R relates to
+the glyph's alpha depends on the TileLayer chunk blend (currently alpha is applied twice, so a
+partial-alpha pixel reads darker than its alpha), so these checks only use R == G, R == 0, R == 255
+and "R takes several distinct values"; none depends on the exact curve. The test fonts are vendored in
+tests/assets/fonts/ and the test fails, not skips, if one is missing.
 """
 import os
 import struct
@@ -156,7 +159,7 @@ test("a roomy explicit cell clips nothing", tbig.clipped == [])
 
 print("=== pixels ===")
 r = render(tex, {(0, 0): tex.box_tile, (1, 0): tex.white_tile, (2, 0): tex.index("A"),
-                 (3, 0): tex.index(" "), (4, 0): tex.index("█") if False else tex.index("W")})
+                 (3, 0): tex.index(" "), (4, 0): tex.index("W")})
 box, white, glyph, space = flat(r[(0, 0)]), flat(r[(1, 0)]), flat(r[(2, 0)]), flat(r[(3, 0)])
 test("box tile is non-empty", any(v > 0 for v in box))
 test("box tile is an outline, not solid", any(v == 0 for v in box) and sum(1 for v in box if v > 250) < len(box) * 0.7)
@@ -183,12 +186,26 @@ for nm in ("underline", "strikethrough"):
 test("underline is below the baseline", tex.underline_position >= tex.ascent - 1, f"{tex.underline_position}")
 test("strike-through is above the baseline", tex.strikethrough_position < tex.ascent)
 
+print("=== stripes stay inside the cell ===")
+for label, kw, sz in (("size 6", {}, 6), ("cell (10, 10) at size 16", {"cell": (10, 10)}, 16),
+                      ("cell (10, 3) at size 16", {"cell": (10, 3)}, 16), ("cell (3, 1)", {"cell": (3, 1)}, 16)):
+    ts = mcrfpy.Texture.from_font(FONT, sz, codepoints="A", **kw)
+    for nm in ("underline", "strikethrough"):
+        pos, th = getattr(ts, nm + "_position"), getattr(ts, nm + "_thickness")
+        test(f"{label}: {nm} {pos}+{th} inside a {ts.sprite_height} px cell",
+             pos >= 0 and 1 <= th <= ts.sprite_height and pos + th <= ts.sprite_height)
+ts6 = mcrfpy.Texture.from_font(FONT, 6, codepoints="A")
+test("size 6 gives the small cell the review reported", (ts6.sprite_width, ts6.sprite_height) == (4, 7), f"{ts6.sprite_width}x{ts6.sprite_height}")
+test("ascent stays the font's even when the cell is shorter",
+     mcrfpy.Texture.from_font(FONT, 16, codepoints="A", cell=(10, 3)).ascent > 3)
+
 print("=== variants ===")
-dj = "/usr/share/fonts/truetype/dejavu/"
-bold_path = dj + "DejaVuSansMono-Bold.ttf" if os.path.exists(dj + "DejaVuSansMono-Bold.ttf") else "assets/JetbrainsMono.ttf"
-ital_path = dj + "DejaVuSansMono-Oblique.ttf" if os.path.exists(dj + "DejaVuSansMono-Oblique.ttf") else "assets/JetbrainsMono.ttf"
-print(f"  (bold face: {bold_path}; italic face: {ital_path})")
-BOLD, ITAL = mcrfpy.Font(bold_path), mcrfpy.Font(ital_path)
+BOLD_PATH = "../tests/assets/fonts/DejaVuSansMono-Bold.ttf"
+ITAL_PATH = "../tests/assets/fonts/DejaVuSansMono-Oblique.ttf"
+WIDE_PATH = "../tests/assets/fonts/DroidSansFallback-subset.ttf"
+for fp in (BOLD_PATH, ITAL_PATH, WIDE_PATH):
+    test(f"vendored test font exists: {fp}", os.path.exists(fp))
+BOLD, ITAL, WIDE = mcrfpy.Font(BOLD_PATH), mcrfpy.Font(ITAL_PATH), mcrfpy.Font(WIDE_PATH)
 tb = mcrfpy.Texture.from_font(FONT, SIZE, codepoints="AB", bold=BOLD)
 test("variants lists bold", tb.variants == ("regular", "bold"), f"{tb.variants}")
 test("bold tile differs from regular", tb.index("A", bold=True) not in (0, tb.index("A")), f"{tb.index('A', bold=True)}")
@@ -209,22 +226,31 @@ test("only-italic: bold falls back to regular, italic found",
      mcrfpy.Texture.from_font(FONT, SIZE, codepoints="A", italic=ITAL).index("A", italic=True))
 rb = render(tb, {(0, 0): tb.index("A"), (1, 0): tb.index("A", bold=True)})
 test("bold glyph pixels exist", any(v > 200 for v in flat(rb[(1, 0)])))
-if bold_path != "assets/JetbrainsMono.ttf":
-    test("bold glyph is not the regular glyph", flat(rb[(0, 0)]) != flat(rb[(1, 0)]))
-# variant missing: a bold face that lacks a codepoint the regular has
-tvm = mcrfpy.Texture.from_font(FONT, SIZE, codepoints=[0x41, 0x1F600, 0x2603], bold=BOLD)
-print(f"  variant_missing: {tvm.variant_missing}")
-test("variant_missing entries are (cp, bold, italic)",
-     all(isinstance(e, tuple) and len(e) == 3 for e in tvm.variant_missing))
-for cp, b, i in tvm.variant_missing:
-    test(f"index(U+{cp:04X}, bold=True) is the box tile when the bold face lacks it",
-         tvm.index(cp, bold=True) == 0 and b and not i)
-# variant metrics that do not fit the regular cell: clipped, listed in variant_clipped
-tvc = mcrfpy.Texture.from_font(FONT, SIZE, codepoints="A", cell=(9, 10), bold=mcrfpy.Font(dj + "DejaVuSans-Bold.ttf")
-                               if os.path.exists(dj + "DejaVuSans-Bold.ttf") else BOLD)
-test("a variant that overflows the cell is in variant_clipped", (0x41, True, False) in tvc.variant_clipped,
-     f"{tvc.variant_clipped}")
-test("variant clipping leaves the regular list alone", tvc.clipped == [0x41] or tvc.clipped == [])
+test("bold glyph is not the regular glyph", flat(rb[(0, 0)]) != flat(rb[(1, 0)]))
+# A face that has a codepoint the other lacks, both ways round: JetBrains Mono has Latin and no CJK,
+# the Droid subset has CJK and no Latin.
+tvm = mcrfpy.Texture.from_font(FONT, SIZE, codepoints=[0x41, 0x4E2D], bold=WIDE)
+test("regular lacks the CJK codepoint", tvm.missing == [0x4E2D], f"{tvm.missing}")
+test("bold lacks the Latin codepoint", tvm.variant_missing == [(0x41, True, False)], f"{tvm.variant_missing}")
+test("bold requested, bold face lacks it, regular has it: the regular tile",
+     tvm.index("A", bold=True) == tvm.index("A") != 0, f"{tvm.index('A', bold=True)} vs {tvm.index('A')}")
+test("...and glyph() says that tile is the regular face", tvm.glyph(tvm.index("A", bold=True)) == (0x41, False, False))
+test("bold requested, only the bold face has it: the bold tile",
+     tvm.index(0x4E2D, bold=True) != 0 and tvm.glyph(tvm.index(0x4E2D, bold=True)) == (0x4E2D, True, False))
+test("regular lookup of a codepoint only the bold face has is the box", tvm.index(0x4E2D) == 0)
+test("a codepoint no face has is the box, bold or not", tvm.index(0x10FFFE, bold=True) == 0 and tvm.index(0x10FFFE) == 0)
+tim = mcrfpy.Texture.from_font(FONT, SIZE, codepoints=[0x41, 0x4E2D], italic=WIDE)
+test("italic face lacking a codepoint falls back to the regular tile too",
+     tim.index("A", italic=True) == tim.index("A") != 0 and tim.variant_missing == [(0x41, False, True)])
+test("bold+italic walks bold, italic, regular", tim.index("A", bold=True, italic=True) == tim.index("A") and
+     tim.index(0x4E2D, bold=True, italic=True) == tim.index(0x4E2D, italic=True) != 0)
+
+# A cell too small for the glyphs: clipped is regular face only, variant_clipped the others.
+tvc = mcrfpy.Texture.from_font(FONT, SIZE, codepoints="AW", cell=(9, 16), bold=BOLD)
+test("regular clipping is reported for the wide letter only", tvc.clipped == [0x57], f"{tvc.clipped}")
+test("the bold face overflows on both, and its entries are not in clipped",
+     tvc.variant_clipped == [(0x41, True, False), (0x57, True, False)], f"{tvc.variant_clipped}")
+test("variant_missing is empty when the bold face has everything", tvc.variant_missing == [])
 
 print("=== reverse lookup ===")
 test("glyph(tile) round-trips", tex.glyph(tex.index("A")) == (65, False, False), f"{tex.glyph(tex.index('A'))}")
@@ -239,22 +265,48 @@ ok = all(tex.glyph(tex.index(c))[0] == ord(c) for c in map(chr, range(0x20, 0x7F
 test("every ASCII tile round-trips", ok)
 
 print("=== wide glyphs ===")
-WIDE_FONT = "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf"
-if os.path.exists(WIDE_FONT):
-    wf = mcrfpy.Font(WIDE_FONT)
-    tw = mcrfpy.Texture.from_font(wf, 16, codepoints=[(0x41, 0x43), 0x4E2D, 0x6587], cell=(10, 20))
-    test("wide glyph reports is_wide", tw.is_wide(0x4E2D) and not tw.is_wide("A"))
-    left = tw.index(0x4E2D)
-    test("wide glyph takes two adjacent tiles", tw.index(0x6587) == left + 2, f"{left} {tw.index(0x6587)}")
-    test("right half has no codepoint of its own", tw.glyph(left + 1) is None)
-    test("left half maps back", tw.glyph(left) == (0x4E2D, False, False))
-    rw = render(tw, {(0, 0): left, (1, 0): left + 1})
-    test("both halves have pixels", any(v > 0 for v in flat(rw[(0, 0)])) and any(v > 0 for v in flat(rw[(1, 0)])))
-    test("a wide glyph is not clipped by two cells", 0x4E2D not in tw.clipped, f"{tw.clipped}")
-else:
-    print("  SKIP: no font with wide (CJK) glyphs available; assets/ has none")
+tw = mcrfpy.Texture.from_font(WIDE, 16, codepoints=[0x20, 0x4E2D, 0x6587], cell=(10, 20))
+test("nothing missing from the wide subset", tw.missing == [], f"{tw.missing}")
+test("space is one tile", tw.index(" ") == 2)
+left = tw.index(0x4E2D)
+test("the wide glyph's left half follows the space", left == 3, f"{left}")
+test("a wide glyph takes two adjacent tiles", tw.index(0x6587) == left + 2, f"{left} {tw.index(0x6587)}")
+test("right half has no codepoint of its own", tw.glyph(left + 1) is None)
+test("left half maps back", tw.glyph(left) == (0x4E2D, False, False))
+rw = render(tw, {(0, 0): left, (1, 0): left + 1})
+test("both halves have pixels", any(v > 0 for v in flat(rw[(0, 0)])) and any(v > 0 for v in flat(rw[(1, 0)])))
+test("the halves differ", flat(rw[(0, 0)]) != flat(rw[(1, 0)]))
+test("a wide glyph is not clipped by two cells", 0x4E2D not in tw.clipped, f"{tw.clipped}")
+tw1 = mcrfpy.Texture.from_font(WIDE, 16, codepoints=[0x4E2D, 0x6587, 0x672C, 0x65E5])
+test("default cell width of an all-wide set is half the advance", tw1.sprite_width * 2 >= 16 and tw1.sprite_width <= 10,
+     f"{tw1.sprite_width}")
+
+print("=== is_wide (Unicode East Asian Width, codepoint only) ===")
+for cp in (0x1F680, 0x231A, 0x4E2D, 0xFF21, 0x3000):
+    test(f"U+{cp:04X} is wide", tex.is_wide(cp) is True and tw.is_wide(cp) is True)
+for cp in ("A", 0x2500, 0x20, 0xFF61):
+    test(f"U+{ord(cp) if isinstance(cp, str) else cp:04X} is narrow", tex.is_wide(cp) is False)
+test("the answer does not depend on the texture having the glyph",
+     tex.is_wide(0x4E2D) is True and tex.index(0x4E2D) == 0 and tw.is_wide("A") is False)
 
 print("=== errors ===")
+raises("bare (a, b) tuple is ambiguous", TypeError, lambda: mcrfpy.Texture.from_font(FONT, 16, codepoints=(0x20, 0x7E)), "[(a, b)]")
+raises("...and says how to write two codepoints", TypeError, lambda: mcrfpy.Texture.from_font(FONT, 16, codepoints=(0x20, 0x7E)), "[a, b]")
+test("[(a, b)] is a range, [a, b] is two codepoints",
+     mcrfpy.Texture.from_font(FONT, 16, codepoints=[(0x41, 0x43)]).index("B") != 0 and
+     mcrfpy.Texture.from_font(FONT, 16, codepoints=[0x41, 0x43]).index("B") == 0)
+raises("bool codepoint", TypeError, lambda: mcrfpy.Texture.from_font(FONT, 16, codepoints=[True]), "bool")
+raises("bool in a range", TypeError, lambda: mcrfpy.Texture.from_font(FONT, 16, codepoints=[(False, 0x41)]), "bool")
+raises("index of a bool", TypeError, lambda: tex.index(True), "bool")
+raises("bool cell", TypeError, lambda: mcrfpy.Texture.from_font(FONT, 16, cell=(True, 5)), "cell")
+raises("cell integer overflow", ValueError, lambda: mcrfpy.Texture.from_font(FONT, 16, cell=(2 ** 70, 5)), "1024")
+raises("cell negative overflow", ValueError, lambda: mcrfpy.Texture.from_font(FONT, 16, cell=(5, -2 ** 70)), "1024")
+raises("nothing in any face (bold given)", ValueError,
+       lambda: mcrfpy.Texture.from_font(FONT, 16, codepoints=[0x4E2D], bold=FONT), "any of the fonts")
+raises("nothing in any face (bold and italic given)", ValueError,
+       lambda: mcrfpy.Texture.from_font(FONT, 16, codepoints=[0x4E2D, 0x10FFFE], bold=FONT, italic=BOLD), "any of the fonts")
+test("a codepoint only a variant face has is accepted",
+     mcrfpy.Texture.from_font(FONT, 16, codepoints=[0x4E2D], bold=WIDE, cell=(10, 20)).index(0x4E2D, bold=True) != 0)
 raises("size 0", ValueError, lambda: mcrfpy.Texture.from_font(FONT, 0), "size")
 raises("size negative", ValueError, lambda: mcrfpy.Texture.from_font(FONT, -4), "size")
 raises("size absurd", ValueError, lambda: mcrfpy.Texture.from_font(FONT, 100000), "size")

@@ -9,6 +9,7 @@
 #include "PyTexture.h"
 #include "PyTextureFont.h"
 #include "PyFont.h"
+#include "EastAsianWide.h"
 #include "Display.h"
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
@@ -26,22 +27,24 @@ namespace {
 
 constexpr uint32_t MAX_CODEPOINT = 0x10FFFF;
 
-// East Asian Wide / Fullwidth blocks: these glyphs take two cells (a left and a right tile).
+// East Asian Width W or F (generated table): these glyphs take two cells, a left and a right tile.
 bool is_wide_codepoint(uint32_t cp)
 {
-    static const struct { uint32_t lo, hi; } ranges[] = {
-        {0x1100, 0x115F}, {0x2E80, 0x303E}, {0x3041, 0x33FF}, {0x3400, 0x4DBF},
-        {0x4E00, 0x9FFF}, {0xA000, 0xA4CF}, {0xA960, 0xA97F}, {0xAC00, 0xD7A3},
-        {0xF900, 0xFAFF}, {0xFE10, 0xFE19}, {0xFE30, 0xFE6F}, {0xFF00, 0xFF60},
-        {0xFFE0, 0xFFE6}, {0x1F300, 0x1F64F}, {0x1F900, 0x1F9FF}, {0x20000, 0x3FFFD},
-    };
-    for (auto& r : ranges) if (cp >= r.lo && cp <= r.hi) return true;
-    return false;
+    const auto* first = EAST_ASIAN_WIDE_RANGES;
+    const auto* last = first + sizeof(EAST_ASIAN_WIDE_RANGES) / sizeof(EAST_ASIAN_WIDE_RANGES[0]);
+    // first range whose hi >= cp
+    const auto* it = std::lower_bound(first, last, cp,
+        [](const EastAsianWideRange& r, uint32_t c) { return r.hi < c; });
+    return it != last && cp >= it->lo;
 }
 
 // One codepoint: an int, or a str of exactly one character. Sets a Python error on failure.
 bool parse_codepoint(PyObject* o, uint32_t& out, const char* what)
 {
+    if (PyBool_Check(o)) {
+        PyErr_Format(PyExc_TypeError, "%s must be a single character or an int, not a bool", what);
+        return false;
+    }
     if (PyUnicode_Check(o)) {
         if (PyUnicode_GET_LENGTH(o) != 1) {
             PyErr_Format(PyExc_ValueError, "%s must be a single character or an int, got a str of length %zd",
@@ -83,6 +86,14 @@ bool parse_codepoints(PyObject* spec, std::set<uint32_t>& out)
             out.insert(cp);
         }
         return true;
+    }
+    if (PyTuple_Check(spec) && PyTuple_GET_SIZE(spec) == 2 &&
+        !PySequence_Check(PyTuple_GET_ITEM(spec, 0)) && !PySequence_Check(PyTuple_GET_ITEM(spec, 1)) &&
+        PyLong_Check(PyTuple_GET_ITEM(spec, 0)) && PyLong_Check(PyTuple_GET_ITEM(spec, 1))) {
+        PyErr_SetString(PyExc_TypeError,
+            "codepoints is a bare (a, b) tuple, which is ambiguous: write [(a, b)] for the range a..b, "
+            "or [a, b] for the two codepoints a and b");
+        return false;
     }
     PyObject* it = PyObject_GetIter(spec);
     if (!it) {
@@ -269,18 +280,29 @@ PyObject* PyTexture::from_font(PyObject* cls, PyObject* args, PyObject* kwds)
         }
         PyObject* cw_o = PySequence_GetItem(cell_obj, 0);
         PyObject* ch_o = PySequence_GetItem(cell_obj, 1);
-        bool good = cw_o && ch_o && PyLong_Check(cw_o) && PyLong_Check(ch_o);
-        if (good) { req_cell_w = (int)PyLong_AsLong(cw_o); req_cell_h = (int)PyLong_AsLong(ch_o); }
+        bool good = cw_o && ch_o && PyLong_Check(cw_o) && PyLong_Check(ch_o) &&
+                    !PyBool_Check(cw_o) && !PyBool_Check(ch_o);
+        long lw = 0, lh = 0;
+        int ovw = 0, ovh = 0;
+        if (good) {
+            lw = PyLong_AsLongAndOverflow(cw_o, &ovw);
+            if (lw == -1 && PyErr_Occurred()) good = false;
+            else {
+                lh = PyLong_AsLongAndOverflow(ch_o, &ovh);
+                if (lh == -1 && PyErr_Occurred()) good = false;
+            }
+        }
         Py_XDECREF(cw_o); Py_XDECREF(ch_o);
         if (!good) {
             if (!PyErr_Occurred()) PyErr_SetString(PyExc_TypeError, "cell must be a (width, height) tuple of ints");
             return NULL;
         }
-        if (req_cell_w < 1 || req_cell_h < 1 || req_cell_w > 1024 || req_cell_h > 1024) {
-            PyErr_Format(PyExc_ValueError, "cell must be between 1x1 and 1024x1024 pixels, got %dx%d",
-                         req_cell_w, req_cell_h);
+        if (ovw || ovh || lw < 1 || lh < 1 || lw > 1024 || lh > 1024) {
+            PyErr_SetString(PyExc_ValueError, "cell must be between 1x1 and 1024x1024 pixels");
             return NULL;
         }
+        req_cell_w = (int)lw;
+        req_cell_h = (int)lh;
     }
 
     Rasteriser faces[3];
@@ -320,9 +342,13 @@ PyObject* PyTexture::from_font(PyObject* cls, PyObject* args, PyObject* kwds)
             if (have[f] && !e.gi[f]) data->variant_missing.push_back({cp, (FontAtlasData::Face)f});
         entries.push_back(e);
     }
-    if (data->missing.size() == entries.size() && !(have[1] || have[2])) {
-        PyErr_SetString(PyExc_ValueError, "none of the requested codepoints are in the font");
-        return NULL;
+    {
+        bool any = false;
+        for (auto& e : entries) any = any || e.gi[0] || e.gi[1] || e.gi[2];
+        if (!any) {
+            PyErr_SetString(PyExc_ValueError, "none of the requested codepoints are in any of the fonts");
+            return NULL;
+        }
     }
 
     // Cell: line height x widest (single-cell) advance, unless given.
@@ -364,6 +390,14 @@ PyObject* PyTexture::from_font(PyObject* cls, PyObject* args, PyObject* kwds)
         }
         data->strikethrough_thickness = std::max(1, (int)std::lround(os2->yStrikeoutSize * y_scale));
         data->strikethrough_position = (int)std::lround(baseline - os2->yStrikeoutPosition * y_scale);
+        // The stripes are drawn inside a cell: keep them there (ascent stays truthful; glyph
+        // overflow is reported through clipped).
+        auto fit = [&](int& pos, int& thick) {
+            thick = std::min(std::max(thick, 1), ch);
+            pos = std::min(std::max(pos, 0), ch - thick);
+        };
+        fit(data->underline_position, data->underline_thickness);
+        fit(data->strikethrough_position, data->strikethrough_thickness);
     }
 
     // Layout: tile 0 box, tile 1 white, then regular glyphs, bold glyphs, italic glyphs.
@@ -474,14 +508,20 @@ PyObject* PyTexture::py_index(PyTextureObject* self, PyObject* args, PyObject* k
     if (!fa) return NULL;
     uint32_t cp;
     if (!parse_codepoint(cp_obj, cp, "codepoint")) return NULL;
-    // A face the texture lacks is not an error: the regular tile is returned and the caller
-    // (TerminalLayer) fakes the style, having checked `variants`. Bold wins over italic when
-    // both are asked for; there is no bold-italic face.
-    FontAtlasData::Face face = FontAtlasData::REGULAR;
-    if (bold && fa->has_bold) face = FontAtlasData::BOLD;
-    else if (italic && fa->has_italic) face = FontAtlasData::ITALIC;
-    auto it = fa->index.find(FontAtlasData::key(face, cp));
-    return PyLong_FromLong(it == fa->index.end() ? fa->box_tile : it->second);
+    // Faces to try, best first. A face the texture lacks, or that lacks this codepoint, falls
+    // through to the next: the regular tile comes back and the caller (TerminalLayer) fakes the
+    // style, having checked glyph(tile) / variants. Bold wins over italic when both are asked for;
+    // there is no bold-italic face. Only when no usable face has the glyph is it the box tile.
+    FontAtlasData::Face order[3];
+    int n = 0;
+    if (bold && fa->has_bold) order[n++] = FontAtlasData::BOLD;
+    if (italic && fa->has_italic) order[n++] = FontAtlasData::ITALIC;
+    order[n++] = FontAtlasData::REGULAR;
+    for (int i = 0; i < n; i++) {
+        auto it = fa->index.find(FontAtlasData::key(order[i], cp));
+        if (it != fa->index.end()) return PyLong_FromLong(it->second);
+    }
+    return PyLong_FromLong(fa->box_tile);
 }
 
 PyObject* PyTexture::py_glyph(PyTextureObject* self, PyObject* args, PyObject* kwds)
@@ -511,9 +551,7 @@ PyObject* PyTexture::py_is_wide(PyTextureObject* self, PyObject* args, PyObject*
     if (!fa) return NULL;
     uint32_t cp;
     if (!parse_codepoint(cp_obj, cp, "codepoint")) return NULL;
-    auto it = fa->index.find(FontAtlasData::key(FontAtlasData::REGULAR, cp));
-    bool wide = it != fa->index.end() && (size_t)it->second + 1 < fa->tiles.size()
-             && fa->tiles[it->second + 1].kind == FontAtlasData::Tile::GLYPH_RIGHT;
+    bool wide = is_wide_codepoint(cp);  // Unicode only: the same answer whether or not the texture has the glyph
     return PyBool_FromLong(wide);
 }
 
@@ -561,8 +599,13 @@ PyObject* PyTexture::get_variants(PyTextureObject* self, void*)
     PyObject* t = PyTuple_New(1 + (fa->has_bold ? 1 : 0) + (fa->has_italic ? 1 : 0));
     if (!t) return NULL;
     Py_ssize_t i = 0;
-    PyTuple_SET_ITEM(t, i++, PyUnicode_FromString(face_name(FontAtlasData::REGULAR)));
-    if (fa->has_bold) PyTuple_SET_ITEM(t, i++, PyUnicode_FromString(face_name(FontAtlasData::BOLD)));
-    if (fa->has_italic) PyTuple_SET_ITEM(t, i++, PyUnicode_FromString(face_name(FontAtlasData::ITALIC)));
+    FontAtlasData::Face present[3] = {FontAtlasData::REGULAR, FontAtlasData::BOLD, FontAtlasData::ITALIC};
+    bool has[3] = {true, fa->has_bold, fa->has_italic};
+    for (int f = 0; f < 3; f++) {
+        if (!has[f]) continue;
+        PyObject* name = PyUnicode_FromString(face_name(present[f]));
+        if (!name) { Py_DECREF(t); return NULL; }
+        PyTuple_SET_ITEM(t, i++, name);
+    }
     return t;
 }

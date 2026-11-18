@@ -270,13 +270,15 @@ class Texture:
                   italic: Optional['Font'] = None) -> 'Texture':
         """EXPERIMENTAL. Rasterise a font once into a static white-on-transparent tile atlas.
 
-        codepoints defaults to [(0x20, 0x7E), (0x2500, 0x257F)]; ranges are inclusive.
+        codepoints defaults to [(0x20, 0x7E), (0x2500, 0x257F)]; ranges are inclusive. A bare (a, b) tuple
+        raises TypeError: write [(a, b)] for a range or [a, b] for two codepoints.
         Tile 0 is the box tile (used for missing codepoints), tile 1 a solid white tile.
         """
         ...
 
     def index(self, codepoint: Union[str, int], bold: bool = False, italic: bool = False) -> int:
-        """EXPERIMENTAL. Tile of a codepoint; 0 (the box) if absent. A wide glyph's right half is index + 1."""
+        """EXPERIMENTAL. Tile of a codepoint. A bold/italic face the texture lacks (or that lacks the codepoint)
+        falls back to the regular tile; 0 (the box) only when no usable face has it. A wide glyph's right half is index + 1."""
         ...
 
     def glyph(self, tile: int) -> Optional[Tuple[int, bool, bool]]:
@@ -284,7 +286,7 @@ class Texture:
         ...
 
     def is_wide(self, codepoint: Union[str, int]) -> bool:
-        """EXPERIMENTAL. Whether the codepoint takes two tiles."""
+        """EXPERIMENTAL. Whether the codepoint is East Asian Wide/Fullwidth (two tiles). Codepoint-only."""
         ...
 
     missing: Optional[List[int]]            # Read-only
