@@ -17,6 +17,11 @@ TOOLS = os.path.join(ROOT, "tools")
 sys.path.insert(0, TOOLS)
 
 
+
+def _read(path):
+    with open(path) as f:
+        return f.read()
+
 def load(name):
     spec = importlib.util.spec_from_file_location(name, os.path.join(TOOLS, name + ".py"))
     mod = importlib.util.module_from_spec(spec)
@@ -243,7 +248,7 @@ case("renaming 147 -> 901 (even inside the range)", rename_snippet, 1, ["R8", "1
 
 
 def modify(text_fn):
-    return lambda d: write_files(d, {"tests/snippets/147_a.py": text_fn(open(os.path.join(d, "tests/snippets/147_a.py")).read())})
+    return lambda d: write_files(d, {"tests/snippets/147_a.py": text_fn(_read(os.path.join(d, "tests/snippets/147_a.py")))})
 
 
 case("existing snippet: region markers + header are the only allowed change",
@@ -257,7 +262,7 @@ case("existing snippet: malformed region is R6", modify(lambda s: s + "# region:
 # conversions are detected without --pair
 def convert(drop):
     def edit(d):
-        src = open(os.path.join(d, "docs/cookbook/procgen/01_x.py")).read()
+        src = _read(os.path.join(d, "docs/cookbook/procgen/01_x.py"))
         if drop:
             src = src.replace("def also():\n    return 2\n", "")
         os.remove(os.path.join(d, "docs/cookbook/procgen/01_x.py"))
@@ -270,7 +275,7 @@ case("faithful conversion passes with no --pair", convert(False), 0)
 
 
 def convert_pair(d):
-    src = open(os.path.join(d, "docs/cookbook/procgen/01_x.py")).read().replace("def also():\n    return 2\n", "def x():\n    pass\n")
+    src = _read(os.path.join(d, "docs/cookbook/procgen/01_x.py")).replace("def also():\n    return 2\n", "def x():\n    pass\n")
     write_files(d, {"tests/snippets/900_procgen_x.py": src})
 
 
