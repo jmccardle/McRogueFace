@@ -152,6 +152,9 @@ void UIGridView::applyDefaultCamera()
     center_y = box.getSize().y / (2.0f * zoom);
 }
 
+enum class CameraFree { Zoom, Width, Height, Size, Centre };
+static void capCamera(CameraFree free, float& zoom, float& w, float& h, float& cx, float& cy);
+
 void UIGridView::onCellSizeChanged(sf::Vector2i old, sf::Vector2i now)
 {
     // A view sized to show the whole map (the default) keeps showing it.
@@ -159,13 +162,19 @@ void UIGridView::onCellSizeChanged(sf::Vector2i old, sf::Vector2i now)
         applySize(grid_data->grid_w * (float)now.x, grid_data->grid_h * (float)now.y);
         ensureRenderTextureSize();
     }
-    if (camera_is_default) {
-        applyDefaultCamera();
-    } else {
+    if (!camera_is_default) {
         // The camera is in data pixels: keep the same cells centered.
         center_x = center_x / old.x * now.x;
         center_y = center_y / old.y * now.y;
     }
+    // The Python setters checked this change (checkCellSize) and it is a no-op for them. The first
+    // draw of a texture-less grid assigns the default texture and cannot raise: the camera is capped
+    // to the nearest valid one (#558).
+    {
+        float w = box.getSize().x, h = box.getSize().y;
+        capCamera(CameraFree::Zoom, zoom, w, h, center_x, center_y);
+    }
+    if (camera_is_default) applyDefaultCamera();
     markDirty();
 }
 
@@ -423,7 +432,7 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
     // Children (grid-world pixel coordinates; owned by this view -- #364)
     if (children && !children->empty()) {
         if (children_need_sort) {
-            std::sort(children->begin(), children->end(),
+            std::stable_sort(children->begin(), children->end(),
                 [](const auto& a, const auto& b) { return a->z_index < b->z_index; });
             children_need_sort = false;
         }
@@ -571,7 +580,7 @@ UIDrawable* UIGridView::click_at(sf::Vector2f point)
     //    camera must not move a child's logical position). Do not "fix" this.
     if (children && !children->empty()) {
         if (children_need_sort) {
-            std::sort(children->begin(), children->end(),
+            std::stable_sort(children->begin(), children->end(),
                 [](const auto& a, const auto& b) { return a->z_index < b->z_index; });
             children_need_sort = false;
         }
@@ -658,6 +667,64 @@ static bool cameraOk(double zoom, double w, double h, double cx, double cy)
     return true;
 }
 
+// The same invariant for the two paths that cannot raise (#558): an animation tick, and the cell size
+// change of a first draw with no texture. Instead of refusing, this moves the one value that is free to
+// move to the nearest one cameraOk accepts (same L, same span, same arithmetic, so the two cannot
+// drift): an overshooting easing displays the limit for the ticks that pass it and rejoins its curve
+// when it comes back in range. Values already inside the invariant are returned untouched. Python
+// setters never come through here; they call cameraOk and raise.
+// float results are rounded toward the valid side: the nearest float to a limit can lie outside it.
+static float floatUp(double v)
+{
+    float f = static_cast<float>(v);
+    if (static_cast<double>(f) < v) f = std::nextafter(f, std::numeric_limits<float>::infinity());
+    return f;
+}
+static float floatTowardZero(double v)
+{
+    float f = static_cast<float>(v);
+    if (std::fabs(static_cast<double>(f)) > std::fabs(v)) f = std::nextafter(f, 0.0f);
+    return f;
+}
+static float capMagnitude(float v, double limit)
+{
+    // nan is not within any limit; it maps to the limit's sign like an overshoot would
+    if (std::fabs(static_cast<double>(v)) <= limit) return v;
+    return floatTowardZero(std::copysign(limit, static_cast<double>(v)));
+}
+
+static void capCamera(CameraFree free, float& zoom, float& w, float& h, float& cx, float& cy)
+{
+    const double span = std::max(std::fabs(static_cast<double>(w)) + std::fabs(static_cast<double>(h)), 1.0);
+    switch (free) {
+    case CameraFree::Zoom: {
+        const double min_zoom = span / kCameraLimit;
+        if (!(zoom >= min_zoom)) zoom = floatUp(min_zoom);   // also nan, 0 and negatives
+        break;
+    }
+    case CameraFree::Width:
+    case CameraFree::Height:
+    case CameraFree::Size: {
+        const double max_span = static_cast<double>(zoom) * kCameraLimit;
+        if (span > max_span) {
+            const double aw = std::fabs(static_cast<double>(w)), ah = std::fabs(static_cast<double>(h));
+            if (free == CameraFree::Width)       w = capMagnitude(w, std::max(max_span - ah, 0.0));
+            else if (free == CameraFree::Height) h = capMagnitude(h, std::max(max_span - aw, 0.0));
+            else {
+                const double k = max_span / span;
+                w = floatTowardZero(w * k);
+                h = floatTowardZero(h * k);
+            }
+        }
+        break;
+    }
+    case CameraFree::Centre:
+        break;
+    }
+    cx = capMagnitude(cx, kCameraLimit);
+    cy = capMagnitude(cy, kCameraLimit);
+}
+
 // The camera centre a (zoom, size) pair would have: the default camera derives it from both.
 static void effectiveCenter(const UIGridView& v, double zoom, double w, double h, double& cx, double& cy)
 {
@@ -699,10 +766,8 @@ bool UIGridView::checkSize(sf::Vector2f s) const
 bool UIGridView::checkFloatTarget(const std::string& name, float final_value) const
 {
     // The value an animation ENDS at must satisfy the invariant (a delta animation's end is added
-    // before this is called). An easing that overshoots (back, elastic) can still pass through values
-    // that violate it MID-FLIGHT: setProperty cannot raise, so render()/localToGridWorld() cast through
-    // a saturating helper to stay defined; whether such an easing should be rejected, clamped or stopped
-    // is an open decision (reported, #558).
+    // before this is called), so the animation is refused up front. Mid-flight values of an easing that
+    // overshoots (back, elastic) cannot be refused: setProperty caps them with capCamera (#558).
     const double w = box.getSize().x, h = box.getSize().y;
     double cx, cy;
     if (name == "zoom") {
@@ -732,9 +797,29 @@ bool UIGridView::checkVec2Target(const std::string& name, const sf::Vector2f& fi
 bool UIGridView::setProperty(const std::string& name, float value)
 {
     // Each camera change marks the view dirty: a cache_subtree ancestor only redraws when told.
-    if (name == "center_x") { center_x = value; camera_is_default = false; markDirty(); return true; }
-    if (name == "center_y") { center_y = value; camera_is_default = false; markDirty(); return true; }
-    if (name == "zoom") { zoom = value; if (camera_is_default) applyDefaultCamera(); markDirty(); return true; }
+    // The animation path cannot raise: an out-of-range value is capped (capCamera, #558).
+    if (name == "center_x" || name == "center_y") {
+        float w = box.getSize().x, h = box.getSize().y;
+        float cx = name == "center_x" ? value : center_x;
+        float cy = name == "center_y" ? value : center_y;
+        capCamera(CameraFree::Centre, zoom, w, h, cx, cy);
+        center_x = cx; center_y = cy;
+        camera_is_default = false; markDirty(); return true;
+    }
+    if (name == "zoom") {
+        float w = box.getSize().x, h = box.getSize().y, cx = center_x, cy = center_y;
+        zoom = value;
+        capCamera(CameraFree::Zoom, zoom, w, h, cx, cy);
+        if (camera_is_default) applyDefaultCamera();
+        markDirty(); return true;
+    }
+    if (name == "w" || name == "h") {
+        float w = name == "w" ? value : box.getSize().x;
+        float h = name == "h" ? value : box.getSize().y;
+        float cx = center_x, cy = center_y;
+        capCamera(name == "w" ? CameraFree::Width : CameraFree::Height, zoom, w, h, cx, cy);
+        return UIDrawable::setProperty(name, name == "w" ? w : h);
+    }
     if (name == "camera_rotation") { camera_rotation = value; markDirty(); return true; }
     if (setShaderProperty(name, value)) return true;
     return UIDrawable::setProperty(name, value);
@@ -743,11 +828,19 @@ bool UIGridView::setProperty(const std::string& name, float value)
 bool UIGridView::setProperty(const std::string& name, const sf::Vector2f& value)
 {
     if (name == "center") {
-        center_x = value.x;
-        center_y = value.y;
+        float w = box.getSize().x, h = box.getSize().y;
+        float cx = value.x, cy = value.y;
+        capCamera(CameraFree::Centre, zoom, w, h, cx, cy);   // #558: capped, never raised
+        center_x = cx;
+        center_y = cy;
         camera_is_default = false;
         markDirty();
         return true;
+    }
+    if (name == "size") {
+        float w = value.x, h = value.y, cx = center_x, cy = center_y;
+        capCamera(CameraFree::Size, zoom, w, h, cx, cy);
+        return UIDrawable::setProperty(name, sf::Vector2f(w, h));
     }
     return UIDrawable::setProperty(name, value);
 }
@@ -962,7 +1055,7 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
     self->data->box.setSize(sf::Vector2f(w, h));
     self->data->visible = visible;
     self->data->assignOpacity(opacity);  // the setter's clamp, not a raw store (#540)
-    self->data->z_index = z_index;
+    self->data->initZIndex(z_index, args, kwds, kwlist);  // #552
     if (name) self->data->UIDrawable::name = std::string(name);
 
     self->data->camera_is_default = camera_default;
@@ -1800,12 +1893,13 @@ PyGetSetDef UIGridView::getsetters[] = {
          MCRF_LINK("docs/grid-coordinate-spaces.md", "Grid Coordinate Spaces & Overlay Pattern")
      ), NULL},
     {"center", (getter)UIGridView::get_center, (setter)UIGridView::set_center,
-     MCRF_PROPERTY(center, "Camera center point in pixel coordinates (Vector)."), NULL},
+     MCRF_PROPERTY(center, "Camera center point in pixel coordinates (Vector). Setting a centre beyond +/-536870911 raises ValueError; an animation that passes it is capped at the limit for those ticks."), NULL},
     {"size", (getter)UIGridView::get_size, (setter)UIGridView::set_size,
      MCRF_PROPERTY(size, "Size of the grid widget in pixels as (w, h) (Vector). This is the "
                          "viewport, not the map: the map's dimensions are grid_size."), NULL},
     {"zoom", (getter)UIGridView::get_zoom, (setter)UIGridView::set_zoom,
-     MCRF_PROPERTY(zoom, "Zoom level for rendering (float). Values greater than 1.0 magnify; less than 1.0 shrink."), NULL},
+     MCRF_PROPERTY(zoom, "Zoom level for rendering (float). Values greater than 1.0 magnify; less than 1.0 shrink. "
+                       "Setting a zoom below size / 536870911 raises ValueError; an animation that overshoots below it (back, elastic) displays that minimum for those ticks."), NULL},
     {"fill_color", (getter)UIGridView::get_fill_color, (setter)UIGridView::set_fill_color,
      MCRF_PROPERTY(fill_color, "Background fill color (Color). Drawn behind all tiles and entities."), NULL},
     // #318/#252: this type is exposed as BOTH mcrfpy.Grid and mcrfpy.GridView, so the

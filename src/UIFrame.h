@@ -1,4 +1,5 @@
 #pragma once
+#include "ChildZ.h"
 #include "Common.h"
 #include "Python.h"
 #include "structmember.h"
@@ -29,6 +30,7 @@ public:
     sf::RectangleShape box;
     float outline;
     std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> children;
+    ChildZ children_z;   // #552: highest z_index in children
     bool children_need_sort = true;  // Dirty flag for z_index sorting optimization
     bool clip_children = false;  // Whether to clip children to frame bounds
     bool cache_subtree = false;  // #144: Whether to cache subtree rendering to texture

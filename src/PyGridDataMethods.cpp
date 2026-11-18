@@ -930,7 +930,7 @@ PyObject* PyGridData::py_step(PyGridDataObject* self, PyObject* args, PyObject* 
             snapshot.push_back(entity);
         }
 
-        std::sort(snapshot.begin(), snapshot.end(),
+        std::stable_sort(snapshot.begin(), snapshot.end(),   // equal turn_order acts in collection order (#552)
             [](const auto& a, const auto& b) { return a->turn_order < b->turn_order; });
 
         for (auto& entity : snapshot) {

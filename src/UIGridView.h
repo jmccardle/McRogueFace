@@ -1,4 +1,5 @@
 #pragma once
+#include "ChildZ.h"
 // UIGridView.h - Rendering view for GridData (#252)
 //
 // GridView is a UIDrawable that renders a GridData object. Multiple GridViews
@@ -71,6 +72,7 @@ public:
     // position. The view's camera maps them to screen at render/hit-test time.
     // =====================================================================
     std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> children;
+    ChildZ children_z;   // #552: highest z_index in children
     bool children_need_sort = true;
 
     // Rendering state (independent per view). #453: the view has no texture or cell

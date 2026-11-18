@@ -9,6 +9,7 @@
 #include <list>
 #include "UI.h"
 #include "PyCallable.h"
+#include "ChildZ.h"
 //#include "GameEngine.h"
 
 class GameEngine; // forward declare
@@ -45,6 +46,7 @@ public:
     // no C++ object of its own, so its identity lives on the scene; unregistered in
     // ~Scene.
     uint64_t children_serial = 0;
+    ChildZ ui_elements_z;   // #552: highest z_index in ui_elements
 
     //PyObject* key_callable;
     std::unique_ptr<PyKeyCallable> key_callable;

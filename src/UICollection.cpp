@@ -1,4 +1,5 @@
 #include "UICollection.h"
+#include "Scene.h"
 #include "PyWrap.h"
 #include "McRFPy_Doc.h"
 
@@ -40,6 +41,24 @@ static void link_child(PyUICollectionObject* self, std::shared_ptr<UIDrawable> d
     } else {
         drawable->setParent(self->owner.lock());
     }
+}
+
+// The ChildZ (highest z_index) of the owner of this collection: its scene, or its Frame / Grid.
+static ChildZ* collection_z(PyUICollectionObject* self) {
+    if (auto scene = self->scene.lock()) return &scene->ui_elements_z;
+    auto owner = self->owner.lock();
+    if (!owner) return nullptr;
+    if (owner->derived_type() == PyObjectsEnum::UIFRAME) return &std::static_pointer_cast<UIFrame>(owner)->children_z;
+    if (owner->derived_type() == PyObjectsEnum::UIGRIDVIEW) return &std::static_pointer_cast<UIGridView>(owner)->children_z;
+    return nullptr;
+}
+
+// Assign a z_index to a drawable that may already be a member of some collection, telling that
+// collection's ChildZ.
+static void set_z(const std::shared_ptr<UIDrawable>& d, int z) {
+    const int old_z = d->z_index;
+    d->z_index = z;
+    d->noteZChanged(old_z);
 }
 
 // #442: call before mutating anything; see UIDrawable::canAdopt.
@@ -235,14 +254,16 @@ int UICollection::setitem(PyUICollectionObject* self, Py_ssize_t index, PyObject
     // element releases its identity pin, whose __del__ could mutate this collection
     (*vec)[index] = new_drawable;
 
-    // Preserve the z_index of the replaced element
-    new_drawable->z_index = old_z_index;
+    // The new element takes the replaced one's slot in the draw order, unless it was given a z_index (#552)
+    if (!new_drawable->z_index_explicit) set_z(new_drawable, old_z_index);
+    if (ChildZ* cz = collection_z(self)) cz->invalidate();   // the slot's element changed, so may the highest
 
     // #377: parent to the scene, not to a null owner, when this is a scene collection. Linked
     // BEFORE the old element is unlinked (#558): unlinking can run a __del__ that removes the new
     // element again, and a parent link made after that would pin an object the collection
     // no longer holds (a wrapper <-> pin cycle nothing can free).
     link_child(self, new_drawable);
+    new_drawable->markParentChildrenNeedSort();   // #552: its z_index may differ from the slot's
 
     // #122: Clear parent of old element (user code may run here: the collection is consistent)
     unlink_child(old_drawable);
@@ -545,7 +566,7 @@ int UICollection::ass_subscript(PyUICollectionObject* self, PyObject* key, PyObj
             if (step == 1) {
                 if (slicelength == value_len) {
                     for (Py_ssize_t i = 0; i < slicelength; i++) {
-                        new_items[i]->z_index = previous[start + i]->z_index;  // Preserve z_index
+                        if (!new_items[i]->z_index_explicit) set_z(new_items[i], previous[start + i]->z_index);  // #552
                     }
                 }
                 for (Py_ssize_t k = 0; k < start; k++)
@@ -557,7 +578,7 @@ int UICollection::ass_subscript(PyUICollectionObject* self, PyObject* key, PyObj
                 std::vector<std::shared_ptr<UIDrawable>> slots = previous;
                 std::vector<bool> assigned(slots.size(), false);
                 for (Py_ssize_t i = 0, cur = start; i < slicelength; i++, cur += step) {
-                    new_items[i]->z_index = previous[cur]->z_index;  // Preserve z_index
+                    if (!new_items[i]->z_index_explicit) set_z(new_items[i], previous[cur]->z_index);  // #552
                     slots[cur] = new_items[i];
                     assigned[cur] = true;
                 }
@@ -584,6 +605,8 @@ int UICollection::ass_subscript(PyUICollectionObject* self, PyObject* key, PyObj
             for (auto& item : result) {
                 link_child(self, item);
             }
+            for (auto& item : new_items) item->markParentChildrenNeedSort();   // #552
+            if (ChildZ* cz = collection_z(self)) cz->invalidate();             // membership changed wholesale
             // Anything the slice displaced is no longer a member -- drop its parent link.
             for (auto& old_item : previous) {
                 if (!contains_ptr(result, old_item.get())) {
@@ -643,31 +666,27 @@ PyObject* UICollection::append(PyUICollectionObject* self, PyObject* o)
         return NULL;
     }
 
-    // Calculate z_index for the new element
-    int new_z_index = 0;
-    if (!self->data->empty()) {
-        int last_z = self->data->back()->z_index;
-        if (last_z <= INT_MAX - 10) {
-            new_z_index = last_z + 10;
-        } else {
-            new_z_index = INT_MAX;
-        }
-    }
-
     if (!can_link(self, drawable)) return NULL;
 
     // #183: Remove from old parent (drawable or scene)
     drawable->removeFromParent();
 
-    drawable->z_index = new_z_index;
+    // A drawable that was given a z_index keeps it (#552); any other goes on top of what is already
+    // here, which is what makes insertion order the draw order. Computed after the detach, so a
+    // drawable moving within this collection does not count itself.
+    ChildZ* cz = collection_z(self);
+    const bool was_empty = self->data->empty();
+    if (!drawable->z_index_explicit) drawable->z_index = cz ? cz->next_auto(*self->data) : ChildZ::next_auto_uncached(*self->data);
 
     // #183: Set new parent - either scene or drawable
     link_child(self, drawable);
 
     self->data->push_back(drawable);
+    if (cz) cz->added(drawable->z_index, was_empty);
 
-    // Mark scene as needing resort after adding element
+    // Mark scene (and a Frame/Grid owner) as needing resort after adding element
     McRFPy_API::markSceneNeedsSort();
+    drawable->markParentChildrenNeedSort();
 
     // #288: Invalidate parent Frame's render cache
     auto owner_ptr = self->owner.lock();
@@ -688,12 +707,6 @@ PyObject* UICollection::extend(PyUICollectionObject* self, PyObject* iterable)
         return NULL;
     }
     
-    // Get current highest z_index
-    int current_z_index = 0;
-    if (!self->data->empty()) {
-        current_z_index = self->data->back()->z_index;
-    }
-
     std::shared_ptr<UIDrawable> owner_ptr = self->owner.lock();
 
     // #442: validate every item before adding any, so a bad item (wrong type, or an
@@ -728,19 +741,18 @@ PyObject* UICollection::extend(PyUICollectionObject* self, PyObject* iterable)
         return NULL;
     }
 
+    // Detach everything first, so the highest z_index is that of what stays (#552).
+    for (auto& drawable : items) drawable->removeFromParent();
+    ChildZ* cz = collection_z(self);
     for (auto& drawable : items) {
-        if (current_z_index <= INT_MAX - 10) {
-            current_z_index += 10;
-        } else {
-            current_z_index = INT_MAX;
-        }
-
-        drawable->removeFromParent();
-        drawable->z_index = current_z_index;
+        const bool was_empty = self->data->empty();
+        if (!drawable->z_index_explicit) drawable->z_index = cz ? cz->next_auto(*self->data) : ChildZ::next_auto_uncached(*self->data);
         // #377: was setParent(owner_ptr), which unparented the drawable outright on a
         // scene collection (no owner drawable => owner.lock() is null)
         link_child(self, drawable);
         self->data->push_back(drawable);
+        drawable->markParentChildrenNeedSort();
+        if (cz) cz->added(drawable->z_index, was_empty);
     }
     
     // Mark scene as needing resort after adding elements
@@ -914,9 +926,12 @@ PyObject* UICollection::insert(PyUICollectionObject* self, PyObject* args)
     link_child(self, drawable);
 
     // Insert at position
+    const bool was_empty = vec->empty();
     vec->insert(vec->begin() + index, drawable);
+    if (ChildZ* cz = collection_z(self)) cz->added(drawable->z_index, was_empty);   // #552
 
     McRFPy_API::markSceneNeedsSort();
+    drawable->markParentChildrenNeedSort();  // #552
 
     // #288: Invalidate parent Frame's render cache
     auto owner_ptr2 = self->owner.lock();

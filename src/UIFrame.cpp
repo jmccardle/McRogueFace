@@ -181,7 +181,7 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
 
             // Sort children by z_index if needed
             if (children_need_sort && !children->empty()) {
-                std::sort(children->begin(), children->end(),
+                std::stable_sort(children->begin(), children->end(),
                     [](const std::shared_ptr<UIDrawable>& a, const std::shared_ptr<UIDrawable>& b) {
                         return a->z_index < b->z_index;
                     });
@@ -244,7 +244,7 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
 
         // Sort children by z_index if needed
         if (children_need_sort && !children->empty()) {
-            std::sort(children->begin(), children->end(),
+            std::stable_sort(children->begin(), children->end(),
                 [](const std::shared_ptr<UIDrawable>& a, const std::shared_ptr<UIDrawable>& b) {
                     return a->z_index < b->z_index;
                 });
@@ -667,7 +667,7 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
     // Set other properties
     self->data->visible = visible;
     self->data->assignOpacity(opacity);  // the setter's clamp, not a raw store (#540)
-    self->data->z_index = z_index;
+    self->data->initZIndex(z_index, args, kwds, kwlist);  // #552
     self->data->clip_children = clip_children;
     self->data->cache_subtree = cache_subtree;  // #144: texture caching
 

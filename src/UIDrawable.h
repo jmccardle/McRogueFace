@@ -1,4 +1,5 @@
 #pragma once
+#include "ChildZ.h"
 #include "Common.h"
 #include "Python.h"
 #include "structmember.h"
@@ -143,9 +144,19 @@ public:
     
     // Z-order for rendering (lower values rendered first, higher values on top)
     int z_index = 0;
+    // #552: true once a z_index was chosen (setter, constructor argument, animation). A collection
+    // append only assigns the next free z_index (insertion order) to a drawable that has none.
+    bool z_index_explicit = false;
+    // The ChildZ of the collection this drawable is a member of (scene, Frame or Grid), or nullptr.
+    ChildZ* ownerZ() const;
+    // Report a z_index change (z_index already holds the new value) to the owner's ChildZ.
+    void noteZChanged(int old_z);
     
     // Notification for z_index changes
     void notifyZIndexChanged();
+    void markParentChildrenNeedSort();   // #552
+    // tp_init: store the constructor's z_index; `kwlist` is the nullptr-terminated keyword list.
+    void initZIndex(int z, PyObject* args, PyObject* kwds, const char* const* kwlist);
     
     // Name for finding elements
     std::string name;

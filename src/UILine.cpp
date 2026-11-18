@@ -510,7 +510,7 @@ int UILine::init(PyUILineObject* self, PyObject* args, PyObject* kwds) {
     self->data = std::make_shared<UILine>(start, end, thickness, color);
     self->data->visible = visible;
     self->data->assignOpacity(opacity);  // the setter's clamp, not a raw store (#540)
-    self->data->z_index = z_index;
+    self->data->initZIndex(z_index, args, kwds, kwlist);  // #552
 
     if (name) {
         self->data->name = std::string(name);

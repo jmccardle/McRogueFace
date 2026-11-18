@@ -227,7 +227,7 @@ void PyScene::do_mouse_input(std::string button, std::string type)
     // Only sort if z_index values have changed
     if (ui_elements_need_sort) {
         // Sort in ascending order (same as render)
-        std::sort(ui_elements->begin(), ui_elements->end(),
+        std::stable_sort(ui_elements->begin(), ui_elements->end(),
             [](const auto& a, const auto& b) { return a->z_index < b->z_index; });
         ui_elements_need_sort = false;
     }
@@ -420,7 +420,7 @@ void PyScene::render()
 
     // Only sort if z_index values have changed
     if (ui_elements_need_sort) {
-        std::sort(ui_elements->begin(), ui_elements->end(),
+        std::stable_sort(ui_elements->begin(), ui_elements->end(),
             [](const std::shared_ptr<UIDrawable>& a, const std::shared_ptr<UIDrawable>& b) {
                 return a->z_index < b->z_index;
             });

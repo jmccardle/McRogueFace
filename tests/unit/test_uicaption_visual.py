@@ -3,7 +3,40 @@
 
 import mcrfpy
 from mcrfpy import automation
+import os
 import sys
+import tempfile
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "regression"))
+from _png import read_png  # noqa: E402
+
+failures = []
+shots = tempfile.mkdtemp(prefix="mcrf_caption_visual_")
+
+
+def shot(name):
+    mcrfpy.step(0.01)
+    path = os.path.join(shots, name)
+    automation.screenshot(path)
+    return read_png(path)
+
+
+def count(img, x0, y0, x1, y1, color, tol=12):
+    """Pixels in the box within `tol` of `color` on every channel."""
+    w, h, ch, px = img
+    n = 0
+    for y in range(y0, y1):
+        for x in range(x0, x1):
+            o = (y * w + x) * ch
+            if all(abs(px[o + i] - color[i]) <= tol for i in range(3)):
+                n += 1
+    return n
+
+
+def check(cond, msg):
+    if not cond:
+        failures.append(msg)
+        print("FAIL:", msg)
 
 print("=== UICaption Visual Test ===\n")
 
@@ -33,45 +66,52 @@ ui.append(frame)
 
 print("Scene setup complete. Running visual tests...")
 
-# Render initial frame
-mcrfpy.step(0.01)
+# The frame was given z_index -1 before it was appended (last): it must still draw behind the
+# captions (#552). Captions are told apart by their fill colours.
+img = shot("caption_initial.png")
+check(count(img, 50, 50, 330, 74, (255, 255, 255)) > 20, "caption1 (white) is not drawn over the frame")
+check(count(img, 50, 100, 330, 124, (255, 200, 200)) > 20, "caption2 is not drawn over the frame")
+check(count(img, 45, 45, 436, 286, (50, 50, 50)) > 1000, "the frame is not drawn at all")
 
 # Test 1: Make caption2 invisible
 print("Test 1: Making caption2 invisible")
-ui[1].visible = False
-mcrfpy.step(0.01)
-automation.screenshot("caption_invisible.png")
+caption2.visible = False
+img = shot("caption_invisible.png")
+check(count(img, 50, 100, 330, 124, (255, 200, 200)) == 0, "invisible caption2 still drew pixels")
 
 # Test 2: Make caption2 visible again
 print("Test 2: Making caption2 visible again")
-ui[1].visible = True
-mcrfpy.step(0.01)
-automation.screenshot("caption_visible.png")
+caption2.visible = True
+img = shot("caption_visible.png")
+check(count(img, 50, 100, 330, 124, (255, 200, 200)) > 20, "visible caption2 drew nothing")
 
 # Test 3: Set different opacity levels
 print("Test 3: Testing opacity levels")
 
 # Caption 3 at 50% opacity
-ui[2].opacity = 0.5
-mcrfpy.step(0.01)
-automation.screenshot("caption_opacity_50.png")
+caption3.opacity = 0.5
+img = shot("caption_opacity_50.png")
+check(count(img, 50, 150, 330, 174, (200, 255, 200)) == 0 and count(img, 50, 150, 330, 174, (125, 152, 125), 40) > 0,
+      "caption3 at 50% opacity is not blended with the frame behind it")
 
 # Caption 4 at 25% opacity
-ui[3].opacity = 0.25
-mcrfpy.step(0.01)
-automation.screenshot("caption_opacity_25.png")
+caption4.opacity = 0.25
+img = shot("caption_opacity_25.png")
 
 # Caption 5 at 0% opacity (fully transparent)
-ui[4].opacity = 0.0
-mcrfpy.step(0.01)
-automation.screenshot("caption_opacity_0.png")
+caption5.opacity = 0.0
+img = shot("caption_opacity_0.png")
+check(count(img, 50, 250, 330, 274, (255, 255, 200), 30) == 0, "caption5 at 0% opacity still drew pixels")
 
 # Test 4: Move captions
 print("Test 4: Testing move method")
-ui[0].move(100, 0)  # Move first caption right
-ui[1].move(0, 50)   # Move second caption down
-mcrfpy.step(0.01)
-automation.screenshot("caption_moved.png")
+caption1.move(100, 0)  # Move first caption right
+caption2.move(0, 50)   # Move second caption down
+img = shot("caption_moved.png")
+check(count(img, 50, 50, 150, 74, (255, 255, 255)) == 0, "caption1 still drawn at its old position")
+check(count(img, 150, 50, 430, 74, (255, 255, 255)) > 20, "caption1 not drawn at its new position")
+check(count(img, 50, 100, 330, 124, (255, 200, 200)) == 0, "caption2 still drawn at its old position")
+check(count(img, 50, 150, 330, 174, (255, 200, 200)) > 20, "caption2 not drawn at its new position")
 
 print("\nVisual tests completed!")
 print("Screenshots saved:")
@@ -82,4 +122,6 @@ print("  - caption_opacity_25.png")
 print("  - caption_opacity_0.png")
 print("  - caption_moved.png")
 
+if failures:
+    sys.exit(1)
 sys.exit(0)

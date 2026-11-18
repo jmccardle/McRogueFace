@@ -817,7 +817,7 @@ void Viewport3D::renderMeshLayers() {
             sortedLayers.push_back(layer.get());
         }
     }
-    std::sort(sortedLayers.begin(), sortedLayers.end(),
+    std::stable_sort(sortedLayers.begin(), sortedLayers.end(),
               [](const MeshLayer* a, const MeshLayer* b) {
                   return a->getZIndex() < b->getZIndex();
               });
@@ -974,7 +974,7 @@ void Viewport3D::projectAllVoxelsToNav(int headroom) {
     // Project each voxel layer in order (later layers overwrite earlier)
     // Sort by z_index so higher z_index layers take precedence
     std::vector<std::pair<std::shared_ptr<VoxelGrid>, int>> sortedLayers = voxelLayers_;
-    std::sort(sortedLayers.begin(), sortedLayers.end(),
+    std::stable_sort(sortedLayers.begin(), sortedLayers.end(),
               [](const auto& a, const auto& b) { return a.second < b.second; });
 
     for (const auto& pair : sortedLayers) {
@@ -1001,7 +1001,7 @@ void Viewport3D::renderVoxelLayers(const mat4& view, const mat4& proj) {
             sortedLayers.push_back({pair.first.get(), pair.second});
         }
     }
-    std::sort(sortedLayers.begin(), sortedLayers.end(),
+    std::stable_sort(sortedLayers.begin(), sortedLayers.end(),
               [](const auto& a, const auto& b) { return a.second < b.second; });
 
     shader_->bind();
@@ -1825,7 +1825,7 @@ int Viewport3D::init(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
 
     // Common properties
     self->data->visible = visible;
-    self->data->z_index = z_index;
+    self->data->initZIndex(z_index, args, kwds, kwlist);  // #552
     if (name) {
         self->data->name = name;
     }
