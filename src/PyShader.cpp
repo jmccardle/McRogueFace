@@ -148,7 +148,9 @@ int PyShader::set_dynamic(PyShaderObject* self, PyObject* value, void* closure)
         PyErr_SetString(PyExc_TypeError, "dynamic must be a boolean");
         return -1;
     }
-    self->dynamic = PyObject_IsTrue(value);
+    const int truth_ = PyObject_IsTrue(value);
+    if (truth_ < 0) return -1;
+    self->dynamic = truth_ != 0;
     return 0;
 }
 

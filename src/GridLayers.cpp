@@ -1066,8 +1066,8 @@ int PyGridLayerAPI::ColorLayer_init(PyColorLayerObject* self, PyObject* args, Py
         if (!PyPosition_FromObjectInt(grid_size_obj, &grid_x, &grid_y, "grid_size")) return -1;
 
         // Positive, like Grid(grid_size=): a negative size used to be accepted and fill() "worked" on it
-        if (grid_x <= 0 || grid_y <= 0) {
-            PyErr_SetString(PyExc_ValueError, "ColorLayer dimensions must be positive integers");
+        if (grid_x < 0 || grid_y < 0) {
+            PyErr_SetString(PyExc_ValueError, "ColorLayer dimensions cannot be negative (0 means size from the grid)");
             return -1;
         }
 
@@ -2061,8 +2061,8 @@ int PyGridLayerAPI::TileLayer_init(PyTileLayerObject* self, PyObject* args, PyOb
         if (!PyPosition_FromObjectInt(grid_size_obj, &grid_x, &grid_y, "grid_size")) return -1;
 
         // Positive, like Grid(grid_size=): a negative size used to be accepted and fill() "worked" on it
-        if (grid_x <= 0 || grid_y <= 0) {
-            PyErr_SetString(PyExc_ValueError, "TileLayer dimensions must be positive integers");
+        if (grid_x < 0 || grid_y < 0) {
+            PyErr_SetString(PyExc_ValueError, "TileLayer dimensions cannot be negative (0 means size from the grid)");
             return -1;
         }
 

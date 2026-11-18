@@ -1,7 +1,7 @@
 """#558: integer sizes that still wrapped or rejected floats now go through the integer position
 helper: Vector / tuple / list / 2-sequence, floats floor, out of int range is OverflowError (the old
 (int)PyLong_AsLong wrapped 2**32 + 3 to 3). DiscreteMap.set(x, y, v) floors like dm[x, y]. ColorLayer /
-TileLayer(grid_size=) reject non-positive sizes like Grid(grid_size=)."""
+TileLayer(grid_size=) reject negative sizes; 0 stays the size-from-the-grid sentinel."""
 import sys
 import mcrfpy
 
@@ -88,8 +88,19 @@ for name, ctor in (
     ("ColorLayer", lambda sz: mcrfpy.ColorLayer("c", -1, sz)),
     ("TileLayer", lambda sz: mcrfpy.TileLayer("t", -1, tex, sz)),
 ):
-    for bad in ((-1, -2), (0, 5), (5, 0), (-1, 3)):
-        expect(f"{name}(grid_size={bad})", lambda: ctor(bad), ValueError, "positive")
+    for bad in ((-1, -2), (-1, 3), (3, -1), (0, -1)):
+        expect(f"{name}(grid_size={bad})", lambda: ctor(bad), ValueError, "negative")
+    # 0 is the "size me from the grid" sentinel (add_layer resizes a 0x0 layer); master accepted
+    # every non-negative size, so (0, 0), (0, 5) and (5, 0) construct again (review of #558)
+    for zero in ((0, 0), (0, 5), (5, 0)):
+        lyr = ok(f"{name}(grid_size={zero})", lambda: ctor(zero))
+        if lyr is not None and tuple(lyr.grid_size) != zero:
+            fails.append(f"{name}(grid_size={zero}).grid_size == {tuple(lyr.grid_size)}")
+    g0 = mcrfpy.Grid(grid_size=(6, 4), texture=tex)
+    lyr0 = ctor((0, 0))
+    g0.add_layer(lyr0)
+    if tuple(lyr0.grid_size) != (6, 4):
+        fails.append(f"{name}(grid_size=(0, 0)) via add_layer sized {tuple(lyr0.grid_size)}, want (6, 4)")
     ok(f"{name}(grid_size=(3, 4))", lambda: ctor((3, 4)))
 ok("ColorLayer without grid_size", lambda: mcrfpy.ColorLayer("c", -1))
 ok("TileLayer without grid_size", lambda: mcrfpy.TileLayer("t", -1, tex))

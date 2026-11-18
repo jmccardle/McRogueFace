@@ -43,6 +43,8 @@ PyObject* PyGridData::get_texture(PyGridDataObject* self, void* closure) {
     return PyTexture::pyobject_for(self->data->getTexture());
 }
 
+static bool check_views_accept_cell_size(const std::shared_ptr<GridData>& grid, sf::Vector2i now);
+
 int PyGridData::assign_texture(const std::shared_ptr<GridData>& grid, PyObject* value)
 {
     if (!value) {
@@ -50,6 +52,8 @@ int PyGridData::assign_texture(const std::shared_ptr<GridData>& grid, PyObject* 
         return -1;
     }
     if (value == Py_None) {
+        // an unset cell size falls back to 1x1 without a texture: same camera check as cell_size=
+        if (!grid->cell_size && !check_views_accept_cell_size(grid, sf::Vector2i(1, 1))) return -1;
         grid->setTexture(nullptr);   // the cell size keeps its value (#453)
         return 0;
     }
@@ -59,7 +63,11 @@ int PyGridData::assign_texture(const std::shared_ptr<GridData>& grid, PyObject* 
         PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture or None");
         return -1;
     }
-    grid->setTexture(((PyTextureObject*)value)->data);
+    const auto& tex = ((PyTextureObject*)value)->data;
+    // An unset cell size follows the texture's sprite size: the same camera check as cell_size= (#558)
+    if (!grid->cell_size &&
+        !check_views_accept_cell_size(grid, sf::Vector2i(tex->sprite_width, tex->sprite_height))) return -1;
+    grid->setTexture(tex);
     return 0;
 }
 

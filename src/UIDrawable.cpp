@@ -746,7 +746,9 @@ int UIDrawable::set_rotate_with_camera(PyObject* self, PyObject* value, void* cl
         return -1;
     }
 
-    drawable->rotate_with_camera = PyObject_IsTrue(value);
+    const int truth_ = PyObject_IsTrue(value);
+    if (truth_ < 0) return -1;
+    drawable->rotate_with_camera = truth_ != 0;
     drawable->markDirty();
     return 0;
 }

@@ -2042,7 +2042,9 @@ PyObject* McRFPy_API::_camFollow(PyObject* self, PyObject* args) {
 	}
 	//std::cout << "non-null; setting value" << std::endl;
 	
-	McRFPy_API::do_camfollow = PyObject_IsTrue(set_camfollow);
+	const int camfollow_truth = PyObject_IsTrue(set_camfollow);
+	if (camfollow_truth < 0) return NULL;
+	McRFPy_API::do_camfollow = camfollow_truth != 0;
 	Py_INCREF(Py_None);
     return Py_None;
 }

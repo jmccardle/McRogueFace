@@ -215,8 +215,8 @@ std::optional<sf::Vector2i> UIGridView::cellAtLocal(sf::Vector2f local) const
     int cw = cell_px.x;
     int ch = cell_px.y;
     sf::Vector2f gw = localToGridWorld(local);
-    int cx = static_cast<int>(std::floor(gw.x / cw));
-    int cy = static_cast<int>(std::floor(gw.y / ch));
+    int cx = satInt(std::floor(gw.x / cw));
+    int cy = satInt(std::floor(gw.y / ch));
     if (cx < 0 || cx >= grid_data->grid_w || cy < 0 || cy >= grid_data->grid_h)
         return std::nullopt;
     return sf::Vector2i(cx, cy);
@@ -378,7 +378,7 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
     for (auto& layer : grid_data->layers) {
         if (layer->z_index > 0) break;  // #257: z_index=0 is ground level (below entities)
         layer->render(*activeTexture, left_spritepixels, top_spritepixels,
-                     left_edge, top_edge, x_limit, y_limit, zoom, cell_width, cell_height);
+                     satInt(left_edge), satInt(top_edge), x_limit, y_limit, zoom, cell_width, cell_height);
         ++layers_drawn;
     }
 
@@ -413,7 +413,7 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
     for (auto& layer : grid_data->layers) {
         if (layer->z_index <= 0) continue;  // #257: skip ground-level and below
         layer->render(*activeTexture, left_spritepixels, top_spritepixels,
-                     left_edge, top_edge, x_limit, y_limit, zoom, cell_width, cell_height);
+                     satInt(left_edge), satInt(top_edge), x_limit, y_limit, zoom, cell_width, cell_height);
         ++layers_drawn;
     }
 
@@ -457,8 +457,8 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
             const uint8_t* pm = entity->perspective_map->data();
             const int pm_w = entity->perspective_map->width();
             const int pm_h = entity->perspective_map->height();
-            for (int x = std::max(0, (int)(left_edge - 1)); x < x_limit; x++) {
-                for (int y = std::max(0, (int)(top_edge - 1)); y < y_limit; y++) {
+            for (int x = std::max(0, satInt(static_cast<double>(left_edge) - 1)); x < x_limit; x++) {
+                for (int y = std::max(0, satInt(static_cast<double>(top_edge) - 1)); y < y_limit; y++) {
                     if (x < 0 || x >= grid_data->grid_w || y < 0 || y >= grid_data->grid_h) continue;
                     if (x >= pm_w || y >= pm_h) continue;
                     auto pixel_pos = sf::Vector2f(
@@ -477,8 +477,8 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
                 }
             }
         } else {
-            for (int x = std::max(0, (int)(left_edge - 1)); x < x_limit; x++) {
-                for (int y = std::max(0, (int)(top_edge - 1)); y < y_limit; y++) {
+            for (int x = std::max(0, satInt(static_cast<double>(left_edge) - 1)); x < x_limit; x++) {
+                for (int y = std::max(0, satInt(static_cast<double>(top_edge) - 1)); y < y_limit; y++) {
                     if (x < 0 || x >= grid_data->grid_w || y < 0 || y >= grid_data->grid_h) continue;
                     auto pixel_pos = sf::Vector2f(
                         (x*cell_width - left_spritepixels) * zoom,
@@ -502,7 +502,7 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
         rotatedSprite.setOrigin(tex_center_x, tex_center_y);
         rotatedSprite.setRotation(camera_rotation);
         rotatedSprite.setPosition(grid_w_px / 2.0f, grid_h_px / 2.0f);
-        rotatedSprite.setTextureRect(sf::IntRect(0, 0, (int)aabb_w, (int)aabb_h));
+        rotatedSprite.setTextureRect(sf::IntRect(0, 0, satInt(aabb_w), satInt(aabb_h)));
         renderTexture.draw(rotatedSprite);
         renderTexture.display();
         output.setPosition(box.getPosition() + offset);
@@ -920,6 +920,7 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
         y = p.y;
     }
 
+    bool size_follows_map = false;
     if (size_obj && size_obj != Py_None) {
         sf::Vector2f s;
         if (!mcrf::to_vector2f(size_obj, s, "size")) return -1;
@@ -929,7 +930,7 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
         // Default: show the whole map at 1:1, following the cell size (#453).
         w = grid_data->grid_w * static_cast<float>(grid_data->cell_width());
         h = grid_data->grid_h * static_cast<float>(grid_data->cell_height());
-        self->data->size_follows_map = true;
+        size_follows_map = true;
     }
 
     // center_x / center_y: nan is the "not given" sentinel (#169); infinity is ValueError and a
@@ -945,8 +946,16 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
         !mcrf::require_finite(vert_margin, "vert_margin")) {
         return -1;
     }
-    // zoom: positive and derived-finite AFTER narrowing to float (a double 1e-46 is 0.0f)
+    // #558: the camera invariant on the would-be values BEFORE anything is written, so a failed
+    // __init__ leaves the object as it was (zoom positive AFTER narrowing to float, the span / zoom
+    // bound, the centre bound). A double 1e-46 zoom is 0.0f.
+    const bool camera_default = std::isnan(center_x) && std::isnan(center_y);
+    if (std::isnan(center_x)) center_x = w / (2.0f * zoom);  // #169 - tile (0,0) at the widget's top-left
+    if (std::isnan(center_y)) center_y = h / (2.0f * zoom);
+    if (!cameraOk(static_cast<float>(zoom), static_cast<float>(w), static_cast<float>(h),
+                  static_cast<float>(center_x), static_cast<float>(center_y))) return -1;
 
+    self->data->size_follows_map = size_follows_map;
     self->data->zoom = static_cast<float>(zoom);
     self->data->position = sf::Vector2f(x, y);
     self->data->box.setPosition(self->data->position);
@@ -956,14 +965,7 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
     self->data->z_index = z_index;
     if (name) self->data->UIDrawable::name = std::string(name);
 
-    // #169 - default camera puts tile (0,0) at the widget's top-left.
-    self->data->camera_is_default = std::isnan(center_x) && std::isnan(center_y);
-    if (std::isnan(center_x)) center_x = w / (2.0f * zoom);
-    if (std::isnan(center_y)) center_y = h / (2.0f * zoom);
-    // the camera invariant on the construction values (zoom positive AFTER narrowing to float, the span /
-    // zoom bound, the centre bound)
-    if (!cameraOk(static_cast<float>(zoom), static_cast<float>(w), static_cast<float>(h),
-                  static_cast<float>(center_x), static_cast<float>(center_y))) return -1;
+    self->data->camera_is_default = camera_default;
     self->data->center_x = center_x;
     self->data->center_y = center_y;
 

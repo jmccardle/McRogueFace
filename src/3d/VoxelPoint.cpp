@@ -83,7 +83,9 @@ int VoxelPoint::set_bool_member(PyVoxelPointObject* self, PyObject* value, void*
         return -1;
     }
 
-    bool newValue = PyObject_IsTrue(value);
+    const int newValue_truth = PyObject_IsTrue(value);
+    if (newValue_truth < 0) return -1;
+    bool newValue = newValue_truth != 0;
     intptr_t member = reinterpret_cast<intptr_t>(closure);
 
     switch (member) {

@@ -371,7 +371,9 @@ static int PySceneClass_set_visible(PySceneObject* self, PyObject* value, void* 
         return -1;
     }
 
-    self->scene->visible = PyObject_IsTrue(value);
+    const int truth_ = PyObject_IsTrue(value);
+    if (truth_ < 0) return -1;
+    self->scene->visible = truth_ != 0;
     return 0;
 }
 

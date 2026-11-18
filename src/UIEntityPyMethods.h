@@ -20,7 +20,9 @@ static int UIEntity_set_visible(PyUIEntityObject* self, PyObject* value, void* c
         PyErr_SetString(PyExc_TypeError, "visible must be a boolean");
         return -1;
     }
-    self->data->sprite.visible = PyObject_IsTrue(value);
+    const int truth_ = PyObject_IsTrue(value);
+    if (truth_ < 0) return -1;
+    self->data->sprite.visible = truth_ != 0;
     return 0;
 }
 

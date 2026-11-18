@@ -338,7 +338,9 @@ int PyTimer::set_active(PyTimerObject* self, PyObject* value, void* closure) {
         return -1;
     }
 
-    bool want_active = PyObject_IsTrue(value);
+    const int want_active_truth = PyObject_IsTrue(value);
+    if (want_active_truth < 0) return -1;
+    bool want_active = want_active_truth != 0;
 
     int current_time = 0;
     if (Resources::game) {
@@ -424,7 +426,9 @@ int PyTimer::set_once(PyTimerObject* self, PyObject* value, void* closure) {
         return -1;
     }
     
-    self->data->setOnce(PyObject_IsTrue(value));
+    const int truth_ = PyObject_IsTrue(value);
+    if (truth_ < 0) return -1;
+    self->data->setOnce(truth_ != 0);
     return 0;
 }
 

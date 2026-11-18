@@ -407,7 +407,9 @@ int UIFrame::set_clip_children(PyUIFrameObject* self, PyObject* value, void* clo
         return -1;
     }
 
-    bool new_clip = PyObject_IsTrue(value);
+    const int new_clip_truth = PyObject_IsTrue(value);
+    if (new_clip_truth < 0) return -1;
+    bool new_clip = new_clip_truth != 0;
     if (new_clip != self->data->clip_children) {
         self->data->clip_children = new_clip;
 
@@ -435,7 +437,9 @@ int UIFrame::set_cache_subtree(PyUIFrameObject* self, PyObject* value, void* clo
         return -1;
     }
 
-    bool new_cache = PyObject_IsTrue(value);
+    const int new_cache_truth = PyObject_IsTrue(value);
+    if (new_cache_truth < 0) return -1;
+    bool new_cache = new_cache_truth != 0;
     if (new_cache != self->data->cache_subtree) {
         self->data->cache_subtree = new_cache;
 

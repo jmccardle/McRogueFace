@@ -1494,7 +1494,9 @@ static PyObject* Viewport3D_get_enable_vertex_snap(PyViewport3DObject* self, voi
 }
 
 static int Viewport3D_set_enable_vertex_snap(PyViewport3DObject* self, PyObject* value, void* closure) {
-    self->data->setVertexSnapEnabled(PyObject_IsTrue(value));
+    const int truth_ = PyObject_IsTrue(value);
+    if (truth_ < 0) return -1;
+    self->data->setVertexSnapEnabled(truth_ != 0);
     return 0;
 }
 
@@ -1503,7 +1505,9 @@ static PyObject* Viewport3D_get_enable_affine(PyViewport3DObject* self, void* cl
 }
 
 static int Viewport3D_set_enable_affine(PyViewport3DObject* self, PyObject* value, void* closure) {
-    self->data->setAffineMappingEnabled(PyObject_IsTrue(value));
+    const int truth_ = PyObject_IsTrue(value);
+    if (truth_ < 0) return -1;
+    self->data->setAffineMappingEnabled(truth_ != 0);
     return 0;
 }
 
@@ -1512,7 +1516,9 @@ static PyObject* Viewport3D_get_enable_dither(PyViewport3DObject* self, void* cl
 }
 
 static int Viewport3D_set_enable_dither(PyViewport3DObject* self, PyObject* value, void* closure) {
-    self->data->setDitheringEnabled(PyObject_IsTrue(value));
+    const int truth_ = PyObject_IsTrue(value);
+    if (truth_ < 0) return -1;
+    self->data->setDitheringEnabled(truth_ != 0);
     return 0;
 }
 
@@ -1521,7 +1527,9 @@ static PyObject* Viewport3D_get_enable_fog(PyViewport3DObject* self, void* closu
 }
 
 static int Viewport3D_set_enable_fog(PyViewport3DObject* self, PyObject* value, void* closure) {
-    self->data->setFogEnabled(PyObject_IsTrue(value));
+    const int truth_ = PyObject_IsTrue(value);
+    if (truth_ < 0) return -1;
+    self->data->setFogEnabled(truth_ != 0);
     return 0;
 }
 

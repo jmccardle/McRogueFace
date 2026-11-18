@@ -205,7 +205,9 @@ static int UIDrawable_set_visible(T* self, PyObject* value, void* closure)
         PyErr_SetString(PyExc_TypeError, "visible must be a boolean");
         return -1;
     }
-    self->data->visible = PyObject_IsTrue(value);
+    const int truth_ = PyObject_IsTrue(value);
+    if (truth_ < 0) return -1;
+    self->data->visible = truth_ != 0;
     return 0;
 }
 
