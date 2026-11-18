@@ -1,5 +1,6 @@
 #pragma once
 
+#include <bitset>
 #include "Common.h"
 #include <climits>
 #include "Scene.h"
@@ -419,6 +420,12 @@ public:
     struct KeyModifiers { bool shift = false, ctrl = false, alt = false, system = false; };
     const KeyModifiers& keyModifiers() const { return key_mods; }
     void noteKeyModifiers(const sf::Event& event);
+    // #549: true when the key event noted most recently was an auto-repeat (a KeyPressed
+    // for a key that is already held). SFML does not flag repeats and SDL's flag does not
+    // reach the shared Event, so the engine tracks held keys itself, from the event
+    // stream, on every backend. noteKeyModifiers() updates it; it must run exactly once
+    // per event, before filterDevInput() and processEvent().
+    bool keyEventIsRepeat() const { return key_event_repeat; }
     void dispatchText(uint32_t codepoint);  // #495
 
     // #496: the keys that toggle the developer overlays (ImGui console, scene explorer, profiler overlay).
@@ -441,6 +448,8 @@ public:
     bool filterDevInput(const sf::Event& event);
 private:
     KeyModifiers key_mods;
+    std::bitset<sf::Keyboard::KeyCount> keys_held;  // #549: forgotten on focus loss
+    bool key_event_repeat = false;                   // #549
     bool hotkey_text_pending = false;  // #508: drop the text of the swallowed hotkey keystroke
     sf::Keyboard::Key console_key = sf::Keyboard::Grave;
     sf::Keyboard::Key explorer_key = sf::Keyboard::F4;

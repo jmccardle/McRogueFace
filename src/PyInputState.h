@@ -27,16 +27,16 @@ public:
     static void release_statics();
 
     // #344 - Return the cached InputState enum member for a value (0=PRESSED,
-    // 1=RELEASED) as a NEW reference. Members are memoized for the interpreter
+    // 1=RELEASED, 2=REPEATED) as a NEW reference. Members are memoized for the interpreter
     // lifetime so per-event dispatch avoids EnumMeta.__call__. Returns nullptr
     // with an exception set on failure. Caller owns the returned reference.
     static PyObject* get_enum_member(int value);
 
-    // #428 - The one conversion from an engine action type ("start" / "end", as
+    // #428 - The one conversion from an engine action type ("start" / "end" / "repeat", as
     // set by GameEngine for key, button and wheel events) to an InputState member.
     // NEW reference, or nullptr with ValueError set for any other string.
     static PyObject* from_action_type(const std::string& type);
 
     // Number of input states
-    static const int NUM_INPUT_STATES = 2;
+    static const int NUM_INPUT_STATES = 3;
 };

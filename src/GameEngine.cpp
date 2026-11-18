@@ -859,15 +859,31 @@ void GameEngine::testTimers(int now)
 // carries the modifiers in effect for it (SFML sets them, the SDL2 pump copies SDL's mod
 // mask, automation computes them), and that value stands until the next key event. A window
 // that loses focus stops receiving key releases, so it also forgets what was held.
+//
+// #549: this is also where held keys are tracked. A KeyPressed for a key already held is an
+// auto-repeat. Forgetting the held set on focus loss matters: a key released while the
+// window was unfocused never delivers its release, and without the reset the next real
+// press of that key would be reported as a repeat forever.
 void GameEngine::noteKeyModifiers(const sf::Event& event)
 {
+    key_event_repeat = false;
     if (event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased) {
+        const int code = static_cast<int>(event.key.code);
+        if (code >= 0 && code < static_cast<int>(sf::Keyboard::KeyCount)) {
+            if (event.type == sf::Event::KeyPressed) {
+                key_event_repeat = keys_held[code];
+                keys_held[code] = true;
+            } else {
+                keys_held[code] = false;
+            }
+        }
         key_mods.shift = event.key.shift;
         key_mods.ctrl = event.key.control;
         key_mods.alt = event.key.alt;
         key_mods.system = event.key.system;
     } else if (event.type == sf::Event::LostFocus) {
         key_mods = KeyModifiers{};
+        keys_held.reset();
     }
 }
 
@@ -914,7 +930,7 @@ void GameEngine::processEvent(const sf::Event& event)
     int actionCode = 0;
 
     if (event.type == sf::Event::Closed) { running = false; return; }
-    noteKeyModifiers(event);
+    // (#549: noteKeyModifiers already ran, in sUserInput / injectKeyEvent, before filterDevInput)
 
     // Handle window resize events
     if (event.type == sf::Event::Resized) {
@@ -925,6 +941,7 @@ void GameEngine::processEvent(const sf::Event& event)
         McRFPy_API::triggerResize(sf::Vector2u(event.size.width, event.size.height));
     }
 
+    else if (event.type == sf::Event::KeyPressed && key_event_repeat) actionType = "repeat";  // #549
     else if (event.type == sf::Event::KeyPressed || event.type == sf::Event::MouseButtonPressed || event.type == sf::Event::MouseWheelScrolled) actionType = "start";
     else if (event.type == sf::Event::KeyReleased || event.type == sf::Event::MouseButtonReleased) actionType = "end";
 
@@ -1010,7 +1027,7 @@ bool GameEngine::filterDevInput(const sf::Event& event)
     if (profilerOverlay && profiler_key != sf::Keyboard::Unknown &&
         (event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased) &&
         event.key.code == profiler_key) {
-        if (event.type == sf::Event::KeyPressed) {
+        if (event.type == sf::Event::KeyPressed && !key_event_repeat) {  // #549: not on repeats
             profilerOverlay->toggle();
             hotkey_text_pending = true;
         }
@@ -1020,7 +1037,7 @@ bool GameEngine::filterDevInput(const sf::Event& event)
     if (!imguiInitialized || !ImGuiConsole::isEnabled()) return false;
 
     if (event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased) {
-        const bool pressed = event.type == sf::Event::KeyPressed;
+        const bool pressed = event.type == sf::Event::KeyPressed && !key_event_repeat;  // #549
         if (console_key != sf::Keyboard::Unknown && event.key.code == console_key) {
             if (pressed) { console.toggle(); hotkey_text_pending = true; }
             return true;  // the release is part of the same keystroke

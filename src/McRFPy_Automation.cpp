@@ -133,6 +133,7 @@ void McRFPy_Automation::injectWindowEvent(sf::Event::EventType type) {
 
     sf::Event event;
     event.type = type;
+    engine->noteKeyModifiers(event);  // #549: LostFocus forgets held keys, as sUserInput does
     engine->processEvent(event);
 }
 
