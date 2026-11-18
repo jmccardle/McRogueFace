@@ -587,6 +587,10 @@ tests/
 # RuntimeError with no display, #451); ALSOFT_DRIVERS=null stands in for a missing audio device.
 cd tests && ALSOFT_DRIVERS=null xvfb-run -a -s "-noreset" python3 run_tests.py
 
+# Parallel (-j N: N workers, each on its own private Xvfb, never the inherited DISPLAY; tests/packaging/
+# runs serially afterwards). No outer xvfb-run needed. --shard i/n splits the list across CI jobs.
+cd tests && ALSOFT_DRIVERS=null python3 run_tests.py -j 8 [--shard 1/2]
+
 # Run a specific test
 cd build && ./mcrogueface --headless --exec ../tests/unit/some_test.py
 

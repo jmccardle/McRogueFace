@@ -60,6 +60,9 @@
 # Number of parallel jobs for compilation
 JOBS := $(shell nproc 2>/dev/null || echo 4)
 
+# Test workers for the *-test targets (tests/run_tests.py -j; >1 runs each worker on its own Xvfb)
+TEST_JOBS ?= 1
+
 all: linux
 
 linux:
@@ -253,7 +256,7 @@ debug-test: debug
 	cd tests && MCRF_BUILD_DIR=../build-debug \
 		MCRF_LIB_DIR=../__lib_debug \
 		MCRF_TIMEOUT_MULTIPLIER=3 \
-		python3 run_tests.py -v --exclude=packaging
+		python3 run_tests.py -v -j $(TEST_JOBS) --exclude=packaging
 
 # Profiling build (#345): RelWithDebInfo (-O2 -g) + frame pointers, self-contained
 # in build-profile/ (lib/assets/scripts copied like the normal build). Suited to
@@ -311,7 +314,7 @@ asan-test: asan
 		ASAN_OPTIONS="detect_leaks=1:halt_on_error=1:print_summary=1:malloc_context_size=64" \
 		LSAN_OPTIONS="suppressions=$(CURDIR)/sanitizers/asan.supp" \
 		UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1" \
-		python3 run_tests.py -v --sanitizer=asan --exclude=packaging
+		python3 run_tests.py -v -j $(TEST_JOBS) --sanitizer=asan --exclude=packaging
 
 # Fuzzing targets (clang-18 + libFuzzer + ASan + UBSan).
 # Design: ONE instrumented executable `mcrfpy_fuzz` that embeds CPython,
@@ -398,7 +401,7 @@ tsan-test: tsan
 		MCRF_LIB_DIR=../__lib_tsan \
 		MCRF_TIMEOUT_MULTIPLIER=10 \
 		TSAN_OPTIONS="halt_on_error=1:second_deadlock_stack=1:suppressions=$(CURDIR)/sanitizers/tsan.supp" \
-		python3 run_tests.py -v --sanitizer=tsan --exclude=packaging
+		python3 run_tests.py -v -j $(TEST_JOBS) --sanitizer=tsan --exclude=packaging
 
 valgrind-test: debug
 	@echo "Running test suite under Valgrind memcheck..."
@@ -406,7 +409,7 @@ valgrind-test: debug
 		MCRF_LIB_DIR=../__lib_debug \
 		MCRF_TIMEOUT_MULTIPLIER=50 \
 		PYTHONMALLOC=malloc \
-		python3 run_tests.py -v --valgrind --exclude=packaging
+		python3 run_tests.py -v -j $(TEST_JOBS) --valgrind --exclude=packaging
 
 massif-test: debug
 	@echo "Running heap profiling under Valgrind Massif..."

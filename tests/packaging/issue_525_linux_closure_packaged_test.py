@@ -26,11 +26,15 @@ ROOT = Path(__file__).resolve().parents[2]
 ENGINE = ROOT / "build" / "mcrogueface"
 
 # Provided by the host, not the package: glibc/libstdc++/libgcc, and the audio, video and
-# input libraries README.md lists as requirements.
+# input libraries README.md lists as requirements. libGL.so.1 and libOpenGL.so.0 are both
+# there because SFML links whichever of them its build host's CMake found: the libgl1
+# package (README.md, ENGINE_PACKAGES) provides libGL.so.1 and libopengl0 the other, and
+# the clean-distro gate installs both.
 HOST_PROVIDED = re.compile(
     r"^(ld-linux-x86-64\.so\.2|lib(c|m|dl|pthread|rt|util|stdc\+\+|gcc_s)\.so\.[0-9.]+"
     r"|libopenal\.so\.1|libvorbis(file|enc)?\.so\.[0-9]+|libogg\.so\.0|libfreetype\.so\.6"
-    r"|libX11\.so\.6|libXrandr\.so\.2|libXcursor\.so\.1|libudev\.so\.1|libOpenGL\.so\.0|libz\.so\.1)$")
+    r"|libX11\.so\.6|libXrandr\.so\.2|libXcursor\.so\.1|libudev\.so\.1|libOpenGL\.so\.0"
+    r"|libGL\.so\.1|libz\.so\.1)$")
 
 
 def fail(msg):
@@ -83,13 +87,15 @@ with tempfile.TemporaryDirectory() as tmp:
         fail("%s (needed by libsfml-audio) is not a real file in the package's lib/" % flac[0])
     print("ok: libsfml-audio needs %s, shipped in lib/" % flac[0])
 
+    undocumented = []
     for path in [pkg / "mcrogueface"] + sorted(p for p in lib.iterdir()
                                               if p.is_file() and not p.is_symlink()
                                               and ".so" in p.name):
         for name in needed(path):
             if not (lib / name).exists() and not HOST_PROVIDED.match(name):
-                fail("%s needs %s: neither in lib/ nor a documented host library"
-                     % (path.relative_to(pkg), name))
+                undocumented.append("%s needs %s" % (path.relative_to(pkg), name))
+    if undocumented:  # all of them at once: one CI round trip, not one per library
+        fail("neither in lib/ nor a documented host library:\n  " + "\n  ".join(undocumented))
     print("ok: every dependency of the binary and lib/*.so is shipped or documented as host-provided")
 
     real_libs = sorted(p for p in lib.iterdir()

@@ -24,6 +24,7 @@ import os
 import shutil
 import subprocess
 import sys
+import sysconfig
 import tempfile
 
 failures = []
@@ -38,8 +39,11 @@ def check(cond, msg):
 real_engine = os.path.realpath(sys.executable)
 real_dir = os.path.dirname(real_engine)
 ENGINE_NAME = os.path.basename(real_engine)
-# the engine's own venv layout dir name, e.g. python3.15 or python3.15t
-STDLIB_DIRNAME = "python%d.%d%s" % (sys.version_info[0], sys.version_info[1], sys.abiflags)
+# the engine's own venv layout dir name, e.g. python3.15 or python3.15t. Only free-threading
+# adds a suffix (sysconfig's abi_thread); sys.abiflags also carries 'd' on a debug build, whose
+# venv layout is still lib/python3.15 (what `python -m venv` makes and McRFPy_API.cpp expects).
+STDLIB_DIRNAME = "python%d.%d%s" % (sys.version_info[0], sys.version_info[1],
+                                    sysconfig.get_config_var("abi_thread") or "")
 
 PROBE = (
     "import json, sys, sysconfig\n"

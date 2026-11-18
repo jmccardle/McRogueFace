@@ -18,6 +18,7 @@ import os
 import shutil
 import subprocess
 import sys
+import sysconfig
 import tempfile
 
 failures = []
@@ -32,7 +33,9 @@ def check(cond, msg):
 real_engine = os.path.realpath(sys.executable)
 real_dir = os.path.dirname(real_engine)
 ENGINE_NAME = os.path.basename(real_engine)
-STDLIB_DIRNAME = "python%d.%d%s" % (sys.version_info[0], sys.version_info[1], sys.abiflags)
+# only free-threading suffixes the venv layout; sys.abiflags also has 'd' on a debug build
+STDLIB_DIRNAME = "python%d.%d%s" % (sys.version_info[0], sys.version_info[1],
+                                    sysconfig.get_config_var("abi_thread") or "")
 
 # Long enough for a cold interpreter start under load, short enough to keep the suite fast.
 EXIT_TIMEOUT = 5      # a script that should exit

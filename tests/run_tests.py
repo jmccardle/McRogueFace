@@ -13,6 +13,18 @@ Usage:
     python3 tests/run_tests.py --valgrind   # Run tests under Valgrind memcheck
     python3 tests/run_tests.py --exclude=packaging  # Run everything but one directory
     python3 tests/run_tests.py --no-skip    # Missing EXTERNAL_INPUTS fail instead of SKIP
+    python3 tests/run_tests.py -j 8         # 8 parallel workers, each on a private Xvfb (see below)
+    python3 tests/run_tests.py --shard 2/4  # Every 4th test starting at the 2nd (for splitting CI)
+
+Parallel runs (-j N, N > 1): the runner starts N private Xvfb servers and kills them on exit;
+the inherited DISPLAY is never used (a desktop session would render the suite on the desktop).
+Each worker runs its tests in its own scratch directory, <project root>/.test-worker-<k>/, that
+looks like the build directory (assets, scripts, lib and the executables are symlinked in;
+everything a test writes lands in the worker's own directory) with a private TMPDIR.
+tests/packaging/ stays serial, after the parallel phase (SERIAL_DIRS): every test there runs
+tools/package.sh, which packages build/ itself and writes the shared dist/ directory.
+With -j 1 (the default) nothing changes: tests run one at a time in BUILD_DIR on whatever
+DISPLAY the caller provides (e.g. an outer xvfb-run).
 
 Environment variables:
     MCRF_BUILD_DIR          Build directory (default: ../build)
@@ -25,6 +37,11 @@ import sys
 import time
 import hashlib
 import re
+import argparse
+import shutil
+import signal
+import threading
+import queue
 from pathlib import Path
 
 # Configuration — respect environment overrides for debug/sanitizer builds
@@ -70,6 +87,22 @@ DEMO_STANDALONE_DIR = 'standalone'
 DEMO_HARNESS = 'tests/demo/_harness.py'
 DEMO_TIMEOUT = 60  # seconds
 
+# Directories that never run concurrently with anything (-j N): after the parallel phase,
+# one at a time, in BUILD_DIR itself. tests/packaging/ runs tools/package.sh, which packages
+# build/ (so it needs build/ unchanged underneath it) and writes the shared dist/ directory;
+# the same tests also build tarballs and probe them, which is the heaviest I/O in the suite.
+SERIAL_DIRS = ('packaging',)
+
+# Entries of BUILD_DIR that a worker's scratch directory links to. Everything else in
+# BUILD_DIR is build-system state or output a test might write to (imgui.ini, save/,
+# test_screenshots/, *.png ...), and each worker must have its own. Executables are linked
+# too (a test may run ./mcrogueface from its cwd).
+WORKER_LINKS = ('assets', 'scripts', 'lib')
+# A worker's directory is a sibling of build/ (directly under the project root), not a
+# child of it: tests reach the repository from their cwd as `../tests/...`, `../docs/...`.
+WORKER_DIR_FMT = '.test-worker-{}'
+XVFB_SCREEN = '1280x1024x24'  # xvfb-run's default
+
 # tests/packaging/ drives the real `tools/package.sh linux full` pipeline (the same
 # thing `make package-linux` calls) end to end: build the tarball, extract it
 # OUTSIDE the source tree, and prove the packaged binary's own filtered stdlib can
@@ -111,6 +144,16 @@ EXTERNAL_INPUTS = {
 # Timeouts here are a per-test budget, not a flake mask: each is still bounded.
 SLOW_TESTS = {
     "regression/issue_478_caption_baseline_test.py": 40,
+    # 5-7 s alone (software-rendered screenshots; llvmpipe uses every core), 10-15 s with
+    # several engines rendering at once under -j N.
+    "regression/issue_536_visible_chunk_range_test.py": 40,
+    "regression/issue_552_review_test.py": 40,
+    "regression/issue_480_stretch_sprites_test.py": 40,
+    "regression/issue_476_grid_child_offset_test.py": 40,
+    "regression/issue_427_layer_edit_under_cache_test.py": 40,
+    "regression/issue_446_entity_collection_dirty_test.py": 40,
+    "regression/issue_453_454_grid_texture_cell_size_test.py": 40,
+    "regression/issue_539_chunk_vertex_array_test.py": 40,
     "regression/issue_529_first_frame_screenshot_test.py": 120,  # 20 child engines, half windowed: 19 s idle, ~55 s with all 8 cores busy
     "integration/mcrf_project_test.py": 40,
     "integration/issue_509_deps_keeps_foreign_venv_test.py": 40,
@@ -136,8 +179,9 @@ SLOW_TESTS = {
 # silently drop out of the table).
 #
 # asan: measured on `make asan-test` 2026-11-17 (#513): 737/745 with zero ASan/UBSan
-# reports, these being the eight failures. tsan: nothing is skipped; the FrameLock tests
-# are exactly the thread tests TSan exists for.
+# reports, these being the eight failures. tsan: nothing is skipped here; the FrameLock tests
+# are exactly the thread tests TSan exists for. (Any engine whose Python has ABI flags,
+# TSan's included, also skips ABI_FLAG_SKIPS below.)
 _SAN_STDERR = ("asserts nothing on stderr, but LSan prints its \"Suppressions used\" table there; "
                "child engines also run the debug Python (3.15d)")
 _SAN_DEPS = ("`mcrf_project deps` needs a packaging-capable engine, but the sanitizer engine "
@@ -156,10 +200,36 @@ SANITIZER_SKIPS = {
 }
 
 
+# Tests that cannot hold on an engine whose Python is not a plain Release build (sys.abiflags
+# non-empty: 'd' for `make debug`/asan, 't'/'td' for free-threaded/TSan). Found by asking the
+# engine, so debug-test and valgrind-test (which have no --sanitizer) get them too. Reported
+# as SKIP with the reason; same rules as SANITIZER_SKIPS (a key naming no test is an error).
+_DEPS_RELEASE_ONLY = ("`mcrf_project deps` refuses an engine whose Python has ABI flags "
+                      "(src/pylib/mcrf_project/deps.py): dependencies are installed for Release engines")
+ABI_FLAG_SKIPS = {
+    "integration/issue_509_deps_keeps_foreign_venv_test.py": _DEPS_RELEASE_ONLY,
+    "integration/issue_517_console_scripts_test.py": _DEPS_RELEASE_ONLY,
+}
+
+
 def check_sanitizer_skip_tables():
-    """Every SANITIZER_SKIPS key must be an existing test file; returns the bad keys."""
-    return sorted(k for table in SANITIZER_SKIPS.values() for k in table
-                  if not (TESTS_DIR / k).is_file())
+    """Every SANITIZER_SKIPS / ABI_FLAG_SKIPS key must be an existing test file; returns the bad keys."""
+    keys = [k for table in SANITIZER_SKIPS.values() for k in table] + list(ABI_FLAG_SKIPS)
+    return sorted(k for k in keys if not (TESTS_DIR / k).is_file())
+
+
+def engine_abiflags():
+    """sys.abiflags of the engine's Python ('' for a Release build), asked of the engine itself."""
+    env = os.environ.copy()
+    existing_ld = env.get('LD_LIBRARY_PATH', '')
+    env['LD_LIBRARY_PATH'] = f"{LIB_DIR}:{existing_ld}" if existing_ld else str(LIB_DIR)
+    r = subprocess.run([str(MCROGUEFACE), '--headless', '-c', 'import sys; print("ABIFLAGS=" + sys.abiflags)'],
+                       capture_output=True, text=True, timeout=60, cwd=str(BUILD_DIR), env=env)
+    for line in r.stdout.splitlines():
+        if line.startswith('ABIFLAGS='):
+            return line[len('ABIFLAGS='):]
+    raise RuntimeError(f"could not read sys.abiflags from {MCROGUEFACE} (rc={r.returncode}):\n"
+                       f"{r.stdout}{r.stderr}")
 
 
 def missing_external_inputs(test_dir, test_name):
@@ -175,10 +245,10 @@ YELLOW = '\033[93m'
 RESET = '\033[0m'
 BOLD = '\033[1m'
 
-def get_screenshot_checksum(test_dir):
-    """Get checksums of test-generated PNG files in build directory."""
+def get_screenshot_checksum(cwd):
+    """Get checksums of test-generated PNG files in the test's working directory."""
     checksums = {}
-    for png in BUILD_DIR.glob("test_*.png"):
+    for png in Path(cwd).glob("test_*.png"):
         with open(png, 'rb') as f:
             checksums[png.name] = hashlib.md5(f.read()).hexdigest()[:8]
     return checksums
@@ -193,16 +263,26 @@ def check_sanitizer_output(output):
     return errors
 
 def run_test(test_path, verbose=False, timeout=DEFAULT_TIMEOUT,
-             sanitizer_mode=False, valgrind_mode=False):
-    """Run a single test and return (passed, duration, output, sanitizer_errors)."""
+             sanitizer_mode=False, valgrind_mode=False, cwd=None, extra_env=None):
+    """Run a single test and return (passed, duration, output, sanitizer_errors).
+
+    cwd: the engine's working directory (default BUILD_DIR; a parallel worker passes its own).
+    extra_env: environment overrides on top of this process's (a parallel worker's DISPLAY).
+    """
     start = time.time()
+    cwd = Path(cwd) if cwd is not None else BUILD_DIR
 
     # Clean any existing screenshots
-    for png in BUILD_DIR.glob("test_*.png"):
+    for png in cwd.glob("test_*.png"):
         png.unlink()
 
     # Set up environment with library path
     env = os.environ.copy()
+    for k, v in (extra_env or {}).items():
+        if v is None:
+            env.pop(k, None)
+        else:
+            env[k] = v
     # The engine reads no VIRTUAL_ENV (#505), but the tests' own child pythons might; keep
     # the shell's activated virtualenv out of them. The ones about VIRTUAL_ENV set it themselves.
     env.pop('VIRTUAL_ENV', None)
@@ -242,7 +322,7 @@ def run_test(test_path, verbose=False, timeout=DEFAULT_TIMEOUT,
             capture_output=True,
             text=True,
             timeout=timeout,
-            cwd=str(BUILD_DIR),
+            cwd=str(cwd),
             env=env
         )
         duration = time.time() - start
@@ -300,40 +380,206 @@ def find_tests(directory):
     # Leading underscore = support file, not a test (tests/snippets/_harness.py).
     return sorted(p for p in test_dir.glob("*.py") if not p.name.startswith('_'))
 
+class Entry:
+    """One test: what to run, its budget, and (once known) how it went."""
+    __slots__ = ('dir', 'path', 'name', 'timeout', 'skip', 'skip_is_fail', 'result', 'cwd')
+
+    def __init__(self, test_dir, path, timeout):
+        self.dir, self.path, self.name, self.timeout = test_dir, path, path.name, timeout
+        self.skip = None           # note, if this test is not run
+        self.skip_is_fail = False  # --no-skip: the skip is a failure
+        self.result = None         # (passed, duration, output, san_errors, checksum_str)
+        self.cwd = None
+
+    @property
+    def key(self):
+        return f"{self.dir}/{self.name}"
+
+
+def plan_tests(dirs_to_test, effective_timeout, timeout_multiplier, no_skip,
+               sanitizer_mode, sanitizer_variant, abiflags=''):
+    """Every selected test, in (directory order, name order), with budgets and skips decided."""
+    entries = []
+    for test_dir in dirs_to_test:
+        for test_path in find_tests(test_dir):
+            test_name = test_path.name
+            # Demos render several scenes; they need more headroom than a unit test.
+            if test_dir == 'demo':
+                test_timeout = DEMO_TIMEOUT * timeout_multiplier
+            elif test_dir == 'packaging':
+                test_timeout = PACKAGING_TIMEOUT * timeout_multiplier
+            else:
+                test_timeout = effective_timeout
+                if f"{test_dir}/{test_name}" in SLOW_TESTS:
+                    test_timeout = max(test_timeout, SLOW_TESTS[f"{test_dir}/{test_name}"] * timeout_multiplier)
+            e = Entry(test_dir, test_path, test_timeout)
+            missing, reason = missing_external_inputs(test_dir, test_name)
+            if missing:
+                e.skip = f"{reason}; missing {', '.join(missing)}"
+                e.skip_is_fail = no_skip
+            elif sanitizer_mode and e.key in SANITIZER_SKIPS[sanitizer_variant]:
+                e.skip = (f"does not fit --sanitizer={sanitizer_variant}: "
+                          f"{SANITIZER_SKIPS[sanitizer_variant][e.key]}")
+            elif abiflags and e.key in ABI_FLAG_SKIPS:
+                e.skip = f"engine Python is a '{abiflags}' build: {ABI_FLAG_SKIPS[e.key]}"
+            entries.append(e)
+    return entries
+
+
+def parse_shard(text):
+    m = re.fullmatch(r'(\d+)/(\d+)', text)
+    if not m or not 1 <= int(m.group(1)) <= int(m.group(2)):
+        raise argparse.ArgumentTypeError(f"expected i/n with 1 <= i <= n, got {text!r}")
+    return int(m.group(1)), int(m.group(2))
+
+
+def format_line(e, verbose):
+    """The lines printed for one finished (or skipped) test."""
+    if e.skip:
+        if e.skip_is_fail:
+            return [f"  {RED}FAIL{RESET} {e.name} (--no-skip: {e.skip})"]
+        return [f"  {YELLOW}SKIP{RESET} {e.name} ({e.skip})"]
+    passed, duration, output, san_errors, checksum_str = e.result
+    status = f"{GREEN}PASS{RESET}" if passed else f"{RED}FAIL{RESET}"
+    san_str = f" {RED}[SANITIZER]{RESET}" if san_errors else ""
+    lines = [f"  {status} {e.name} ({duration:.2f}s){checksum_str}{san_str}"]
+    if verbose and not passed:
+        lines.append(f"    Output: {output[:200]}...")
+        for err in san_errors[:3]:
+            lines.append(f"    {RED}>> {err}{RESET}")
+    return lines
+
+
+# ---------------------------------------------------------------------------------------
+# Parallel workers: private Xvfb servers and scratch working directories
+# ---------------------------------------------------------------------------------------
+
+def start_xvfb():
+    """Start an Xvfb on a free display number (Xvfb picks it: -displayfd). Returns (proc, ':N')."""
+    exe = shutil.which('Xvfb')
+    if not exe:
+        raise RuntimeError("-j needs Xvfb on PATH (apt install xvfb)")
+    import ctypes
+    import select
+    libc = ctypes.CDLL(None)
+
+    def die_with_parent():
+        # An Xvfb must not outlive a runner that was SIGKILLed (the finally below cannot run).
+        libc.prctl(1, signal.SIGTERM)  # PR_SET_PDEATHSIG
+
+    r, w = os.pipe()
+    try:
+        proc = subprocess.Popen(
+            [exe, '-displayfd', str(w), '-screen', '0', XVFB_SCREEN, '-noreset', '-nolisten', 'tcp'],
+            pass_fds=(w,), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE, preexec_fn=die_with_parent, start_new_session=True)
+    finally:
+        os.close(w)
+    try:
+        deadline = time.time() + 30
+        buf = b''
+        while not buf.endswith(b'\n'):
+            left = deadline - time.time()
+            if left <= 0 or not select.select([r], [], [], left)[0]:
+                proc.kill()
+                proc.wait()
+                raise RuntimeError("Xvfb did not report a display number within 30 s")
+            chunk = os.read(r, 64)
+            if not chunk:  # closed without a number: it exited
+                err = proc.communicate()[1].decode(errors='replace').strip()
+                raise RuntimeError(f"Xvfb exited (status {proc.returncode}) before it was ready: {err}")
+            buf += chunk
+    finally:
+        os.close(r)
+    return proc, ':' + buf.decode().strip()
+
+
+def stop_xvfb(procs):
+    for proc in procs:
+        if proc.poll() is None:
+            proc.terminate()
+    for proc in procs:
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+        if proc.stderr:
+            proc.stderr.close()
+
+
+def make_worker_dir(k):
+    """A scratch directory that looks like BUILD_DIR to a test, and is private to worker k."""
+    d = TESTS_DIR.parent / WORKER_DIR_FMT.format(k)
+    if d.exists():
+        shutil.rmtree(d)
+    (d / 'tmp').mkdir(parents=True)
+    for entry in sorted(BUILD_DIR.iterdir()):
+        if entry.name in WORKER_LINKS or (entry.is_file() and os.access(entry, os.X_OK)):
+            (d / entry.name).symlink_to(entry.resolve())
+    return d
+
+
+# Other ways a test could find the caller's desktop; None removes the variable.
+NO_INHERITED_DISPLAY = {'XAUTHORITY': None, 'WAYLAND_DISPLAY': None}
+
+
+def worker_env(display, workdir):
+    """The environment overrides of one parallel worker."""
+    env = {'DISPLAY': display, 'TMPDIR': str(workdir / 'tmp'), **NO_INHERITED_DISPLAY}
+    return env
+
+
 def main():
-    verbose = '-v' in sys.argv or '--verbose' in sys.argv
-    show_checksums = '--checksums' in sys.argv
-    # --sanitizer=asan|tsan. The variant picks the skip table; a bare --sanitizer or an
-    # unknown value is an error rather than a guess.
+    ap = argparse.ArgumentParser(
+        prog='run_tests.py', description="McRogueFace test runner: runs the headless test suite.",
+        epilog="Environment: MCRF_BUILD_DIR (build directory), MCRF_LIB_DIR (libraries), "
+               "MCRF_TIMEOUT_MULTIPLIER (scale every timeout).")
+    ap.add_argument('dirs', nargs='*', metavar='DIR',
+                    help=f"test directories to run (default: all of {', '.join(TEST_DIRS)})")
+    ap.add_argument('-v', '--verbose', action='store_true', help="show failure details")
+    ap.add_argument('--checksums', action='store_true', help="show screenshot checksums")
+    ap.add_argument('--timeout', type=int, default=DEFAULT_TIMEOUT, metavar='N',
+                    help=f"per-test timeout in seconds (default {DEFAULT_TIMEOUT})")
+    ap.add_argument('--sanitizer', nargs='?', const='', default=None, metavar='asan|tsan',
+                    help="detect sanitizer errors in output")
+    ap.add_argument('--valgrind', action='store_true', help="run tests under Valgrind memcheck")
+    ap.add_argument('--exclude', action='append', default=[], metavar='DIRS',
+                    help="comma-separated directories to leave out")
+    ap.add_argument('--no-skip', action='store_true',
+                    help="tests with missing external inputs fail instead of SKIP")
+    ap.add_argument('-j', '--jobs', type=int, default=1, metavar='N',
+                    help="run N tests at once, each worker on its own Xvfb and scratch directory "
+                         "(default 1: one at a time on the caller's DISPLAY)")
+    ap.add_argument('--shard', type=parse_shard, default=None, metavar='I/N',
+                    help="run only shard I of N (1-based): every N-th test of the sorted list")
+    args = ap.parse_args()
+
+    verbose = args.verbose
+    show_checksums = args.checksums
+    # The variant picks the skip table; a bare --sanitizer or an unknown value is an error
+    # rather than a guess.
     sanitizer_variant = None
-    for arg in sys.argv[1:]:
-        if arg == '--sanitizer' or arg.startswith('--sanitizer='):
-            value = arg.partition('=')[2]
-            if value not in SANITIZER_VARIANTS:
-                print(f"{RED}--sanitizer needs a variant: --sanitizer={'|'.join(SANITIZER_VARIANTS)}{RESET}")
-                sys.exit(2)
-            sanitizer_variant = value
+    if args.sanitizer is not None:
+        if args.sanitizer not in SANITIZER_VARIANTS:
+            print(f"{RED}--sanitizer needs a variant: --sanitizer={'|'.join(SANITIZER_VARIANTS)}{RESET}")
+            sys.exit(2)
+        sanitizer_variant = args.sanitizer
     sanitizer_mode = sanitizer_variant is not None
     stale = check_sanitizer_skip_tables()
     if stale:
         print(f"{RED}SANITIZER_SKIPS names tests that do not exist (renamed?): {', '.join(stale)}{RESET}")
         sys.exit(2)
-    valgrind_mode = '--valgrind' in sys.argv
-
-    # Parse --timeout=N
-    timeout = DEFAULT_TIMEOUT
-    for arg in sys.argv[1:]:
-        if arg.startswith('--timeout='):
-            try:
-                timeout = int(arg.split('=')[1])
-            except ValueError:
-                pass
+    valgrind_mode = args.valgrind
+    if args.jobs < 1:
+        ap.error("-j needs at least 1")
+    jobs = args.jobs
 
     # Apply timeout multiplier from environment
     timeout_multiplier = float(os.environ.get('MCRF_TIMEOUT_MULTIPLIER', '1'))
-    effective_timeout = timeout * timeout_multiplier
+    effective_timeout = args.timeout * timeout_multiplier
 
-    # Parse --exclude=a,b -- drop whole directories from this run.
+    # --exclude=a,b -- drop whole directories from this run.
     #
     # Exists for the alternate-build targets (debug-test/asan-test/tsan-test/
     # valgrind-test). Those point MCRF_BUILD_DIR at build-debug/build-asan/build-tsan,
@@ -343,26 +589,32 @@ def main():
     # is deliberate and visible at the invocation site; it is not a test quietly
     # skipping itself, and the default run (and CI's release job) still includes
     # everything.
-    excluded = []
-    for arg in sys.argv[1:]:
-        if arg.startswith('--exclude='):
-            excluded.extend(d.strip() for d in arg.split('=', 1)[1].split(',') if d.strip())
+    excluded = [d.strip() for arg in args.exclude for d in arg.split(',') if d.strip()]
     unknown = [d for d in excluded if d not in TEST_DIRS]
     if unknown:
         print(f"{RED}Unknown directory in --exclude: {', '.join(unknown)}{RESET}")
         print(f"Known directories: {', '.join(TEST_DIRS)}")
         sys.exit(2)
 
-    # Determine which directories to test
-    dirs_to_test = []
-    for arg in sys.argv[1:]:
-        if arg in TEST_DIRS:
-            dirs_to_test.append(arg)
-    if not dirs_to_test:
-        dirs_to_test = TEST_DIRS
+    # Determine which directories to test (in TEST_DIRS order, however they were named)
+    bad = [d for d in args.dirs if d not in TEST_DIRS]
+    if bad:
+        print(f"{RED}Unknown test directory: {', '.join(bad)}{RESET}")
+        print(f"Known directories: {', '.join(TEST_DIRS)}")
+        sys.exit(2)
+    dirs_to_test = [d for d in TEST_DIRS if d in args.dirs] if args.dirs else list(TEST_DIRS)
     dirs_to_test = [d for d in dirs_to_test if d not in excluded]
 
-    no_skip = '--no-skip' in sys.argv
+    if not MCROGUEFACE.is_file():
+        print(f"{RED}No engine at {MCROGUEFACE}: build one (make) or set MCRF_BUILD_DIR{RESET}")
+        sys.exit(2)
+
+    entries = plan_tests(dirs_to_test, effective_timeout, timeout_multiplier, args.no_skip,
+                         sanitizer_mode, sanitizer_variant, engine_abiflags())
+    if args.shard:
+        idx, n = args.shard
+        chosen = {e.key for pos, e in enumerate(sorted(entries, key=lambda e: e.key)) if pos % n == idx - 1}
+        entries = [e for e in entries if e.key in chosen]
 
     # Header
     mode_str = ""
@@ -374,87 +626,134 @@ def main():
     print(f"{BOLD}McRogueFace Test Runner{RESET}{mode_str}")
     print(f"Build: {BUILD_DIR}")
     print(f"Testing: {', '.join(dirs_to_test)} (timeout: {effective_timeout:.0f}s)")
+    if jobs > 1:
+        print(f"Jobs: {jobs} (private Xvfb each; serial afterwards: {', '.join(SERIAL_DIRS)})")
+    if args.shard:
+        print(f"Shard: {args.shard[0]}/{args.shard[1]} ({len(entries)} tests)")
     print("=" * 60)
+    sys.stdout.flush()
 
+    by_dir = {d: [e for e in entries if e.dir == d] for d in dirs_to_test}
+    wall_start = time.time()
+
+    def run_entry(e, cwd, extra_env):
+        e.cwd = cwd
+        passed, duration, output, san_errors = run_test(
+            e.path, verbose, e.timeout, sanitizer_mode=sanitizer_mode,
+            valgrind_mode=valgrind_mode, cwd=cwd, extra_env=extra_env)
+        checksum_str = ""
+        if show_checksums:
+            checksums = get_screenshot_checksum(cwd)
+            if checksums:
+                checksum_str = f" [{', '.join(f'{k}:{v}' for k,v in checksums.items())}]"
+        e.result = (passed, duration, output, san_errors, checksum_str)
+
+    def emit_group(test_dir):
+        print(f"\n{BOLD}{test_dir}/{RESET} ({len(by_dir[test_dir])} tests)")
+        for e in by_dir[test_dir]:
+            for line in format_line(e, verbose):
+                print(line)
+        sys.stdout.flush()
+
+    def is_done(e):
+        return e.skip is not None or e.result is not None
+
+    if jobs == 1:
+        # The original behaviour: one test at a time in BUILD_DIR, output as it happens.
+        for test_dir in dirs_to_test:
+            if not by_dir[test_dir]:
+                continue
+            print(f"\n{BOLD}{test_dir}/{RESET} ({len(by_dir[test_dir])} tests)")
+            for e in by_dir[test_dir]:
+                if e.skip is None:
+                    run_entry(e, BUILD_DIR, None)
+                for line in format_line(e, verbose):
+                    print(line)
+                sys.stdout.flush()
+    else:
+        xvfbs, displays, workdirs = [], [], []
+        old_term = signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
+        stop = threading.Event()
+        try:
+            for k in range(jobs):
+                proc, display = start_xvfb()
+                xvfbs.append(proc)
+                displays.append(display)
+                workdirs.append(make_worker_dir(k))
+
+            parallel = [e for e in entries if e.skip is None and e.dir not in SERIAL_DIRS]
+            # Longest budgets first, so a 120 s test does not start last and set the wall time.
+            work = queue.Queue()
+            for e in sorted(parallel, key=lambda e: -e.timeout):
+                work.put(e)
+            finished = queue.Queue()
+
+            def worker(k):
+                env = worker_env(displays[k], workdirs[k])
+                while not stop.is_set():
+                    try:
+                        e = work.get_nowait()
+                    except queue.Empty:
+                        return
+                    try:
+                        run_entry(e, workdirs[k], env)
+                    except BaseException as exc:  # a runner bug: report it, never hang the collector
+                        e.result = (False, 0, f"runner error: {exc!r}", [], "")
+                    finished.put(e)
+
+            threads = [threading.Thread(target=worker, args=(k,), daemon=True) for k in range(jobs)]
+            for t in threads:
+                t.start()
+
+            order = [d for d in dirs_to_test if by_dir[d]]
+            printed = 0
+
+            def flush_ready():
+                nonlocal printed
+                while printed < len(order) and all(is_done(e) for e in by_dir[order[printed]]):
+                    emit_group(order[printed])
+                    printed += 1
+
+            flush_ready()
+            for _ in range(len(parallel)):
+                finished.get()
+                flush_ready()
+
+            # Serial phase: in BUILD_DIR itself, one test at a time, on worker 0's display.
+            serial_env = {'DISPLAY': displays[0], **NO_INHERITED_DISPLAY}
+            for e in entries:
+                if e.skip is None and e.dir in SERIAL_DIRS:
+                    run_entry(e, BUILD_DIR, serial_env)
+            flush_ready()
+        finally:
+            stop.set()
+            signal.signal(signal.SIGTERM, old_term)
+            stop_xvfb(xvfbs)
+            for d in workdirs:
+                shutil.rmtree(d, ignore_errors=True)
+    wall = time.time() - wall_start
+
+    # Summary, from the entries in plan order (so it is the same however the run interleaved)
     results = {'pass': 0, 'fail': 0, 'skip': 0, 'total_time': 0}
     failures = []
     skipped = []
-
-    for test_dir in dirs_to_test:
-        tests = find_tests(test_dir)
-        if not tests:
-            continue
-
-        print(f"\n{BOLD}{test_dir}/{RESET} ({len(tests)} tests)")
-
-        for test_path in tests:
-            test_name = test_path.name
-            # Demos render several scenes; they need more headroom than a unit test.
-            if test_dir == 'demo':
-                test_timeout = DEMO_TIMEOUT * timeout_multiplier
-            elif test_dir == 'packaging':
-                test_timeout = PACKAGING_TIMEOUT * timeout_multiplier
-            else:
-                test_timeout = effective_timeout
-                if f"{test_dir}/{test_name}" in SLOW_TESTS:
-                    test_timeout = max(test_timeout, SLOW_TESTS[f"{test_dir}/{test_name}"] * timeout_multiplier)
-
-            missing, reason = missing_external_inputs(test_dir, test_name)
-            if missing:
-                note = f"{reason}; missing {', '.join(missing)}"
-                if no_skip:
-                    results['fail'] += 1
-                    failures.append((test_dir, test_name, f"--no-skip: {note}", []))
-                    print(f"  {RED}FAIL{RESET} {test_name} (--no-skip: {note})")
-                else:
-                    results['skip'] += 1
-                    skipped.append((test_dir, test_name, note))
-                    print(f"  {YELLOW}SKIP{RESET} {test_name} ({note})")
-                continue
-
-            if sanitizer_mode and f"{test_dir}/{test_name}" in SANITIZER_SKIPS[sanitizer_variant]:
-                note = f"does not fit --sanitizer={sanitizer_variant}: {SANITIZER_SKIPS[sanitizer_variant][f'{test_dir}/{test_name}']}"
-                results['skip'] += 1
-                skipped.append((test_dir, test_name, note))
-                print(f"  {YELLOW}SKIP{RESET} {test_name} ({note})")
-                continue
-
-            passed, duration, output, san_errors = run_test(
-                test_path, verbose, test_timeout,
-                sanitizer_mode=sanitizer_mode,
-                valgrind_mode=valgrind_mode
-            )
-            results['total_time'] += duration
-
-            if passed:
-                results['pass'] += 1
-                status = f"{GREEN}PASS{RESET}"
-            else:
+    for e in entries:
+        if e.skip:
+            if e.skip_is_fail:
                 results['fail'] += 1
-                status = f"{RED}FAIL{RESET}"
-                failures.append((test_dir, test_name, output, san_errors))
+                failures.append((e.dir, e.name, f"--no-skip: {e.skip}", []))
+            else:
+                results['skip'] += 1
+                skipped.append((e.dir, e.name, e.skip))
+            continue
+        passed, duration, output, san_errors, _ = e.result
+        results['total_time'] += duration
+        if passed:
+            results['pass'] += 1
+        else:
+            results['fail'] += 1
+            failures.append((e.dir, e.name, output, san_errors))
 
-            # Get screenshot checksums if any were generated
-            checksum_str = ""
-            if show_checksums:
-                checksums = get_screenshot_checksum(BUILD_DIR)
-                if checksums:
-                    checksum_str = f" [{', '.join(f'{k}:{v}' for k,v in checksums.items())}]"
-
-            # Show sanitizer error indicator
-            san_str = ""
-            if san_errors:
-                san_str = f" {RED}[SANITIZER]{RESET}"
-
-            print(f"  {status} {test_name} ({duration:.2f}s){checksum_str}{san_str}")
-
-            if verbose and not passed:
-                print(f"    Output: {output[:200]}...")
-                if san_errors:
-                    for err in san_errors[:3]:
-                        print(f"    {RED}>> {err}{RESET}")
-
-    # Summary
     print("\n" + "=" * 60)
     total = results['pass'] + results['fail']
     pass_rate = (results['pass'] / total * 100) if total > 0 else 0
@@ -462,6 +761,8 @@ def main():
     skip_str = f", {results['skip']} skipped" if results['skip'] else ""
     print(f"{BOLD}Results:{RESET} {results['pass']}/{total} passed ({pass_rate:.1f}%){skip_str}")
     print(f"{BOLD}Time:{RESET} {results['total_time']:.2f}s")
+    if jobs > 1:
+        print(f"{BOLD}Wall:{RESET} {wall:.2f}s ({jobs} jobs)")
 
     if valgrind_mode:
         print(f"{BOLD}Valgrind logs:{RESET} {BUILD_DIR}/valgrind-*.log")
@@ -478,11 +779,11 @@ def main():
             if san_errors:
                 for err in san_errors[:3]:
                     print(f"    {RED}>> {err}{RESET}")
-            if verbose:
-                # Show last few lines of output
-                lines = output.strip().split('\n')[-5:]
-                for line in lines:
-                    print(f"    {line}")
+            # The complete output of every failing test, whatever -v says: a CI log is all
+            # there is to diagnose a failure from, and its last five lines rarely name the
+            # check that failed.
+            for line in output.rstrip().split('\n'):
+                print(f"    {line}")
 
     sys.exit(0 if results['fail'] == 0 else 1)
 

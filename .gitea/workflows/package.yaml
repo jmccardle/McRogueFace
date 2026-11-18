@@ -14,14 +14,13 @@ name: Package
 # tools/build_deps_windows.sh: CPython is python.org's embeddable package, pinned by
 # sha256; SFML and libtcod are built from the submodules.
 #
-# .github/workflows/package.yaml is this file with GitHub's runner label; keep
-# the two in step. Steps run as root in the Forgejo runner's container (no
-# sudo) and as a sudoer on GitHub's VMs, hence $SUDO.
+# Releases package on GitHub (.github/workflows/package.yaml). This Forgejo copy is
+# manual-only (workflow_dispatch): it does not run on pushes or tags. It is otherwise that
+# file with the Forgejo runner's label, so keep the steps in step when one changes. Steps
+# run as root in the Forgejo runner's container (no sudo) and as a sudoer on GitHub's VMs,
+# hence $SUDO.
 
 on:
-  push:
-    branches: ['ci/**']
-    tags: ['[0-9]+.[0-9]+.[0-9]+']
   workflow_dispatch:
 
 env:
