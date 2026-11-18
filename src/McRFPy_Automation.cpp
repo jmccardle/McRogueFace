@@ -137,7 +137,7 @@ void McRFPy_Automation::injectWindowEvent(sf::Event::EventType type) {
 }
 
 // Inject mouse event into the game engine
-void McRFPy_Automation::injectMouseEvent(sf::Event::EventType type, int x, int y, sf::Mouse::Button button, float scrollDelta) {
+void McRFPy_Automation::injectMouseEvent(sf::Event::EventType type, int x, int y, sf::Mouse::Button button, float scrollDelta, bool horizontal) {
     auto engine = getGameEngine();
     if (!engine) return;
 
@@ -163,7 +163,7 @@ void McRFPy_Automation::injectMouseEvent(sf::Event::EventType type, int x, int y
             event.mouseButton.y = y;
             break;
         case sf::Event::MouseWheelScrolled:
-            event.mouseWheelScroll.wheel = sf::Mouse::VerticalWheel;
+            event.mouseWheelScroll.wheel = horizontal ? sf::Mouse::HorizontalWheel : sf::Mouse::VerticalWheel;  // #548
             event.mouseWheelScroll.delta = scrollDelta; // #317: scroll amount is its own arg
             event.mouseWheelScroll.x = x;               // position now honored on both axes
             event.mouseWheelScroll.y = y;
@@ -707,12 +707,13 @@ PyObject* McRFPy_Automation::_hotkey(PyObject* self, PyObject* args) {
 // Scroll wheel - accepts scroll(clicks, pos) or scroll(clicks) for current position
 PyObject* McRFPy_Automation::_scroll(PyObject* self, PyObject* args, PyObject* kwargs) {
     if (McRFPy_API::propagatePendingExit()) return NULL;  // #557: nothing after an exit request
-    static const char* kwlist[] = {"clicks", "pos", NULL};
+    static const char* kwlist[] = {"clicks", "pos", "horizontal", NULL};
     int clicks;
     PyObject* pos_obj = Py_None;
+    int horizontal = 0;  // #548
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "i|O", const_cast<char**>(kwlist),
-                                     &clicks, &pos_obj)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "i|Op", const_cast<char**>(kwlist),
+                                     &clicks, &pos_obj, &horizontal)) {
         return NULL;
     }
 
@@ -740,7 +741,7 @@ PyObject* McRFPy_Automation::_scroll(PyObject* self, PyObject* args, PyObject* k
 
     // Inject scroll event (#317: forward the resolved x/y position; clicks is
     // the scroll delta, passed via its own argument).
-    injectMouseEvent(sf::Event::MouseWheelScrolled, x, y, sf::Mouse::Left, static_cast<float>(clicks));
+    injectMouseEvent(sf::Event::MouseWheelScrolled, x, y, sf::Mouse::Left, static_cast<float>(clicks), horizontal != 0);
 
     return exitOrNone();
 }
@@ -1085,11 +1086,12 @@ static PyMethodDef automationMethods[] = {
      )},
     {"scroll", (PyCFunction)McRFPy_Automation::_scroll, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(automation, scroll,
-         MCRF_SIG("(clicks: int, pos: tuple | list | Vector | None = None)", "None"),
+         MCRF_SIG("(clicks: int, pos: tuple | list | Vector | None = None, horizontal: bool = False)", "None"),
          MCRF_DESC("Scroll the mouse wheel at the specified position."),
          MCRF_ARGS_START
          MCRF_ARG("clicks", "Number of scroll steps (positive = up, negative = down)")
          MCRF_ARG("pos", "Position as (x, y) tuple, [x, y] list, Vector, or None for current position")
+         MCRF_ARG("horizontal", "Scroll the horizontal wheel instead (positive = left -> SCROLL_LEFT, negative = right -> SCROLL_RIGHT)")
          MCRF_NOTE("Like click(pos), a pos moves the simulated mouse there first (firing hover "
                    "enter/exit), then scrolls; the widget under pos receives the scroll.")
      )},

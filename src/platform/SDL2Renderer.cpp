@@ -47,6 +47,11 @@ namespace sf {
 // #495: code points of a multi-character SDL_TEXTINPUT still to be delivered as TextEntered.
 static std::deque<uint32_t> g_pendingText;
 
+// #548: SDL reports one SDL_MOUSEWHEEL with both axes for a diagonal scroll; sf::Event holds
+// one axis. The vertical event is returned at once, the horizontal one waits here.
+struct PendingWheel { bool valid = false; float delta = 0; int x = 0, y = 0; };
+static PendingWheel g_pendingWheel;
+
 // =============================================================================
 // Built-in Shaders (GLSL ES 2.0 / GLSL 1.20 compatible)
 // =============================================================================
@@ -716,6 +721,15 @@ void RenderWindow::setSize(const Vector2u& size) {
 
 // Event polling - translate SDL events to sf::Event
 bool RenderWindow::pollEvent(Event& event) {
+    if (g_pendingWheel.valid) {  // horizontal half of a diagonal scroll (#548)
+        event.type = Event::MouseWheelScrolled;
+        event.mouseWheelScroll.wheel = Mouse::HorizontalWheel;
+        event.mouseWheelScroll.delta = g_pendingWheel.delta;
+        event.mouseWheelScroll.x = g_pendingWheel.x;
+        event.mouseWheelScroll.y = g_pendingWheel.y;
+        g_pendingWheel.valid = false;
+        return true;
+    }
     if (!g_pendingText.empty()) {  // rest of a multi-code-point SDL_TEXTINPUT
         event.type = Event::TextEntered;
         event.text.unicode = g_pendingText.front();
@@ -732,6 +746,15 @@ bool RenderWindow::pollEvent(Event& event) {
 }
 
 bool RenderWindow::waitEvent(Event& event) {
+    if (g_pendingWheel.valid) {  // horizontal half of a diagonal scroll (#548)
+        event.type = Event::MouseWheelScrolled;
+        event.mouseWheelScroll.wheel = Mouse::HorizontalWheel;
+        event.mouseWheelScroll.delta = g_pendingWheel.delta;
+        event.mouseWheelScroll.x = g_pendingWheel.x;
+        event.mouseWheelScroll.y = g_pendingWheel.y;
+        g_pendingWheel.valid = false;
+        return true;
+    }
     if (!g_pendingText.empty()) {
         event.type = Event::TextEntered;
         event.text.unicode = g_pendingText.front();
@@ -865,13 +888,28 @@ bool translateSDLEvent(const void* sdlEventPtr, void* sfEventPtr) {
             return true;
         }
 
-        case SDL_MOUSEWHEEL:
+        case SDL_MOUSEWHEEL: {
+            // #548: a scroll with both components is two events, vertical first. SDL's
+            // wheel.x is positive to the right; the engine (SFML) convention is positive =
+            // left, so it is negated. An all-zero wheel event carries nothing.
+            if (sdlEvent.wheel.x == 0 && sdlEvent.wheel.y == 0) return false;
+            int mx, my;
+            SDL_GetMouseState(&mx, &my);
             sfEvent.type = Event::MouseWheelScrolled;
-            sfEvent.mouseWheelScroll.wheel = sdlEvent.wheel.x != 0 ? Mouse::HorizontalWheel : Mouse::VerticalWheel;
-            sfEvent.mouseWheelScroll.delta = sdlEvent.wheel.x != 0 ? sdlEvent.wheel.x : sdlEvent.wheel.y;
-            // Get current mouse position
-            SDL_GetMouseState(&sfEvent.mouseWheelScroll.x, &sfEvent.mouseWheelScroll.y);
+            sfEvent.mouseWheelScroll.x = mx;
+            sfEvent.mouseWheelScroll.y = my;
+            if (sdlEvent.wheel.y != 0) {
+                sfEvent.mouseWheelScroll.wheel = Mouse::VerticalWheel;
+                sfEvent.mouseWheelScroll.delta = sdlEvent.wheel.y;
+                if (sdlEvent.wheel.x != 0) {
+                    g_pendingWheel = {true, -static_cast<float>(sdlEvent.wheel.x), mx, my};
+                }
+            } else {
+                sfEvent.mouseWheelScroll.wheel = Mouse::HorizontalWheel;
+                sfEvent.mouseWheelScroll.delta = -static_cast<float>(sdlEvent.wheel.x);
+            }
             return true;
+        }
     }
 
     return false;

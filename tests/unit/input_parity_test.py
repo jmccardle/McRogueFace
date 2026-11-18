@@ -33,7 +33,7 @@ Keyboard translation coverage -- FULL.
 Mouse-button translation coverage -- FULL.
   sdlButtonToSfButton()  SDL2Renderer.cpp:1044-1052 maps SDL_BUTTON_LEFT/RIGHT/MIDDLE/
   X1/X2 -> Mouse::Left/Right/Middle/XButton1/XButton2. All 5 physical buttons the
-  API exposes are covered. (SCROLL_UP=10 / SCROLL_DOWN=11 are synthetic API values
+  API exposes are covered. (SCROLL_UP=10 / SCROLL_DOWN=11 / SCROLL_LEFT=12 / SCROLL_RIGHT=13 are synthetic API values
   produced from the shared MouseWheelScrolled path, SDL2Renderer.cpp:809-815 -- not
   from the button table -- so they are backend-agnostic.)
 
@@ -116,7 +116,7 @@ EXPECTED_KEYS = {
 
 EXPECTED_MOUSE_BUTTONS = {
     "LEFT": 0, "RIGHT": 1, "MIDDLE": 2, "X1": 3, "X2": 4,
-    "SCROLL_UP": 10, "SCROLL_DOWN": 11,
+    "SCROLL_UP": 10, "SCROLL_DOWN": 11, "SCROLL_LEFT": 12, "SCROLL_RIGHT": 13,
 }
 
 EXPECTED_INPUT_STATES = {

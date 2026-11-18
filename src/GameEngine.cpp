@@ -934,12 +934,10 @@ void GameEngine::processEvent(const sf::Event& event)
         actionCode = ActionCode::keycode(event.key.code);
     else if (event.type == sf::Event::MouseWheelScrolled)
     {
-        if (event.mouseWheelScroll.wheel == sf::Mouse::VerticalWheel)
-        {
-            int delta = 1;
-            if (event.mouseWheelScroll.delta < 0) delta = -1;
-            actionCode = ActionCode::keycode(event.mouseWheelScroll.wheel, delta );
-        }
+        // #548: both wheels (vertical: up/down, horizontal: left/right) are delivered.
+        int delta = 1;
+        if (event.mouseWheelScroll.delta < 0) delta = -1;
+        actionCode = ActionCode::keycode(event.mouseWheelScroll.wheel, delta );
     }
     // #140 - Handle mouse movement for hover detection
     else if (event.type == sf::Event::MouseMoved)
