@@ -3,6 +3,7 @@
 #include "GameEngine.h"
 #include "Resources.h"
 #include "McRFPy_Doc.h"
+#include "McRFPy_API.h"
 
 // Forward declarations
 static PyObject* PyLockContext_enter(PyLockContextObject* self, PyObject* args);
@@ -17,7 +18,7 @@ static PyMethodDef PyLockContext_methods[] = {
          MCRF_SIG("()", "_LockContext"),
          MCRF_DESC("Acquire the frame lock, blocking until a safe window opens. No-op on the thread that drives the simulation clock."),
          MCRF_RETURNS("self, for use in a `with` statement")
-         MCRF_RAISES("RuntimeError", "If the game engine is not initialized")
+         MCRF_RAISES("RuntimeError", "If the game engine is not initialized, or is shutting down (also raised in a thread that was waiting when shutdown began)")
      )},
     {"__exit__", (PyCFunction)PyLockContext_exit, METH_VARARGS,
      MCRF_METHOD(LockContext, __exit__,
@@ -77,8 +78,15 @@ static PyObject* PyLockContext_enter(PyLockContextObject* self, PyObject* args) 
         return (PyObject*)self;
     }
 
+    // We are about to wait for a window that stops coming at exit: make sure our close hook
+    // runs before any other threading-atexit hook that joins threads (#556).
+    if (!Resources::game->getFrameLock().isShutdown() && McRFPy_API::keepShutdownHookFirst() < 0) return NULL;
+
     // Acquire the frame lock - this will block (with GIL released) until safe window
-    Resources::game->getFrameLock().acquire();
+    if (!Resources::game->getFrameLock().acquire()) {
+        PyErr_SetString(PyExc_RuntimeError, "engine is shutting down");  // #556
+        return NULL;
+    }
     self->acquired = true;
 
     // Return self for the `with` statement
@@ -101,6 +109,14 @@ static PyObject* PyLockContext_exit(PyLockContextObject* self, PyObject* args) {
 PyObject* PyLock::lock(PyObject* self, PyObject* args) {
     if (!Resources::game) {
         PyErr_SetString(PyExc_RuntimeError, "Game engine not initialized");
+        return NULL;
+    }
+
+    // The clock owner's lock is a no-op (see __enter__) and stays one after shutdown began:
+    // an atexit handler or __del__ on the main thread may still take it. Only a thread that
+    // would have to wait is refused (#556).
+    if (!Resources::game->ownsClock() && Resources::game->getFrameLock().isShutdown()) {
+        PyErr_SetString(PyExc_RuntimeError, "engine is shutting down");
         return NULL;
     }
 

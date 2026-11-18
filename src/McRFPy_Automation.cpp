@@ -116,6 +116,15 @@ sf::Keyboard::Key McRFPy_Automation::stringToKey(const std::string& keyName) {
     return sf::Keyboard::Unknown;
 }
 
+// #557: these bindings dispatch input events to Python callbacks synchronously. A callback
+// that asked to exit has been recorded, not run to completion; the exit is raised out of the
+// binding into the caller's own code (see McRFPy_API::propagatePendingExit).
+static PyObject* exitOrNone() {
+    if (McRFPy_API::propagatePendingExit()) return NULL;
+    Py_RETURN_NONE;
+}
+
+
 // #367 - Inject a window-level event. These carry no coordinates and no button, which
 // is why they get their own entry point rather than riding injectMouseEvent.
 void McRFPy_Automation::injectWindowEvent(sf::Event::EventType type) {
@@ -359,6 +368,7 @@ PyObject* McRFPy_Automation::_onScreen(PyObject* self, PyObject* args, PyObject*
 
 // Move mouse to position - accepts moveTo(pos, duration)
 PyObject* McRFPy_Automation::_moveTo(PyObject* self, PyObject* args, PyObject* kwargs) {
+    if (McRFPy_API::propagatePendingExit()) return NULL;  // #557: nothing after an exit request
     static const char* kwlist[] = {"pos", "duration", NULL};
     PyObject* pos_obj;
     float duration = 0.0f;
@@ -380,7 +390,7 @@ PyObject* McRFPy_Automation::_moveTo(PyObject* self, PyObject* args, PyObject* k
         sleep_ms(static_cast<int>(duration * 1000));
     }
 
-    Py_RETURN_NONE;
+    return exitOrNone();
 }
 
 // #363 - Simulate the cursor leaving the window. sf::Event::MouseLeft carries no
@@ -388,8 +398,9 @@ PyObject* McRFPy_Automation::_moveTo(PyObject* self, PyObject* args, PyObject* k
 // exit callbacks it fires. The simulated position is deliberately NOT moved -- the
 // cursor is outside the window, not at some new point inside it.
 PyObject* McRFPy_Automation::_mouseLeave(PyObject* self, PyObject* args) {
+    if (McRFPy_API::propagatePendingExit()) return NULL;  // #557: nothing after an exit request
     injectMouseEvent(sf::Event::MouseLeft, simulated_mouse_pos.x, simulated_mouse_pos.y);
-    Py_RETURN_NONE;
+    return exitOrNone();
 }
 
 // #367 - Simulate the window losing focus (alt-tab). Like a window-leave, this clears
@@ -397,12 +408,14 @@ PyObject* McRFPy_Automation::_mouseLeave(PyObject* self, PyObject* args) {
 // marked hovered would stay lit indefinitely. The simulated cursor position is left
 // alone -- focus and pointer location are independent, and the pointer has not moved.
 PyObject* McRFPy_Automation::_loseFocus(PyObject* self, PyObject* args) {
+    if (McRFPy_API::propagatePendingExit()) return NULL;  // #557: nothing after an exit request
     injectWindowEvent(sf::Event::LostFocus);
-    Py_RETURN_NONE;
+    return exitOrNone();
 }
 
 // Move mouse relative - accepts moveRel(offset, duration)
 PyObject* McRFPy_Automation::_moveRel(PyObject* self, PyObject* args, PyObject* kwargs) {
+    if (McRFPy_API::propagatePendingExit()) return NULL;  // #557: nothing after an exit request
     static const char* kwlist[] = {"offset", "duration", NULL};
     PyObject* offset_obj;
     float duration = 0.0f;
@@ -436,11 +449,12 @@ PyObject* McRFPy_Automation::_moveRel(PyObject* self, PyObject* args, PyObject* 
         sleep_ms(static_cast<int>(duration * 1000));
     }
 
-    Py_RETURN_NONE;
+    return exitOrNone();
 }
 
 // Click implementation - accepts click(pos, clicks, interval, button) or click() for current position
 PyObject* McRFPy_Automation::_click(PyObject* self, PyObject* args, PyObject* kwargs) {
+    if (McRFPy_API::propagatePendingExit()) return NULL;  // #557: nothing after an exit request
     static const char* kwlist[] = {"pos", "clicks", "interval", "button", NULL};
     PyObject* pos_obj = Py_None;
     int clicks = 1;
@@ -488,11 +502,12 @@ PyObject* McRFPy_Automation::_click(PyObject* self, PyObject* args, PyObject* kw
         injectMouseEvent(sf::Event::MouseButtonReleased, x, y, sfButton);
     }
 
-    Py_RETURN_NONE;
+    return exitOrNone();
 }
 
 // Right click - accepts rightClick(pos) or rightClick() for current position
 PyObject* McRFPy_Automation::_rightClick(PyObject* self, PyObject* args, PyObject* kwargs) {
+    if (McRFPy_API::propagatePendingExit()) return NULL;  // #557: nothing after an exit request
     static const char* kwlist[] = {"pos", NULL};
     PyObject* pos_obj = Py_None;
 
@@ -514,6 +529,7 @@ PyObject* McRFPy_Automation::_rightClick(PyObject* self, PyObject* args, PyObjec
 
 // Double click - accepts doubleClick(pos) or doubleClick() for current position
 PyObject* McRFPy_Automation::_doubleClick(PyObject* self, PyObject* args, PyObject* kwargs) {
+    if (McRFPy_API::propagatePendingExit()) return NULL;  // #557: nothing after an exit request
     static const char* kwlist[] = {"pos", NULL};
     PyObject* pos_obj = Py_None;
 
@@ -535,6 +551,7 @@ PyObject* McRFPy_Automation::_doubleClick(PyObject* self, PyObject* args, PyObje
 
 // Type text
 PyObject* McRFPy_Automation::_typewrite(PyObject* self, PyObject* args, PyObject* kwargs) {
+    if (McRFPy_API::propagatePendingExit()) return NULL;  // #557: nothing after an exit request
     static const char* kwlist[] = {"message", "interval", NULL};
     PyObject* message;
     float interval = 0.0f;
@@ -579,12 +596,13 @@ PyObject* McRFPy_Automation::_typewrite(PyObject* self, PyObject* args, PyObject
         if (s.shift) injectKeyEvent(sf::Event::KeyReleased, sf::Keyboard::LShift);
     }
 
-    Py_RETURN_NONE;
+    return exitOrNone();
 }
 
 // #495 - Type text without keys: layout-, dead-key- and IME-produced characters that no
 // US key stroke can express. Delivered to on_text only, one call per code point.
 PyObject* McRFPy_Automation::_typeText(PyObject* self, PyObject* args) {
+    if (McRFPy_API::propagatePendingExit()) return NULL;  // #557: nothing after an exit request
     PyObject* message;
     if (!PyArg_ParseTuple(args, "U", &message)) {
         return NULL;
@@ -604,11 +622,12 @@ PyObject* McRFPy_Automation::_typeText(PyObject* self, PyObject* args) {
     for (Py_ssize_t i = 0; i < len; i++) {
         injectTextEvent(PyUnicode_READ_CHAR(message, i));
     }
-    Py_RETURN_NONE;
+    return exitOrNone();
 }
 
 // Press and hold key
 PyObject* McRFPy_Automation::_keyDown(PyObject* self, PyObject* args) {
+    if (McRFPy_API::propagatePendingExit()) return NULL;  // #557: nothing after an exit request
     const char* keyName;
     if (!PyArg_ParseTuple(args, "s", &keyName)) {
         return NULL;
@@ -621,11 +640,12 @@ PyObject* McRFPy_Automation::_keyDown(PyObject* self, PyObject* args) {
     }
 
     injectKeyEvent(sf::Event::KeyPressed, key);
-    Py_RETURN_NONE;
+    return exitOrNone();
 }
 
 // Release key
 PyObject* McRFPy_Automation::_keyUp(PyObject* self, PyObject* args) {
+    if (McRFPy_API::propagatePendingExit()) return NULL;  // #557: nothing after an exit request
     const char* keyName;
     if (!PyArg_ParseTuple(args, "s", &keyName)) {
         return NULL;
@@ -638,11 +658,12 @@ PyObject* McRFPy_Automation::_keyUp(PyObject* self, PyObject* args) {
     }
 
     injectKeyEvent(sf::Event::KeyReleased, key);
-    Py_RETURN_NONE;
+    return exitOrNone();
 }
 
 // Hotkey combination
 PyObject* McRFPy_Automation::_hotkey(PyObject* self, PyObject* args) {
+    if (McRFPy_API::propagatePendingExit()) return NULL;  // #557: nothing after an exit request
     // Get all keys as separate arguments
     Py_ssize_t numKeys = PyTuple_Size(args);
     if (numKeys == 0) {
@@ -680,11 +701,12 @@ PyObject* McRFPy_Automation::_hotkey(PyObject* self, PyObject* args) {
         sleep_ms(10);
     }
 
-    Py_RETURN_NONE;
+    return exitOrNone();
 }
 
 // Scroll wheel - accepts scroll(clicks, pos) or scroll(clicks) for current position
 PyObject* McRFPy_Automation::_scroll(PyObject* self, PyObject* args, PyObject* kwargs) {
+    if (McRFPy_API::propagatePendingExit()) return NULL;  // #557: nothing after an exit request
     static const char* kwlist[] = {"clicks", "pos", NULL};
     int clicks;
     PyObject* pos_obj = Py_None;
@@ -720,11 +742,12 @@ PyObject* McRFPy_Automation::_scroll(PyObject* self, PyObject* args, PyObject* k
     // the scroll delta, passed via its own argument).
     injectMouseEvent(sf::Event::MouseWheelScrolled, x, y, sf::Mouse::Left, static_cast<float>(clicks));
 
-    Py_RETURN_NONE;
+    return exitOrNone();
 }
 
 // Other click types using the main click function - accepts middleClick(pos) or middleClick()
 PyObject* McRFPy_Automation::_middleClick(PyObject* self, PyObject* args, PyObject* kwargs) {
+    if (McRFPy_API::propagatePendingExit()) return NULL;  // #557: nothing after an exit request
     static const char* kwlist[] = {"pos", NULL};
     PyObject* pos_obj = Py_None;
 
@@ -745,6 +768,7 @@ PyObject* McRFPy_Automation::_middleClick(PyObject* self, PyObject* args, PyObje
 
 // Triple click - accepts tripleClick(pos) or tripleClick()
 PyObject* McRFPy_Automation::_tripleClick(PyObject* self, PyObject* args, PyObject* kwargs) {
+    if (McRFPy_API::propagatePendingExit()) return NULL;  // #557: nothing after an exit request
     static const char* kwlist[] = {"pos", NULL};
     PyObject* pos_obj = Py_None;
 
@@ -766,6 +790,7 @@ PyObject* McRFPy_Automation::_tripleClick(PyObject* self, PyObject* args, PyObje
 
 // Mouse button press/release - accepts mouseDown(pos, button) or mouseDown() for current position
 PyObject* McRFPy_Automation::_mouseDown(PyObject* self, PyObject* args, PyObject* kwargs) {
+    if (McRFPy_API::propagatePendingExit()) return NULL;  // #557: nothing after an exit request
     static const char* kwlist[] = {"pos", "button", NULL};
     PyObject* pos_obj = Py_None;
     const char* button = "left";
@@ -798,11 +823,12 @@ PyObject* McRFPy_Automation::_mouseDown(PyObject* self, PyObject* args, PyObject
     if (!PyMouseButton::button_from_action_name(button, &sfButton)) return NULL;
 
     injectMouseEvent(sf::Event::MouseButtonPressed, x, y, sfButton);
-    Py_RETURN_NONE;
+    return exitOrNone();
 }
 
 // Mouse up - accepts mouseUp(pos, button) or mouseUp() for current position
 PyObject* McRFPy_Automation::_mouseUp(PyObject* self, PyObject* args, PyObject* kwargs) {
+    if (McRFPy_API::propagatePendingExit()) return NULL;  // #557: nothing after an exit request
     static const char* kwlist[] = {"pos", "button", NULL};
     PyObject* pos_obj = Py_None;
     const char* button = "left";
@@ -835,11 +861,12 @@ PyObject* McRFPy_Automation::_mouseUp(PyObject* self, PyObject* args, PyObject* 
     if (!PyMouseButton::button_from_action_name(button, &sfButton)) return NULL;
 
     injectMouseEvent(sf::Event::MouseButtonReleased, x, y, sfButton);
-    Py_RETURN_NONE;
+    return exitOrNone();
 }
 
 // Drag operations - accepts dragTo(pos, duration, button)
 PyObject* McRFPy_Automation::_dragTo(PyObject* self, PyObject* args, PyObject* kwargs) {
+    if (McRFPy_API::propagatePendingExit()) return NULL;  // #557: nothing after an exit request
     static const char* kwlist[] = {"pos", "duration", "button", NULL};
     PyObject* pos_obj;
     float duration = 0.0f;
@@ -902,11 +929,12 @@ PyObject* McRFPy_Automation::_dragTo(PyObject* self, PyObject* args, PyObject* k
     if (!upResult) return NULL;
     Py_DECREF(upResult);
 
-    Py_RETURN_NONE;
+    return exitOrNone();
 }
 
 // Drag relative - accepts dragRel(offset, duration, button)
 PyObject* McRFPy_Automation::_dragRel(PyObject* self, PyObject* args, PyObject* kwargs) {
+    if (McRFPy_API::propagatePendingExit()) return NULL;  // #557: nothing after an exit request
     static const char* kwlist[] = {"offset", "duration", "button", NULL};
     PyObject* offset_obj;
     float duration = 0.0f;

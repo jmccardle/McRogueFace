@@ -1,4 +1,5 @@
 #include "PyUniformBinding.h"
+#include "PyWrap.h"
 #include "UIDrawable.h"
 #include "UIFrame.h"
 #include "UICaption.h"
@@ -77,7 +78,7 @@ std::optional<float> CallableBinding::evaluate() const {
     PyObject* result = PyObject_CallNoArgs(callable);
     if (!result) {
         // Python exception occurred - print and clear it
-        PyErr_Print();
+        mcrf::print_callback_exception();
         return std::nullopt;
     }
 

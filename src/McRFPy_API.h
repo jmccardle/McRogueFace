@@ -132,6 +132,27 @@ public:
     static std::atomic<bool> exception_occurred;
     static std::atomic<int> exit_code;
 
+    // #557: a SystemExit raised by a callback inside a frame is recorded here instead of
+    // finalizing the interpreter under the frame. The frame code stops dispatching
+    // callbacks (exitPending()), unwinds, and the exit happens at the top:
+    // raisePendingExit() re-raises it, and PyErr_Print() (or the script's own top level)
+    // exits with the code a top-level sys.exit() would give. GIL-protected.
+    static bool deferSystemExit();   // true if the pending error was a SystemExit taken (or dropped)
+    static bool exitPending();
+    static void raisePendingExit();  // sets the recorded SystemExit as the current error
+    // For a binding that dispatches callbacks synchronously for its Python caller
+    // (Grid.step(), Scene.activate(), the current_scene setter, the Scene constructor, the
+    // automation.* event injectors): call it FIRST (an exit already requested is raised before
+    // the binding does anything) and again before returning (one the dispatch asked for comes
+    // out of the call into the caller's own code like any raise). If it returns true, set the
+    // error and the binding returns NULL / -1. On a thread that does not own the clock it
+    // returns false and the exit stays pending for the owner.
+    static bool propagatePendingExit();
+    // #556: keep the frame-lock close hook the first threading-atexit hook to run. Called by
+    // a thread about to wait in mcrfpy.lock(), because later registrations (a
+    // ThreadPoolExecutor's) land after ours and would run before it. 0, or -1 with an error set.
+    static int keepShutdownHookFirst();
+
     static void signalPythonException();  // Called by exception handlers
     static bool shouldExit();             // Checked by game loop
 };

@@ -816,6 +816,59 @@ GC and module clearing, so the old guards skipped every release made during fina
 Gate: `tests/regression/issue_468_exit_teardown_test.py` (markers on every exit path, and
 no LSan report under `make asan-test`).
 
+**`sys.exit()` in a callback (#557).** It must not finalize under the frame loop's live
+frames. Every error path of a user callback that runs inside `doFrame()`/`runSimFrame()` --
+this includes `PyErr_WarnEx`, which can run a user `warnings` hook -- goes through
+`mcrf::print_callback_exception()` / `print_callback_error()`, never a bare `PyErr_Print()`
+(a bare one is right only for an engine-side failure that user code cannot cause, such as
+building a callback's argument). Inside a frame that records the `SystemExit`
+(`McRFPy_API::deferSystemExit`; outside a frame it still exits on the spot, as before) and:
+- **stops**: the rest of the frame (`exitPending()` checkpoints between the phases of
+  `doFrame`/`runSimFrame`), further timers and the timer's catch-up loop, animation
+  callbacks, the remaining queued input events in `sUserInput`, the rest of a hover walk,
+  the remaining entities in `Grid.step`, `advance()`'s further frames;
+- **unwinds**, and the exit happens at the top: `step()`/`advance()`, and the bindings that
+  dispatch synchronously for their caller (`Grid.step`, `Scene.activate()`, the
+  `current_scene` setter; helper `McRFPy_API::propagatePendingExit()`), re-raise the
+  `SystemExit` into the caller's Python code, where it propagates like any raise; the windowed
+  loop calls `GameEngine::exitForPendingSystemExit()`. Code, stderr text and `atexit`/#468
+  order are those of a top-level `sys.exit()`; under `-i` CPython prints it and carries on, so
+  does this (never `_Exit` on a user-reachable path);
+- **may still run**: the remainder of the callback that dispatched through something that
+  does not re-raise (`automation.*` event injection, and any other binding not listed above) -- it
+  finishes, then the frame unwinds -- and callbacks already past their checkpoint. A new
+  frame phase or dispatch loop needs an `exitPending()` check, and a new synchronous binding
+  that dispatches callbacks should end with `propagatePendingExit()`.
+A `SystemExit` re-raised out of `step()` on a background thread that drives the clock (#411)
+ends only that thread (Python's rule for `SystemExit` off the main thread); it does not exit
+the process. An exit requested by a callback dispatched for a NON-owner thread (one holding
+`mcrfpy.lock()` that called `automation.*`) is not raised in that thread (`propagatePendingExit`
+only raises on the clock owner): it stays pending and the owner exits the process when its
+frame unwinds. A binding entered with an exit already pending raises it first, before doing
+anything; every `automation.*` event injector and the `Scene` constructor are such bindings.
+Under `-i` a callback's `sys.exit()` is printed and the game continues, as a top-level one does
+in this engine. Gate: `tests/regression/issue_557_callback_sys_exit_test.py`.
+
+**Frames do not nest (#551).** `step()`/`advance()` from inside any callback raise
+`RuntimeError`, windowed as well (it used to return 0.0 there): `GameEngine::inFrame()`,
+checked once in `frameAdvanceAllowed`.
+
+**Shutdown closes the frame lock (#556).** CPython joins non-daemon threads before the
+`atexit` handlers run, so the lock is closed by a hook registered with
+`threading._register_atexit` (runs before the join). Those hooks run in REVERSE order and a
+`ThreadPoolExecutor` (so `asyncio.to_thread`) registers one that joins its workers, so a thread
+about to wait in `lock()` first moves our entry to the end of `threading._threading_atexits`
+(`McRFPy_API::keepShutdownHookFirst`; the private name is checked at import and pinned by
+`tests/regression/issue_556_*`). Waiters and later `mcrfpy.lock()` calls
+in threads that would have to wait raise `RuntimeError("engine is shutting down")`, and the
+lock is never granted after that. It closes only when no thread can open a window any more:
+now if the exiting main thread owns the clock or nobody does, otherwise when the thread that
+drives the clock ends (`GameEngine::closeFrameLockForShutdown`; the owner's thread-exit is
+its only release point) -- but at once if that owner is a daemon thread, which never ends before
+the interpreter is torn down (recorded at `claimClock()`). The clock owner's own `lock()` stays a no-op after shutdown
+(`atexit` handlers and `__del__` on the main thread may take it). A driver that stops
+stepping but stays alive while a non-daemon thread waits in `lock()` still hangs the exit.
+
 `tools/lint_bindings.py` (tree-sitter, `make lint-bindings`) enforces all of this:
 identity-type construction outside a converter (via `tp_alloc`, `Foo::pynew`, or
 `PyObject_New`), direct `PythonObjectCache::` use, a new reference passed inline to a

@@ -94,7 +94,7 @@ static bool tryCallPythonMethod(UIDrawable* drawable, const char* method_name,
             Py_DECREF(result);
             called = true;
         } else {
-            PyErr_Print();
+            mcrf::print_callback_exception();
         }
     }
 
@@ -142,7 +142,7 @@ static bool tryCallPythonMethod(UIDrawable* drawable, const char* method_name,
         // Create Vector object for position
         PyObject* pos = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", mousepos.x, mousepos.y);
         if (!pos) {
-            PyErr_Print();
+            PyErr_Print();   // building the argument failed: engine error, not user code
             PyErr_Clear();
             Py_XDECREF(method);
             Py_DECREF(pyObj);
@@ -160,7 +160,7 @@ static bool tryCallPythonMethod(UIDrawable* drawable, const char* method_name,
             Py_DECREF(result);
             called = true;
         } else {
-            PyErr_Print();
+            mcrf::print_callback_exception();
         }
     }
 
@@ -327,6 +327,7 @@ void PyScene::dispatch_hover(sf::Vector2f mousepos, bool in_window)
     std::function<void(UIDrawable*, sf::Vector2f, bool)> processHover =
         [&](UIDrawable* drawable, sf::Vector2f point, bool hit_allowed) {
         if (!drawable || !drawable->visible) return;
+        if (McRFPy_API::exitPending()) return;  // #557: a hover callback asked to exit
 
         // Same rect get_global_bounds() builds (position + bounds SIZE), just
         // expressed in parent-local space instead of accumulated global space.

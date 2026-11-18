@@ -24,13 +24,23 @@
 #include <emscripten/html5.h>
 #endif
 
+namespace {
+// #556: the frame lock to close when the clock's owner thread ends, set by
+// closeFrameLockForShutdown() when the exiting main thread is not the owner. Under its
+// mutex, which the engine's destructor takes to withdraw it, so a thread ending after
+// the engine is gone finds nothing.
+std::mutex deferred_close_mtx;
+FrameLock* deferred_close = nullptr;
+}
+
 // Static member definitions for shader intermediate texture (#106)
 std::unique_ptr<sf::RenderTexture> GameEngine::shaderIntermediate;
 bool GameEngine::shaderIntermediateInitialized = false;
 
 // #219 - FrameLock implementation for thread-safe UI updates
 
-void FrameLock::acquire() {
+bool FrameLock::acquire() {
+    bool granted = true;
 
     // #412 - THE GIL IS RELEASED BEFORE `mtx` IS TAKEN, AND RE-ACQUIRED ONLY AFTER IT
     // IS DROPPED. Do not reorder these; it is a lock-ordering constraint, not a
@@ -63,6 +73,8 @@ void FrameLock::acquire() {
         if (depth() > 0) {
             // Nested lock(): this thread is already a holder.
             active++;
+        } else if (closed.load()) {
+            granted = false;  // #556
         } else {
             // #410/#535 - EVERY non-nested arrival waits for the next openWindow(), even
             // if a window is open right now. A window serves exactly the threads that
@@ -73,18 +85,31 @@ void FrameLock::acquire() {
             // without bound once the main thread was starved.
             const uint64_t my_epoch = epoch;
             waiting++;
-            cv.wait(lock, [this, my_epoch]{ return epoch != my_epoch; });
-            // Under `mtx`: closeWindow() sees the handoff from eligible to active as
-            // a single step.
+            cv.wait(lock, [this, my_epoch]{ return epoch != my_epoch || closed.load(); });
             waiting--;
-            eligible--;
-            active++;
-            admissions_total++;
+            if (epoch == my_epoch) {
+                // Woken by shutdown(), not by a window (#556): refused.
+                granted = false;
+            } else {
+                // Under `mtx`: closeWindow() sees the handoff from eligible to active as
+                // a single step.
+                eligible--;
+                active++;
+                admissions_total++;
+            }
         }
     }
     Py_END_ALLOW_THREADS
 
+    if (!granted) return false;
     depth()++;  // B7: this thread is now a holder; see heldByCurrentThread()
+    return true;
+}
+
+void FrameLock::shutdown() {
+    std::lock_guard<std::mutex> lock(mtx);
+    closed.store(true);
+    cv.notify_all();
 }
 
 void FrameLock::release() {
@@ -262,6 +287,10 @@ void GameEngine::releasePythonReferences()
 
 GameEngine::~GameEngine()
 {
+    {   // #556: a clock-owner thread ending later must not reach this engine's lock
+        std::lock_guard<std::mutex> g(deferred_close_mtx);
+        if (deferred_close == &frameLock) deferred_close = nullptr;
+    }
     cleanup();
     // scenes map uses shared_ptr, will clean up automatically
     scenes.clear();
@@ -462,8 +491,19 @@ static void emscriptenMainLoopCallback(void* arg) {
         return;
     }
     engine->doFrame();
+    if (McRFPy_API::exitPending()) GameEngine::exitForPendingSystemExit();
 }
 #endif
+
+void GameEngine::exitForPendingSystemExit()
+{
+    McRFPy_API::raisePendingExit();
+    // PyErr_Print() on SystemExit runs atexit (the #468 release included), finalizes and
+    // exits the process. In inspect mode (-i) CPython instead prints it and carries on --
+    // that is what a top-level sys.exit() does there, and so does a callback's: we return
+    // and the loop continues. Never _Exit() here: this is a user-reachable path.
+    PyErr_Print();
+}
 
 void GameEngine::run()
 {
@@ -473,6 +513,7 @@ void GameEngine::run()
     // already claimed it with step()/advance() (headless --run-forever), the two would run
     // frame bodies concurrently over one scene graph. Refuse, loudly, rather than race.
     if (!claimClock()) {
+        if (PyErr_Occurred()) PyErr_Print();
         std::cerr << "mcrogueface: the main loop cannot start: a background thread is already "
                      "driving the simulation clock with mcrfpy.step()/advance().\n"
                      "  Only one thread may run frames. Either let the main loop run them, or "
@@ -502,6 +543,10 @@ void GameEngine::run()
     while (running)
     {
         doFrame();
+        // #557: a callback raised SystemExit. The frame has unwound; exit from here, the
+        // top of the loop, with the code and teardown of a top-level sys.exit()
+        // (PyErr_Print -> Py_Exit: atexit, then finalization).
+        if (McRFPy_API::exitPending()) exitForPendingSystemExit();
     }
 
     // Clean up before exiting the run loop
@@ -517,7 +562,7 @@ void GameEngine::run()
 void GameEngine::doFrame()
 {
     // #529: callbacks run in here; a screenshot they take shows the previous frame.
-    struct FrameScope {  // restores, not clears: step() can be called from a callback
+    struct FrameScope {  // restores what it found (always false now: a frame cannot be re-entered, #551)
         bool& flag;
         bool saved;
         explicit FrameScope(bool& f) : flag(f), saved(f) { flag = true; }
@@ -527,14 +572,18 @@ void GameEngine::doFrame()
     // cleared/published around the render pass below.
     metrics.beginSimFrame();
 
+    // #557: a callback that raises SystemExit stops the frame's dispatch; the frame
+    // returns, and the loop exits at the top (see run()).
     currentScene()->update();
     testTimers(headless ? simulation_time : runtime.getElapsedTime().asMilliseconds());
+    if (McRFPy_API::exitPending()) return;
 
     // Update Python scenes
     {
         ScopedTimer pyTimer(metrics.pythonScriptTime);
         McRFPy_API::updatePythonScenes(frameTime);
     }
+    if (McRFPy_API::exitPending()) return;
     mcrf::audio::sweep();  // #440: release sounds that finished playing
 
     // Update animations with the whole frame time. A long frame (a stall, a load in a
@@ -544,9 +593,11 @@ void GameEngine::doFrame()
         ScopedTimer animTimer(metrics.animationTime);
         AnimationManager::getInstance().update(frameTime);
     }
+    if (McRFPy_API::exitPending()) return;
 
     if (!headless) {
         sUserInput();
+        if (McRFPy_API::exitPending()) return;
 
 #if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
         // Update ImGui (SFML builds only)
@@ -686,6 +737,30 @@ std::shared_ptr<Timer> GameEngine::getTimer(const std::string& name)
 // runs from a thread_local destructor at thread exit, which can outlive the engine.
 namespace {
 std::atomic<std::thread::id> clock_owner{};
+// #556: whether the owner thread is a daemon thread (set with the claim, read at shutdown).
+// A daemon never "ends" before the interpreter is torn down, so a close deferred until it
+// ends would never come.
+std::atomic<bool> clock_owner_daemon{false};
+
+// threading.current_thread().daemon for the calling thread; false with a Python error set on
+// failure. Needs the GIL (the callers are Python bindings).
+bool current_thread_is_daemon(bool& out)
+{
+    PyGILState_STATE g = PyGILState_Ensure();
+    bool ok = false;
+    PyObject* threading = PyImport_ImportModule("threading");
+    PyObject* thread = threading ? PyObject_CallMethod(threading, "current_thread", nullptr) : nullptr;
+    PyObject* daemon = thread ? PyObject_GetAttrString(thread, "daemon") : nullptr;
+    if (daemon) {
+        int v = PyObject_IsTrue(daemon);
+        if (v >= 0) { out = (v != 0); ok = true; }
+    }
+    Py_XDECREF(daemon);
+    Py_XDECREF(thread);
+    Py_XDECREF(threading);
+    PyGILState_Release(g);
+    return ok;
+}
 
 struct ClockOwnerRelease {
     bool owns = false;
@@ -693,9 +768,35 @@ struct ClockOwnerRelease {
         if (!owns) return;
         std::thread::id me = std::this_thread::get_id();
         clock_owner.compare_exchange_strong(me, std::thread::id{});
+        // The owner is gone: if shutdown was waiting on it, nothing can open a window now.
+        std::lock_guard<std::mutex> g(deferred_close_mtx);
+        if (deferred_close) {
+            deferred_close->shutdown();
+            deferred_close = nullptr;
+        }
     }
 };
 thread_local ClockOwnerRelease clock_owner_release;
+}
+
+// #556 - Called on the exiting main thread before it joins the other threads. The frame
+// lock may stop granting only when no thread can open a window any more: when the main
+// thread owns the clock or nobody does. If another live thread drives the clock (#411) it
+// keeps running frames while the main thread joins it, and its waiters must still be
+// served; the lock then closes when that thread ends (its ownership has no other release
+// point), which is when the join can finish.
+void GameEngine::closeFrameLockForShutdown()
+{
+    std::lock_guard<std::mutex> g(deferred_close_mtx);
+    const std::thread::id owner = clock_owner.load();
+    if (owner == std::thread::id{} || owner == std::this_thread::get_id() ||
+        clock_owner_daemon.load()) {
+        // Nobody can open a window, or the owner is a daemon thread that will not end by
+        // itself before the interpreter is torn down: waiting for it would wait forever.
+        frameLock.shutdown();
+    } else {
+        deferred_close = &frameLock;
+    }
 }
 
 bool GameEngine::claimClock()
@@ -703,6 +804,13 @@ bool GameEngine::claimClock()
     const std::thread::id me = std::this_thread::get_id();
     std::thread::id expected{};
     if (clock_owner.compare_exchange_strong(expected, me)) {
+        // The main thread is never a daemon (and the constructor claims before Python is up).
+        bool daemon = false;
+        if (me != main_thread_id && !current_thread_is_daemon(daemon)) {
+            clock_owner.store(std::thread::id{});   // the claim did not take; the error is set
+            return false;
+        }
+        clock_owner_daemon.store(daemon);
         clock_owner_release.owns = true;
         return true;
     }
@@ -721,6 +829,7 @@ void GameEngine::testTimers(int now)
     auto it = timers.begin();
     while (it != timers.end())
     {
+        if (McRFPy_API::exitPending()) return;  // #557: a callback asked to exit; no more run
         // Keep a local copy of the timer to prevent use-after-free.
         // If the callback calls stop(), the timer may be marked for removal,
         // but we need the Timer object to survive until test() returns.
@@ -951,6 +1060,7 @@ void GameEngine::sUserInput()
         if (filterDevInput(event)) continue;
 
         processEvent(event);
+        if (McRFPy_API::exitPending()) return;  // #557: no more events once a handler asked to exit
     }
 }
 
@@ -1204,7 +1314,7 @@ float GameEngine::step(float dt) {
 // Scene.update() -- step(float) still passes through the caller's own float unchanged.
 float GameEngine::runSimFrame(int ms, float actual_dt) {
     // #529: timer callbacks run in here; a screenshot they take shows the last render.
-    struct FrameScope {  // restores, not clears: step() can be called from a callback
+    struct FrameScope {  // restores what it found (always false now: a frame cannot be re-entered, #551)
         bool& flag;
         bool saved;
         explicit FrameScope(bool& f) : flag(f), saved(f) { flag = true; }
@@ -1225,13 +1335,17 @@ float GameEngine::runSimFrame(int ms, float actual_dt) {
 
     // Timers run on simulation_time (not runtime): step() is the deterministic headless
     // clock, which is the whole point of driving time explicitly from a test.
+    // #557: after a callback raised SystemExit nothing else in the frame runs; step() hands
+    // the exit to its caller (see _step).
     testTimers(simulation_time);
+    if (McRFPy_API::exitPending()) return actual_dt;
 
     // Python Scene.update(dt) hook -- the originally-filed omission
     {
         ScopedTimer pyTimer(metrics.pythonScriptTime);
         McRFPy_API::updatePythonScenes(actual_dt);
     }
+    if (McRFPy_API::exitPending()) return actual_dt;
     mcrf::audio::sweep();  // #440: release sounds that finished playing
 
     // Update animations with the whole dt. The old `< 10.0f` "sanity check" made a wide
@@ -1240,6 +1354,7 @@ float GameEngine::runSimFrame(int ms, float actual_dt) {
         ScopedTimer animTimer(metrics.animationTime);
         AnimationManager::getInstance().update(actual_dt);
     }
+    if (McRFPy_API::exitPending()) return actual_dt;
 
     // Advance scene transitions, and finalize them when complete. Without this a
     // transition started headlessly would never end, and the scene never changed.
@@ -1329,6 +1444,7 @@ int GameEngine::advance(int ms) {
         // and every candidate boundary uses remaining > 0), so this terminates.
         const int delta = next - simulation_time;
         runSimFrame(delta, static_cast<float>(delta) / 1000.0f);
+        if (McRFPy_API::exitPending()) break;  // #557: no frame after an exit request
     }
 
     return ms;

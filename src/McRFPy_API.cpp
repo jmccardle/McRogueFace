@@ -468,7 +468,7 @@ static PyMethodDef mcrfpyMethods[] = {
                    "render and input.")
          MCRF_ARGS_START
          MCRF_ARG("dt", "Time to advance in seconds, finite and >= 0. If None, advances to the next scheduled event (timer/animation).")
-         MCRF_RETURNS("float: Actual time advanced in seconds. Returns 0.0 in windowed mode.")
+         MCRF_RETURNS("float: Actual time advanced in seconds. Returns 0.0 in windowed mode (when called outside a frame).")
          MCRF_NOTE("Rendering is deliberately excluded: it is orthogonal to the clock and costs "
                    "zero simulation time, so a screenshot draws arbitrary state without time "
                    "passing. In windowed mode this is a no-op returning 0.0. Timers run on "
@@ -489,9 +489,23 @@ static PyMethodDef mcrfpyMethods[] = {
                    "mcrfpy.lock(). Advancing a frame from inside the lock re-enters the frame "
                    "the lock synchronises with, which cannot complete until the caller releases. "
                    "Inside the lock, mutate only. (lock() is a no-op on the thread that drives "
-                   "the clock, so this cannot fire from script init or a timer callback.)")
+                   "the clock, so this cannot fire on it.)")
+         MCRF_RAISES("RuntimeError", "Called from inside a running frame -- a timer, animation, "
+                   "input, scene or behaviour callback, headless or windowed (the message says a "
+                   "frame is already in progress). A frame cannot be re-entered (#551). In windowed "
+                   "mode this used to return 0.0.")
          MCRF_RAISES("RuntimeError", "Called from a thread that does not drive the simulation "
                    "clock. The first thread to run a frame owns the clock until it exits (#411).")
+         MCRF_NOTE("sys.exit() raised in a callback during the frame does not finalize the "
+                   "interpreter mid-frame: the frame stops dispatching and unwinds, and step() "
+                   "re-raises the SystemExit to its caller (#557). If a background thread drives "
+                   "the clock, that caller is the thread, and, as for any SystemExit outside the "
+                   "main thread, it only ends that thread. A sys.exit() raised in a callback "
+                   "dispatched for another thread (one holding mcrfpy.lock() that called "
+                   "automation.*) is not raised there: it is deferred to the clock owner, which "
+                   "exits the process when its frame unwinds. Under -i, as for a top-level "
+                   "sys.exit() in this engine, a callback's sys.exit() is printed and the game "
+                   "carries on.")
          MCRF_LINK("docs/frame-lock.md", "The frame barrier: rules, budget, and failure modes")
      )},
     {"advance", McRFPy_API::_advance, METH_VARARGS,
@@ -516,7 +530,9 @@ static PyMethodDef mcrfpyMethods[] = {
                    "The 'runtime' key is wall clock and is unrelated to simulated time.")
          MCRF_RAISES("OverflowError", "ms would carry the clock past its int-millisecond range")
          MCRF_RAISES("RuntimeError", "Called from a background thread that currently holds "
-                   "mcrfpy.lock(), or from a thread that does not drive the clock; see step().")
+                   "mcrfpy.lock(), from a thread that does not drive the clock, or from inside a "
+                   "running frame (any callback, headless or windowed); see step(). A callback's "
+                   "sys.exit() ends advance() with the SystemExit, as for step().")
          MCRF_LINK("docs/frame-lock.md", "The frame barrier: rules, budget, and failure modes")
      )},
     {"exit", McRFPy_API::_exit, METH_NOARGS,
@@ -671,6 +687,14 @@ static PyMethodDef mcrfpyMethods[] = {
                    "misbehaving handler. Do I/O, waiting, and computation OUTSIDE the block and "
                    "apply the result inside it. Calling mcrfpy.step() or mcrfpy.advance() while "
                    "holding the lock raises RuntimeError rather than deadlocking.")
+         MCRF_NOTE("Once the engine is shutting down, lock() on a thread that would have to wait "
+                   "raises RuntimeError('engine is shutting down'), including in a thread that "
+                   "was already waiting, and never grants the lock. This starts when the exiting "
+                   "main thread begins joining threads -- or, if another thread drives the clock, "
+                   "when that thread ends (at once if that thread is a daemon). The clock owner's "
+                   "lock stays a no-op throughout. "
+                   "A SystemExit raised on a background thread that drives the clock (from "
+                   "step() re-raising a callback's sys.exit()) ends only that thread.")
          MCRF_LINK("docs/frame-lock.md", "The frame barrier: rules, budget, and failure modes")
      )},
 
@@ -763,6 +787,10 @@ PyObject* PyInit_mcrfpy()
 // release_python_references(); after that the engine refuses to build it again.
 static PyObject* mcrfpy_module_instance = nullptr;
 static bool python_references_released = false;
+// #557 - the SystemExit a callback raised inside a frame, waiting for the frame to unwind.
+// Only the exception instance is kept, with its __traceback__ detached (it would pin the
+// frames of the callback that raised it, which must be free before the exit).
+static PyObject* pending_system_exit = nullptr;
 
 static PyObject* mcrfpy_atexit_release(PyObject*, PyObject*)
 {
@@ -778,8 +806,73 @@ static PyMethodDef mcrfpy_atexit_def = {
 // registered while mcrfpy is first imported, so it runs after any handler a game
 // registers (which may still use the engine), and before finalization starts
 // clearing anything (Py_IsInitialized() is still true there).
+// #556: closes the frame lock (now, or when the clock's owner thread ends if it is not the
+// exiting main thread; see GameEngine::closeFrameLockForShutdown). Registered with threading._register_atexit, which runs at
+// the start of threading._shutdown(), BEFORE it joins non-daemon threads -- an atexit
+// handler runs after the join, too late for a thread blocked in mcrfpy.lock().
+static PyObject* mcrfpy_close_frame_lock(PyObject*, PyObject*)
+{
+    if (McRFPy_API::game) McRFPy_API::game->closeFrameLockForShutdown();
+    Py_RETURN_NONE;
+}
+
+static PyMethodDef mcrfpy_close_frame_lock_def = {
+    "_close_frame_lock", mcrfpy_close_frame_lock, METH_NOARGS,
+    "Stop granting mcrfpy.lock(): the engine is shutting down (#556)."};
+
+// threading._threading_atexits (a list, run in REVERSE by threading._shutdown()) and our
+// entry in it. concurrent.futures.thread registers a hook that joins its workers, and
+// registered after ours it would run BEFORE ours: an executor worker blocked in lock()
+// then hangs the exit. So our entry is kept LAST, i.e. first to run (keepShutdownHookFirst).
+// Both are private CPython names; their absence or a different shape fails the import.
+static PyObject* threading_atexits = nullptr;
+static PyObject* close_hook_entry = nullptr;
+
+static int register_close_hook()
+{
+    mcrf::PyRef threading_mod(PyImport_ImportModule("threading"));
+    if (!threading_mod) return -1;
+    mcrf::PyRef lst(PyObject_GetAttrString(threading_mod.get(), "_threading_atexits"));
+    if (!lst || !PyList_Check(lst.get())) {
+        PyErr_Clear();
+        PyErr_SetString(PyExc_RuntimeError,
+            "mcrfpy: threading._threading_atexits is not a list in this Python. The engine "
+            "closes the frame lock from a threading atexit hook that must run before any "
+            "other (#556) and depends on that list; see tests/regression/issue_556_*");
+        return -1;
+    }
+    mcrf::PyRef fn(PyCFunction_New(&mcrfpy_close_frame_lock_def, nullptr));
+    if (!fn) return -1;
+    const Py_ssize_t before = PyList_GET_SIZE(lst.get());
+    mcrf::PyRef r(PyObject_CallMethod(threading_mod.get(), "_register_atexit", "O", fn.get()));
+    if (!r) return -1;
+    if (PyList_GET_SIZE(lst.get()) != before + 1) {
+        PyErr_SetString(PyExc_RuntimeError,
+            "mcrfpy: threading._register_atexit no longer appends to "
+            "threading._threading_atexits (#556)");
+        return -1;
+    }
+    close_hook_entry = Py_NewRef(PyList_GET_ITEM(lst.get(), before));
+    threading_atexits = lst.release();
+    return 0;
+}
+
+int McRFPy_API::keepShutdownHookFirst()
+{
+    if (!threading_atexits || !close_hook_entry) {
+        PyErr_SetString(PyExc_RuntimeError, "mcrfpy: the shutdown hook is not registered");
+        return -1;
+    }
+    const Py_ssize_t n = PyList_GET_SIZE(threading_atexits);
+    if (n > 0 && PyList_GET_ITEM(threading_atexits, n - 1) == close_hook_entry) return 0;
+    mcrf::PyRef r(PyObject_CallMethod(threading_atexits, "remove", "O", close_hook_entry));
+    if (!r) return -1;   // not in the list any more: someone cleared it; say so
+    return PyList_Append(threading_atexits, close_hook_entry);
+}
+
 static int register_atexit_release()
 {
+    if (register_close_hook() < 0) return -1;
     mcrf::PyRef atexit_mod(PyImport_ImportModule("atexit"));
     if (!atexit_mod) return -1;
     mcrf::PyRef fn(PyCFunction_New(&mcrfpy_atexit_def, nullptr));
@@ -793,6 +886,8 @@ void McRFPy_API::release_python_references()
     if (python_references_released) return;
     python_references_released = true;
 
+    if (game) game->getFrameLock().shutdown();  // #556: also when atexit alone reaches us
+
     // Owners of game objects first, so what they release can still reach the statics.
     if (game) game->releasePythonReferences();
     PySceneClass::release_registry();
@@ -804,6 +899,9 @@ void McRFPy_API::release_python_references()
             UICollection::release_view((PyUICollectionObject*)w.get());
         }
     }
+    Py_CLEAR(pending_system_exit);
+    Py_CLEAR(close_hook_entry);
+    Py_CLEAR(threading_atexits);
     mcrf::audio::shutdown();
     default_font.reset();
     default_texture.reset();
@@ -2070,6 +2168,7 @@ PyObject* McRFPy_API::_sceneUI(PyObject* self, PyObject* args) {
 
 // Internal use - called by PySceneObject::activate()
 PyObject* McRFPy_API::_setScene(PyObject* self, PyObject* args) {
+	if (propagatePendingExit()) return NULL;  // #557
 	const char* newscene;
 	const char* transition_str = nullptr;
 	float duration = 0.0f;
@@ -2094,6 +2193,7 @@ PyObject* McRFPy_API::_setScene(PyObject* self, PyObject* args) {
 		PyErr_SetString(PyExc_RuntimeError, e.what());
 		return NULL;
 	}
+    if (propagatePendingExit()) return NULL;  // #557
     Py_INCREF(Py_None);
     return Py_None;		
 }
@@ -2190,8 +2290,9 @@ PyObject* McRFPy_API::api_get_animations()
 // instant of the mistake. Fail Early.
 //
 // Note this cannot fire on the clock's owner (#411): mcrfpy.lock() is a no-op there, so
-// the owner never becomes a holder and `with mcrfpy.lock(): mcrfpy.step()` in a script or
-// a timer callback keeps working exactly as before.
+// the owner never becomes a holder and `with mcrfpy.lock(): mcrfpy.step()` in a SCRIPT
+// (outside any frame) keeps working. Inside a timer or other callback step() is refused
+// by the third check below (#551), lock or no lock.
 //
 // #411 - The second check: only the clock's owner may run a frame. Without it a thread
 // that holds nothing could call step() while another thread (or the engine's own loop)
@@ -2219,6 +2320,7 @@ static bool frameAdvanceAllowed(const char* fname)
         return false;
     }
     if (!Resources::game->claimClock()) {
+        if (PyErr_Occurred()) return false;   // could not even identify this thread
         PyErr_Format(PyExc_RuntimeError,
             "mcrfpy.%s() was called from a thread that does not drive the simulation clock. "
             "Exactly one thread runs frames: the first to call step()/advance() (or the main "
@@ -2228,11 +2330,24 @@ static bool frameAdvanceAllowed(const char* fname)
             fname);
         return false;
     }
+    // #551 - A frame is already running on this thread (a Timer, animation, input, scene or
+    // trigger callback called us). It cannot be re-entered: the nested frame's timer pass
+    // erased entries out from under the outer pass's iterator (segfault), or recursed
+    // without end. One guard, here, on the frame entry point -- not one per callback.
+    if (Resources::game->inFrame()) {
+        PyErr_Format(PyExc_RuntimeError,
+            "mcrfpy.%s() cannot be called from inside a running frame (a timer, animation, "
+            "input, or scene callback): a frame is already in progress. Call it from outside "
+            "the callbacks, or let the callback return and step again.",
+            fname);
+        return false;
+    }
     return true;
 }
 
 // #153 - Headless simulation control
 PyObject* McRFPy_API::_step(PyObject* self, PyObject* args) {
+    if (propagatePendingExit()) return NULL;  // #557
     PyObject* dt_obj = Py_None;
     if (!PyArg_ParseTuple(args, "|O", &dt_obj)) return NULL;
 
@@ -2268,11 +2383,16 @@ PyObject* McRFPy_API::_step(PyObject* self, PyObject* args) {
     if (!frameAdvanceAllowed("step")) return NULL;
 
     float actual_dt = game->step(dt);
+    if (exitPending()) {   // #557: a callback raised SystemExit; this frame has unwound
+        raisePendingExit();
+        return NULL;
+    }
     return PyFloat_FromDouble(actual_dt);
 }
 
 // #396 - Bounded simulation advance with per-interval timer semantics
 PyObject* McRFPy_API::_advance(PyObject* self, PyObject* args) {
+    if (propagatePendingExit()) return NULL;  // #557
     PyObject* ms_obj = nullptr;
     if (!PyArg_ParseTuple(args, "O", &ms_obj)) return NULL;
 
@@ -2303,7 +2423,12 @@ PyObject* McRFPy_API::_advance(PyObject* self, PyObject* args) {
     }
     if (!frameAdvanceAllowed("advance")) return NULL;
 
-    return PyLong_FromLong(game->advance(static_cast<int>(ms)));
+    long advanced = game->advance(static_cast<int>(ms));
+    if (exitPending()) {   // #557
+        raisePendingExit();
+        return NULL;
+    }
+    return PyLong_FromLong(advanced);
 }
 
 PyObject* McRFPy_API::_exit(PyObject* self, PyObject* args) {
@@ -2802,6 +2927,47 @@ PyObject* McRFPy_API::_logBenchmark(PyObject* self, PyObject* args) {
         PyErr_SetString(PyExc_RuntimeError, e.what());
         return NULL;
     }
+}
+
+bool McRFPy_API::deferSystemExit() {
+    if (!PyErr_ExceptionMatches(PyExc_SystemExit)) return false;
+    // Outside a frame there is nothing to unwind to: callbacks fired from a script's own
+    // top level (scene.activate() ...) keep the old behaviour, which exits right there.
+    if (!game || !game->inFrame()) return false;
+    PyObject *type, *value, *tb;
+    PyErr_Fetch(&type, &value, &tb);
+    PyErr_NormalizeException(&type, &value, &tb);
+    // The instance carries __traceback__ (3.12+), which would keep the callback's frames
+    // (and their locals) alive until the exit; detach it.
+    if (value) PyException_SetTraceback(value, Py_None);
+    Py_XDECREF(tb);
+    Py_XDECREF(type);
+    if (pending_system_exit) {
+        Py_XDECREF(value);   // the first request wins
+    } else {
+        pending_system_exit = value;
+    }
+    return true;
+}
+
+bool McRFPy_API::exitPending() { return pending_system_exit != nullptr; }
+
+bool McRFPy_API::propagatePendingExit() {
+    if (!pending_system_exit) return false;
+    // Only the thread that runs the frame exits the process. An exit requested by a callback
+    // dispatched for another thread (one holding mcrfpy.lock() that called automation.*)
+    // stays pending for the clock owner, which acts on it when its frame unwinds: raising it
+    // here would just end that thread (Python's rule for SystemExit off the main thread).
+    if (!game || !game->ownsClock()) return false;
+    raisePendingExit();
+    return true;
+}
+
+void McRFPy_API::raisePendingExit() {
+    PyObject* value = pending_system_exit;
+    pending_system_exit = nullptr;
+    PyErr_SetObject(PyExc_SystemExit, value);
+    Py_XDECREF(value);
 }
 
 // Exception handling implementation

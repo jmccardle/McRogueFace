@@ -83,6 +83,7 @@ bool Timer::test(int now)
         {
             mcrf::print_callback_error("Timer");
             PyErr_Clear();
+            if (McRFPy_API::exitPending()) return fired;  // #557
 
             // Check if we should exit on exception
             if (McRFPy_API::game && McRFPy_API::game->getConfig().exit_on_exception) {

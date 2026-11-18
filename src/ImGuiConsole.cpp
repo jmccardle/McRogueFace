@@ -8,6 +8,7 @@
 #include "imgui_internal.h"  // For ImGuiSettingsHandler, ImHashStr, MarkIniSettingsDirty
 #include "imgui-SFML.h"
 #include "McRFPy_API.h"
+#include "PyWrap.h"
 #include <Python.h>
 #include <sstream>
 #include <algorithm>
@@ -174,7 +175,9 @@ _stderr_val = _console_stderr.getvalue()
 
         if (result == nullptr) {
             // Real error - capture it
-            PyErr_Print();  // This prints to stderr which we're capturing
+            // The console runs what the user typed, inside doFrame(): a sys.exit() there exits
+            // at the top of the loop like any callback's (#557).
+            mcrf::print_callback_exception();  // prints to stderr, which we're capturing
         }
     } else if (result != Py_None) {
         // Expression returned a non-None value - show its repr

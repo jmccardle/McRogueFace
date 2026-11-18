@@ -254,6 +254,14 @@ bool float_to_cell(double value, int& out, const char* what);
 // no header, and PyErr_Print() exits as usual.
 void print_callback_error(const char* what);
 
+// The error path of every callback the engine runs inside a frame (#557). Prints the
+// pending error like PyErr_Print() -- except SystemExit, which must not finalize the
+// interpreter under the frame loop's live C++ and Python frames: it is recorded
+// (McRFPy_API::deferSystemExit) and the frame unwinds to the top, which exits with the
+// same code and teardown as a top-level sys.exit(). Use this, never a bare PyErr_Print(),
+// after a user callback fails.
+void print_callback_exception();
+
 // PyDict_SetItemString that STEALS `value` (and fails cleanly if it is nullptr):
 //     dict_steal(d, "fps", PyLong_FromLong(fps));
 // Returns 0, or -1 with a Python error set.

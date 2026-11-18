@@ -82,9 +82,11 @@ for windowed in (False, True):
         check(r["after"] == GREEN,
               "%s (d) after the frame the mutation shows: %r" % (mode, r["after"]))
 
-    # A nested step() inside a callback must not take the callback out of its frame.
+    # A nested step() inside a callback is refused (#551) and must not take the callback
+    # out of its frame.
     r = run("nested", windowed)
     if r:
+        check(r["refused"], "%s nested step() inside a callback is refused" % mode)
         check(r["in_cb"] == RED and r["in_cb_same"],
               "%s nested step() then mutate then shot, all inside a callback: previous frame (%r)"
               % (mode, r["in_cb"]))

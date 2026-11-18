@@ -51,7 +51,7 @@ static void take_scene_name(PySceneObject* self, const std::string& name, GameEn
     }
     if (was_current) {
         game->scene = name;
-        if (old_scene) PySceneClass::call_on_enter(self);
+        if (old_scene && !McRFPy_API::exitPending()) PySceneClass::call_on_enter(self);
     }
     Py_XDECREF(old_scene);
 }
@@ -79,6 +79,7 @@ PyObject* PySceneClass::__new__(PyTypeObject* type, PyObject* args, PyObject* kw
 
 int PySceneClass::__init__(PySceneObject* self, PyObject* args, PyObject* kwds)
 {
+    if (McRFPy_API::propagatePendingExit()) return -1;  // #557: nothing after an exit request
     static const char* keywords[] = {"name", nullptr};
     const char* name = nullptr;
 
@@ -104,6 +105,9 @@ int PySceneClass::__init__(PySceneObject* self, PyObject* args, PyObject* kwds)
     take_scene_name(self, self->name, game);
 
     self->initialized = true;
+
+    // The re-registration may have run on_exit/on_enter, one of which asked to exit (#557)
+    if (McRFPy_API::propagatePendingExit()) return -1;
 
     return 0;
 }
@@ -198,6 +202,7 @@ PyObject* PySceneClass::activate(PySceneObject* self, PyObject* args, PyObject* 
     }
 
     // Build transition string for _setScene (or call game->changeScene directly)
+    if (McRFPy_API::propagatePendingExit()) return NULL;  // #557: nothing after an exit request
     GameEngine* game = McRFPy_API::game;
     if (!game) {
         PyErr_SetString(PyExc_RuntimeError, "No game engine");
@@ -220,6 +225,7 @@ PyObject* PySceneClass::activate(PySceneObject* self, PyObject* args, PyObject* 
         PyErr_SetString(PyExc_RuntimeError, e.what());
         return NULL;
     }
+    if (McRFPy_API::propagatePendingExit()) return NULL;  // an on_exit/on_enter asked to exit (#557)
 
     Py_RETURN_NONE;
 }
@@ -416,7 +422,7 @@ void PySceneClass::call_on_enter(PySceneObject* self)
         if (result) {
             Py_DECREF(result);
         } else {
-            PyErr_Print();
+            mcrf::print_callback_exception();
         }
         Py_DECREF(method);
     } else {
@@ -434,7 +440,7 @@ void PySceneClass::call_on_exit(PySceneObject* self)
         if (result) {
             Py_DECREF(result);
         } else {
-            PyErr_Print();
+            mcrf::print_callback_exception();
         }
         Py_DECREF(method);
     } else {
@@ -484,7 +490,7 @@ void PySceneClass::call_on_key(PySceneObject* self, const std::string& key, cons
         if (result) {
             Py_DECREF(result);
         } else {
-            PyErr_Print();
+            mcrf::print_callback_exception();
         }
         Py_DECREF(attr);
     } else {
@@ -504,7 +510,7 @@ void PySceneClass::call_on_text(PySceneObject* self, const std::string& utf8)
     if (attr && PyCallable_Check(attr.get()) && attr.get() != Py_None) {
         mcrf::PyRef text(PyUnicode_DecodeUTF8(utf8.data(), utf8.size(), "strict"));
         mcrf::PyRef result(text ? PyObject_CallFunctionObjArgs(attr.get(), text.get(), NULL) : NULL);
-        if (!result) PyErr_Print();
+        if (!result) mcrf::print_callback_exception();
     } else {
         PyErr_Clear();
     }
@@ -527,7 +533,7 @@ void PySceneClass::call_update(PySceneObject* self, float dt)
         if (result) {
             Py_DECREF(result);
         } else {
-            PyErr_Print();
+            mcrf::print_callback_exception();
         }
         Py_DECREF(method);
     } else {
@@ -557,7 +563,7 @@ void PySceneClass::call_on_resize(PySceneObject* self, sf::Vector2u new_size)
         if (result) {
             Py_DECREF(result);
         } else {
-            PyErr_Print();
+            mcrf::print_callback_exception();
         }
         Py_DECREF(method);
     } else {
@@ -737,8 +743,8 @@ void McRFPy_API::triggerSceneChange(const std::string& from_scene, const std::st
         PySceneClass::call_on_exit(python_scenes[from_scene]);
     }
 
-    // Call on_enter for the new scene
-    if (!to_scene.empty() && python_scenes.count(to_scene) > 0) {
+    // Call on_enter for the new scene (#557: not once on_exit asked to exit)
+    if (!McRFPy_API::exitPending() && !to_scene.empty() && python_scenes.count(to_scene) > 0) {
         PySceneClass::call_on_enter(python_scenes[to_scene]);
     }
 }
@@ -811,6 +817,7 @@ PyObject* McRFPy_API::api_get_current_scene()
 // #151: Set the current scene from a Python Scene object
 int McRFPy_API::api_set_current_scene(PyObject* value)
 {
+    if (propagatePendingExit()) return -1;  // #557: nothing after an exit request
     GameEngine* game = McRFPy_API::game;
     if (!game) {
         PyErr_SetString(PyExc_RuntimeError, "No game engine");
@@ -856,6 +863,7 @@ int McRFPy_API::api_set_current_scene(PyObject* value)
         PyErr_SetString(PyExc_RuntimeError, e.what());
         return -1;
     }
+    if (McRFPy_API::propagatePendingExit()) return -1;  // #557
 
     return 0;
 }

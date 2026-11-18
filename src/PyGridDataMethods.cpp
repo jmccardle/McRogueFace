@@ -881,7 +881,7 @@ static void fireStepCallback(std::shared_ptr<UIEntity>& entity, int trigger_int,
 
     if (!data) data = Py_None;
     mcrf::PyRef result(PyObject_CallFunction(callback, "OO", trigger_obj.get(), data));
-    if (PyErr_Occurred()) PyErr_Print();
+    if (PyErr_Occurred()) mcrf::print_callback_exception();
 }
 
 // Whether a trigger on this entity reaches Python at all: an explicit `entity.step`
@@ -899,6 +899,7 @@ static mcrf::PyRef entityPayload(const std::shared_ptr<UIEntity>& e) {
 }
 
 PyObject* PyGridData::py_step(PyGridDataObject* self, PyObject* args, PyObject* kwds) {
+    if (McRFPy_API::propagatePendingExit()) return NULL;  // #557: nothing after an exit request
     static const char* kwlist[] = {"n", "turn_order", nullptr};
     int n = 1;
     PyObject* turn_order_filter = nullptr;
@@ -1019,11 +1020,17 @@ PyObject* PyGridData::py_step(PyGridDataObject* self, PyObject* args, PyObject* 
                 }
             }
             next_entity:;
+            // #557: a behaviour callback asked to exit: no other entity's callback runs
+            if (McRFPy_API::exitPending()) break;
         }
+        if (McRFPy_API::exitPending()) break;
     }
 
     // #351 - invalidate the view's render early-out once if anything moved.
     if (content_changed) grid->markCompositeDirty();
+
+    // ...and the SystemExit comes out of grid.step() into the callback that called it.
+    if (McRFPy_API::propagatePendingExit()) return NULL;
 
     Py_RETURN_NONE;
 }
