@@ -156,6 +156,10 @@ SLOW_TESTS = {
     "regression/issue_539_chunk_vertex_array_test.py": 40,
     "regression/issue_529_first_frame_screenshot_test.py": 120,  # 20 child engines, half windowed: 19 s idle, ~55 s with all 8 cores busy
     "integration/mcrf_project_test.py": 40,
+    # Near the 10 s limit with the machine to themselves (procgen_interactive 11 s,
+    # uicaption_visual 8.5 s on arecibo), so any contention timed them out (CI 1997/1998).
+    "unit/procgen_interactive_test.py": 40,
+    "unit/test_uicaption_visual.py": 40,
     "integration/issue_509_deps_keeps_foreign_venv_test.py": 40,
     "integration/issue_517_console_scripts_test.py": 40,
     "integration/venv_pip_end_to_end_test.py": 90,
