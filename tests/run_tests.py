@@ -179,8 +179,9 @@ SLOW_TESTS = {
 # silently drop out of the table).
 #
 # asan: measured on `make asan-test` 2026-11-17 (#513): 737/745 with zero ASan/UBSan
-# reports, these being the eight failures. tsan: nothing is skipped; the FrameLock tests
-# are exactly the thread tests TSan exists for.
+# reports, these being the eight failures. tsan: nothing is skipped here; the FrameLock tests
+# are exactly the thread tests TSan exists for. (Any engine whose Python has ABI flags,
+# TSan's included, also skips ABI_FLAG_SKIPS below.)
 _SAN_STDERR = ("asserts nothing on stderr, but LSan prints its \"Suppressions used\" table there; "
                "child engines also run the debug Python (3.15d)")
 _SAN_DEPS = ("`mcrf_project deps` needs a packaging-capable engine, but the sanitizer engine "
@@ -199,10 +200,36 @@ SANITIZER_SKIPS = {
 }
 
 
+# Tests that cannot hold on an engine whose Python is not a plain Release build (sys.abiflags
+# non-empty: 'd' for `make debug`/asan, 't'/'td' for free-threaded/TSan). Found by asking the
+# engine, so debug-test and valgrind-test (which have no --sanitizer) get them too. Reported
+# as SKIP with the reason; same rules as SANITIZER_SKIPS (a key naming no test is an error).
+_DEPS_RELEASE_ONLY = ("`mcrf_project deps` refuses an engine whose Python has ABI flags "
+                      "(src/pylib/mcrf_project/deps.py): dependencies are installed for Release engines")
+ABI_FLAG_SKIPS = {
+    "integration/issue_509_deps_keeps_foreign_venv_test.py": _DEPS_RELEASE_ONLY,
+    "integration/issue_517_console_scripts_test.py": _DEPS_RELEASE_ONLY,
+}
+
+
 def check_sanitizer_skip_tables():
-    """Every SANITIZER_SKIPS key must be an existing test file; returns the bad keys."""
-    return sorted(k for table in SANITIZER_SKIPS.values() for k in table
-                  if not (TESTS_DIR / k).is_file())
+    """Every SANITIZER_SKIPS / ABI_FLAG_SKIPS key must be an existing test file; returns the bad keys."""
+    keys = [k for table in SANITIZER_SKIPS.values() for k in table] + list(ABI_FLAG_SKIPS)
+    return sorted(k for k in keys if not (TESTS_DIR / k).is_file())
+
+
+def engine_abiflags():
+    """sys.abiflags of the engine's Python ('' for a Release build), asked of the engine itself."""
+    env = os.environ.copy()
+    existing_ld = env.get('LD_LIBRARY_PATH', '')
+    env['LD_LIBRARY_PATH'] = f"{LIB_DIR}:{existing_ld}" if existing_ld else str(LIB_DIR)
+    r = subprocess.run([str(MCROGUEFACE), '--headless', '-c', 'import sys; print("ABIFLAGS=" + sys.abiflags)'],
+                       capture_output=True, text=True, timeout=60, cwd=str(BUILD_DIR), env=env)
+    for line in r.stdout.splitlines():
+        if line.startswith('ABIFLAGS='):
+            return line[len('ABIFLAGS='):]
+    raise RuntimeError(f"could not read sys.abiflags from {MCROGUEFACE} (rc={r.returncode}):\n"
+                       f"{r.stdout}{r.stderr}")
 
 
 def missing_external_inputs(test_dir, test_name):
@@ -370,7 +397,7 @@ class Entry:
 
 
 def plan_tests(dirs_to_test, effective_timeout, timeout_multiplier, no_skip,
-               sanitizer_mode, sanitizer_variant):
+               sanitizer_mode, sanitizer_variant, abiflags=''):
     """Every selected test, in (directory order, name order), with budgets and skips decided."""
     entries = []
     for test_dir in dirs_to_test:
@@ -393,6 +420,8 @@ def plan_tests(dirs_to_test, effective_timeout, timeout_multiplier, no_skip,
             elif sanitizer_mode and e.key in SANITIZER_SKIPS[sanitizer_variant]:
                 e.skip = (f"does not fit --sanitizer={sanitizer_variant}: "
                           f"{SANITIZER_SKIPS[sanitizer_variant][e.key]}")
+            elif abiflags and e.key in ABI_FLAG_SKIPS:
+                e.skip = f"engine Python is a '{abiflags}' build: {ABI_FLAG_SKIPS[e.key]}"
             entries.append(e)
     return entries
 
@@ -581,7 +610,7 @@ def main():
         sys.exit(2)
 
     entries = plan_tests(dirs_to_test, effective_timeout, timeout_multiplier, args.no_skip,
-                         sanitizer_mode, sanitizer_variant)
+                         sanitizer_mode, sanitizer_variant, engine_abiflags())
     if args.shard:
         idx, n = args.shard
         chosen = {e.key for pos, e in enumerate(sorted(entries, key=lambda e: e.key)) if pos % n == idx - 1}
@@ -750,11 +779,11 @@ def main():
             if san_errors:
                 for err in san_errors[:3]:
                     print(f"    {RED}>> {err}{RESET}")
-            if verbose:
-                # Show last few lines of output
-                lines = output.strip().split('\n')[-5:]
-                for line in lines:
-                    print(f"    {line}")
+            # The complete output of every failing test, whatever -v says: a CI log is all
+            # there is to diagnose a failure from, and its last five lines rarely name the
+            # check that failed.
+            for line in output.rstrip().split('\n'):
+                print(f"    {line}")
 
     sys.exit(0 if results['fail'] == 0 else 1)
 

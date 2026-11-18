@@ -14,9 +14,10 @@ name: Package
 # tools/build_deps_windows.sh: CPython is python.org's embeddable package, pinned by
 # sha256; SFML and libtcod are built from the submodules.
 #
-# .gitea/workflows/package.yaml is this file with the Forgejo runner's label;
-# keep the two in step. Steps run as root in the Forgejo runner's container (no
-# sudo) and as a sudoer on GitHub's VMs, hence $SUDO.
+# Releases package here. .gitea/workflows/package.yaml is this file with the Forgejo
+# runner's label, manual-only (workflow_dispatch) there; keep the steps in step when one
+# changes. Steps run as root in the Forgejo runner's container (no sudo) and as a sudoer
+# on GitHub's VMs, hence $SUDO.
 
 on:
   push:

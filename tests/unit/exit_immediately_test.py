@@ -17,8 +17,10 @@ import subprocess
 import sys
 
 failures = []
-scratch = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "build")
-scratch = os.path.abspath(scratch)
+# The children run where this test runs (the runner's cwd: the build directory, or a parallel
+# worker's copy of it, with assets/ and scripts/ in reach). Not a hard-coded <repo>/build: the
+# debug and sanitizer suites run in build-debug/build-asan, and there is no build/ at all.
+scratch = os.getcwd()
 
 # --- 1. exit() is a no-arg call returning None; it does not abort the interpreter ---
 print("Calling mcrfpy.exit() immediately...")
