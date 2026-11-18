@@ -9,6 +9,7 @@
 
 #include <iostream>
 #include <cstring>
+#include <cstdlib>
 #include <cmath>
 #include <map>
 #include <deque>
@@ -459,10 +460,45 @@ void SDL2Renderer::popRenderState() {
     renderStateStack_.pop_back();
 }
 
+static GLenum glBlendFactor(BlendMode::Factor f) {
+    switch (f) {
+        case BlendMode::Zero:             return GL_ZERO;
+        case BlendMode::One:              return GL_ONE;
+        case BlendMode::SrcColor:         return GL_SRC_COLOR;
+        case BlendMode::OneMinusSrcColor: return GL_ONE_MINUS_SRC_COLOR;
+        case BlendMode::DstColor:         return GL_DST_COLOR;
+        case BlendMode::OneMinusDstColor: return GL_ONE_MINUS_DST_COLOR;
+        case BlendMode::SrcAlpha:         return GL_SRC_ALPHA;
+        case BlendMode::OneMinusSrcAlpha: return GL_ONE_MINUS_SRC_ALPHA;
+        case BlendMode::DstAlpha:         return GL_DST_ALPHA;
+        case BlendMode::OneMinusDstAlpha: return GL_ONE_MINUS_DST_ALPHA;
+    }
+    std::cerr << "SDL2Renderer: unknown blend factor " << static_cast<int>(f) << std::endl;
+    std::abort();
+}
+
+static GLenum glBlendEquationFor(BlendMode::Equation e) {
+    switch (e) {
+        case BlendMode::Add:             return GL_FUNC_ADD;
+        case BlendMode::Subtract:        return GL_FUNC_SUBTRACT;
+        case BlendMode::ReverseSubtract: return GL_FUNC_REVERSE_SUBTRACT;
+    }
+    std::cerr << "SDL2Renderer: unknown blend equation " << static_cast<int>(e) << std::endl;
+    std::abort();
+}
+
+// #562: separate colour/alpha factors and equations, as sf::BlendMode.
+void SDL2Renderer::applyBlendMode(const BlendMode& b) {
+    glBlendFuncSeparate(glBlendFactor(b.colorSrcFactor), glBlendFactor(b.colorDstFactor),
+                        glBlendFactor(b.alphaSrcFactor), glBlendFactor(b.alphaDstFactor));
+    glBlendEquationSeparate(glBlendEquationFor(b.colorEquation), glBlendEquationFor(b.alphaEquation));
+}
+
 void SDL2Renderer::drawTriangles(const float* vertices, size_t vertexCount,
                                   const float* colors, const float* texCoords,
                                   unsigned int textureId, ShaderType shaderType,
-                                  unsigned int programOverride) {
+                                  unsigned int programOverride,
+                                  const BlendMode& blend) {
     if (vertexCount == 0) return;
 
     // A user-supplied program (mcrfpy.Shader) wins over the built-in selection.
@@ -493,7 +529,7 @@ void SDL2Renderer::drawTriangles(const float* vertices, size_t vertexCount,
 
     // Enable blending
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    applyBlendMode(blend);
 
     // Set up vertex attributes
     glEnableVertexAttribArray(0);
@@ -624,7 +660,7 @@ void RenderWindow::create(VideoMode mode, const std::string& title, uint32_t sty
 
     // Enable blending for transparency
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    SDL2Renderer::getInstance().applyBlendMode(BlendAlpha);
 
     // Initial clear
     glClearColor(0.2f, 0.3f, 0.4f, 1.0f);
@@ -1721,7 +1757,7 @@ void Shape::draw(RenderTarget& target, RenderStates states) const {
     if (fill.a > 0 && !vertices.empty()) {
         SDL2Renderer::getInstance().drawTriangles(
             vertices.data(), vertices.size() / 2,
-            colors.data(), nullptr, 0, SDL2Renderer::ShaderType::Shape, userProgram
+            colors.data(), nullptr, 0, SDL2Renderer::ShaderType::Shape, userProgram, states.blendMode
         );
     }
 
@@ -1779,7 +1815,7 @@ void Shape::draw(RenderTarget& target, RenderStates states) const {
             if (!vertices.empty()) {
                 SDL2Renderer::getInstance().drawTriangles(
                     vertices.data(), vertices.size() / 2,
-                    colors.data(), nullptr, 0, SDL2Renderer::ShaderType::Shape, userProgram
+                    colors.data(), nullptr, 0, SDL2Renderer::ShaderType::Shape, userProgram, states.blendMode
                 );
             }
         }
@@ -1975,7 +2011,7 @@ void RenderTarget::draw(const Vertex* vertices, size_t vertexCount, PrimitiveTyp
         SDL2Renderer::getInstance().drawTriangles(
             positions.data(), positions.size() / 2,
             colors.data(), texcoords.data(), tex->getNativeHandle(),
-            SDL2Renderer::ShaderType::Sprite, userProgram
+            SDL2Renderer::ShaderType::Sprite, userProgram, states.blendMode
         );
         return;
     }
@@ -1983,7 +2019,7 @@ void RenderTarget::draw(const Vertex* vertices, size_t vertexCount, PrimitiveTyp
     // Use shape shader (no texture), or the drawable's custom shader
     SDL2Renderer::getInstance().drawTriangles(
         positions.data(), positions.size() / 2,
-        colors.data(), nullptr, 0, SDL2Renderer::ShaderType::Shape, userProgram
+        colors.data(), nullptr, 0, SDL2Renderer::ShaderType::Shape, userProgram, states.blendMode
     );
 }
 
@@ -2054,7 +2090,8 @@ void Sprite::draw(RenderTarget& target, RenderStates states) const {
     unsigned int userProgram = (states.shader && states.shader->isLoaded())
         ? states.shader->getNativeHandle() : 0;
     SDL2Renderer::getInstance().drawTriangles(vertices, 6, colors, texcoords,
-        texture_->getNativeHandle(), SDL2Renderer::ShaderType::Sprite, userProgram);
+        texture_->getNativeHandle(), SDL2Renderer::ShaderType::Sprite, userProgram,
+        states.blendMode);
 }
 
 // Static cache for font atlases - keyed by (font pointer, character size)
@@ -2159,7 +2196,7 @@ void Text::draw(RenderTarget& target, RenderStates states) const {
                 outlineVerts.data(), outlineVerts.size() / 2,
                 outlineCols.data(), outlineUVs.data(),
                 atlas.getTextureId(),
-                SDL2Renderer::ShaderType::Text
+                SDL2Renderer::ShaderType::Text, 0, states.blendMode
             );
         }
     }
@@ -2173,7 +2210,7 @@ void Text::draw(RenderTarget& target, RenderStates states) const {
             vertices.data(), vertices.size() / 2,
             colors.data(), texcoords.data(),
             atlas.getTextureId(),
-            SDL2Renderer::ShaderType::Text
+            SDL2Renderer::ShaderType::Text, 0, states.blendMode
         );
     }
 }

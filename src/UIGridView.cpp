@@ -314,7 +314,7 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
             if (uniforms) uniforms->applyTo(*shader->shader);
             target.draw(output, shader->shader.get());
         } else {
-            target.draw(output);
+            target.draw(output, kPremultipliedBlend);
         }
         return;
     }
@@ -337,6 +337,18 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
 
     sf::RenderTexture* activeTexture = &renderTexture;
 
+    // #562: with no shader the whole chain is premultiplied -- the textures are cleared with the
+    // premultiplied fill, layers/entities/overlays draw into them with plain alpha blending (which
+    // keeps a premultiplied destination premultiplied), and the result is composited with
+    // kPremultipliedBlend. A shader keeps the pre-#562 straight-alpha chain: straight fill, plain
+    // blends (so content that is not opaque is still alpha'd twice there, as for Sprite/Caption).
+    const bool shader_path = shader && shader->shader;
+    const sf::Color clear_fill = shader_path ? fill_color : sf::Color(
+        static_cast<sf::Uint8>(fill_color.r * fill_color.a / 255.0f + 0.5f),
+        static_cast<sf::Uint8>(fill_color.g * fill_color.a / 255.0f + 0.5f),
+        static_cast<sf::Uint8>(fill_color.b * fill_color.a / 255.0f + 0.5f),
+        fill_color.a);
+
     if (has_camera_rotation) {
         unsigned int needed_size = static_cast<unsigned int>(std::max(aabb_w, aabb_h) + 1);
         if (!rotationTexture) rotationTexture = std::make_unique<sf::RenderTexture>();  // #338
@@ -345,11 +357,11 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
             rotationTextureSize = needed_size;
         }
         activeTexture = rotationTexture.get();
-        activeTexture->clear(fill_color);
+        activeTexture->clear(clear_fill);
     } else {
         output.setPosition(box.getPosition() + offset);
         output.setTextureRect(sf::IntRect(0, 0, grid_w_px, grid_h_px));
-        renderTexture.clear(fill_color);
+        renderTexture.clear(clear_fill);
     }
 
     float render_w = has_camera_rotation ? aabb_w : grid_w_px;
@@ -504,7 +516,9 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
 
     // Camera rotation compositing
     if (has_camera_rotation) {
-        renderTexture.clear(fill_color);
+        // #562: the fill is already in the rotated texture; do not lay it down a second time
+        // (shader path: unchanged, straight fill underneath).
+        renderTexture.clear(shader_path ? fill_color : sf::Color::Transparent);
         sf::Sprite rotatedSprite(rotationTexture->getTexture());
         float tex_center_x = aabb_w / 2.0f;
         float tex_center_y = aabb_h / 2.0f;
@@ -512,7 +526,8 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
         rotatedSprite.setRotation(camera_rotation);
         rotatedSprite.setPosition(grid_w_px / 2.0f, grid_h_px / 2.0f);
         rotatedSprite.setTextureRect(sf::IntRect(0, 0, satInt(aabb_w), satInt(aabb_h)));
-        renderTexture.draw(rotatedSprite);
+        if (shader_path) renderTexture.draw(rotatedSprite);
+        else renderTexture.draw(rotatedSprite, kPremultipliedBlend);
         renderTexture.display();
         output.setPosition(box.getPosition() + offset);
         output.setTextureRect(sf::IntRect(0, 0, grid_w_px, grid_h_px));
@@ -550,7 +565,7 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
         if (uniforms) uniforms->applyTo(*shader->shader);
         target.draw(output, shader->shader.get());
     } else {
-        target.draw(output);
+        target.draw(output, kPremultipliedBlend);
     }
 }
 
