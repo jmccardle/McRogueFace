@@ -255,8 +255,18 @@ test("bold+italic walks bold, italic, regular", tim.index("A", bold=True, italic
 # A cell too small for the glyphs: clipped is regular face only, variant_clipped the others.
 tvc = mcrfpy.Texture.from_font(FONT, SIZE, codepoints="AW", cell=(9, 16), bold=BOLD)
 test("regular clipping is reported for the wide letter only", tvc.clipped == [0x57], f"{tvc.clipped}")
-test("the bold face overflows on both, and its entries are not in clipped",
-     tvc.variant_clipped == [(0x41, True, False), (0x57, True, False)], f"{tvc.variant_clipped}")
+test("the wide bold W overflows a 9 px cell, reported in variant_clipped (not clipped)",
+     (0x57, True, False) in tvc.variant_clipped and all(c[1] for c in tvc.variant_clipped), f"{tvc.variant_clipped}")
+# Whether bold A fits 9 px depends on the FreeType that rasterises it: 2.13 (Linux, v40 hinting)
+# renders DejaVu Sans Mono Bold "A" at 16 px 10 px wide, SFML's 2.5.5 (Windows, v35 hinting snaps
+# stems horizontally) 9 px. So the variant check uses cells with at least a pixel of margin on both.
+tvn = mcrfpy.Texture.from_font(FONT, SIZE, codepoints="AW", cell=(8, 16), bold=BOLD)
+test("both bold glyphs overflow an 8 px cell: both in variant_clipped, neither in clipped as bold",
+     tvn.variant_clipped == [(0x41, True, False), (0x57, True, False)] and tvn.clipped == [0x41, 0x57],
+     f"{tvn.variant_clipped} {tvn.clipped}")
+tvf = mcrfpy.Texture.from_font(FONT, SIZE, codepoints="AW", cell=(11, 16), bold=BOLD)
+test("both bold glyphs fit an 11 px cell: nothing reported", tvf.variant_clipped == [] and tvf.clipped == [],
+     f"{tvf.variant_clipped} {tvf.clipped}")
 test("variant_missing is empty when the bold face has everything", tvc.variant_missing == [])
 
 print("=== reverse lookup ===")
