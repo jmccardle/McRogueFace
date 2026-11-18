@@ -89,7 +89,8 @@ command -v wine >/dev/null || die "wine not found: it runs the Windows package's
 [ -f "$SITE_DIR/tools/inject_snippets.py" ] || die "$SITE_DIR has no tools/inject_snippets.py (#541); update the site checkout"
 python3 "$SITE_DIR/tools/inject_snippets.py" --check --engine "$ROOT" \
     || die "cookbook fences have drifted from tests/snippets (above): run tools/inject_snippets.py in $SITE_DIR and commit the site"
-# Everything that renders gets a private virtual display, never the caller's: on a desktop
+# Everything that renders gets a private virtual display, never the caller's (including the
+# commits: the pre-commit hook regenerates the docs, which loads the default texture): on a desktop
 # an inherited DISPLAY put every test window on the user's screen (lag, and ~1.7 s per GL
 # context, enough to time tests out). The suite itself runs -j workers, each on its own Xvfb.
 command -v xvfb-run >/dev/null && command -v Xvfb >/dev/null \
@@ -134,7 +135,7 @@ PACKAGES=(dist/McRogueFace-"$VERSION"-Linux.tar.gz
 # --- 6. commit -----------------------------------------------------------------------
 step commit "Release $VERSION"
 git add "$HEADER" api/manifest.json tests/snippets
-git commit -q -m "Release $VERSION" -m "Packages built and smoke-tested by tools/release.sh (#475)."
+"${WITH_DISPLAY[@]}" git commit -q -m "Release $VERSION" -m "Packages built and smoke-tested by tools/release.sh (#475)."
 [ -z "$(tracked_changes)" ] || { tracked_changes >&2; die "the release commit left tracked changes behind"; }
 
 # --- 7. tag --------------------------------------------------------------------------
@@ -143,8 +144,8 @@ git tag "$VERSION"
 
 # --- 8. site -------------------------------------------------------------------------
 step site "rebuild $SITE_DIR pinned to $VERSION"
-(cd "$SITE_DIR" && python3 tools/build_reference.py)
-(cd "$SITE_DIR" && python3 tools/build_library.py --ref "$VERSION" --snippet-ref "$VERSION")
+(cd "$SITE_DIR" && "${WITH_DISPLAY[@]}" python3 tools/build_reference.py)
+(cd "$SITE_DIR" && "${WITH_DISPLAY[@]}" python3 tools/build_library.py --ref "$VERSION" --snippet-ref "$VERSION")
 # The working tree is the tag here, so "." is $VERSION.
 python3 tools/api_delta.py "$BASE_REF" . --site-dir "$SITE_DIR" --format md
 
@@ -152,7 +153,7 @@ python3 tools/api_delta.py "$BASE_REF" . --site-dir "$SITE_DIR" --format md
 step next "header -> $NEXT_VERSION"
 set_version "$NEXT_VERSION"
 git add "$HEADER"
-git commit -q -m "Begin $NEXT_VERSION"
+"${WITH_DISPLAY[@]}" git commit -q -m "Begin $NEXT_VERSION"
 
 trap - ERR
 echo
