@@ -16,14 +16,19 @@ The cell reported back by on_cell_click must be the red cell.
 """
 import sys
 import os
-import zlib
-import struct
 import tempfile
 
 import mcrfpy
 from mcrfpy import automation
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # --exec does not
+from _png import read_png  # noqa: E402
+
 CELL = 16
+# The grid sits at (100, 100), 80x80 (its rotated AABB is at most ~113 px across, centred on (140, 140)),
+# and nothing else is drawn: the red marker is within x, y < 200. Decoding only this corner of the
+# 1024x768 screenshot (exact, see _png.read_png) skips the rest.
+CROP = (200, 200)
 TMPDIR = tempfile.mkdtemp(prefix="mcrf355rot_")
 FAILURES = []
 
@@ -34,71 +39,9 @@ def check(cond, msg):
         FAILURES.append(msg)
 
 
-# --------------------------------------------------------------------------- #
-# Minimal PNG reader (stdlib only): 8-bit RGB/RGBA, non-interlaced -- what the
-# engine's screenshot encoder emits.
-# --------------------------------------------------------------------------- #
-def read_png(path):
-    with open(path, "rb") as f:
-        data = f.read()
-    assert data[:8] == b"\x89PNG\r\n\x1a\n", "not a PNG"
-    pos = 8
-    idat = b""
-    width = height = depth = color = None
-    while pos < len(data):
-        (length,) = struct.unpack(">I", data[pos:pos + 4])
-        ctype = data[pos + 4:pos + 8]
-        chunk = data[pos + 8:pos + 8 + length]
-        pos += 12 + length
-        if ctype == b"IHDR":
-            width, height, depth, color, _, _, interlace = struct.unpack(">IIBBBBB", chunk)
-            assert depth == 8, "unexpected bit depth %d" % depth
-            assert color in (2, 6), "unexpected color type %d" % color
-            assert interlace == 0, "interlaced PNG not supported"
-        elif ctype == b"IDAT":
-            idat += chunk
-        elif ctype == b"IEND":
-            break
-
-    raw = zlib.decompress(idat)
-    channels = 3 if color == 2 else 4
-    stride = width * channels
-    out = bytearray(height * stride)
-    prev = bytearray(stride)
-    p = 0
-    for y in range(height):
-        filt = raw[p]
-        p += 1
-        line = bytearray(raw[p:p + stride])
-        p += stride
-        if filt == 1:      # Sub
-            for i in range(channels, stride):
-                line[i] = (line[i] + line[i - channels]) & 0xFF
-        elif filt == 2:    # Up
-            for i in range(stride):
-                line[i] = (line[i] + prev[i]) & 0xFF
-        elif filt == 3:    # Average
-            for i in range(stride):
-                a = line[i - channels] if i >= channels else 0
-                line[i] = (line[i] + ((a + prev[i]) >> 1)) & 0xFF
-        elif filt == 4:    # Paeth
-            for i in range(stride):
-                a = line[i - channels] if i >= channels else 0
-                b = prev[i]
-                c = prev[i - channels] if i >= channels else 0
-                pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
-                pr = a if (pa <= pb and pa <= pc) else (b if pb <= pc else c)
-                line[i] = (line[i] + pr) & 0xFF
-        elif filt != 0:
-            raise AssertionError("bad PNG filter %d" % filt)
-        out[y * stride:(y + 1) * stride] = line
-        prev = line
-    return width, height, channels, bytes(out)
-
-
 def red_centroid(path):
     """Centroid of pure-red pixels in the screenshot, or None."""
-    w, h, ch, px = read_png(path)
+    w, h, ch, px = read_png(path, *CROP)
     sx = sy = n = 0
     for y in range(h):
         row = y * w * ch

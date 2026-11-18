@@ -21,15 +21,20 @@ cell boundaries land on exact pixels and hit testing finds the right cell at its
 Ground truth for drawing is the screenshot, decoded here.
 """
 import os
-import struct
 import subprocess
 import sys
 import tempfile
 import warnings
-import zlib
 
 import mcrfpy
 from mcrfpy import automation
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # --exec does not
+from _png import read_png  # noqa: E402
+
+# Every pixel read below lies within x < 280, y < 232 (the 5x4 grid of 48x48 cells at (40, 40) is the
+# largest); decoding only this corner of the 1024x768 screenshot (exact, see _png.read_png) skips the rest.
+CROP = (288, 240)
 
 TMPDIR = tempfile.mkdtemp(prefix="mcrf453_")
 failures = []
@@ -41,69 +46,15 @@ def check(cond, msg):
         failures.append(msg)
 
 
-def read_png(path):
-    with open(path, "rb") as f:
-        data = f.read()
-    assert data[:8] == b"\x89PNG\r\n\x1a\n", "not a PNG"
-    pos = 8
-    idat = b""
-    width = height = color = None
-    while pos < len(data):
-        (length,) = struct.unpack(">I", data[pos:pos + 4])
-        ctype = data[pos + 4:pos + 8]
-        chunk = data[pos + 8:pos + 8 + length]
-        pos += 12 + length
-        if ctype == b"IHDR":
-            width, height, depth, color, _, _, interlace = struct.unpack(">IIBBBBB", chunk)
-            assert depth == 8 and color in (2, 6) and interlace == 0
-        elif ctype == b"IDAT":
-            idat += chunk
-        elif ctype == b"IEND":
-            break
-    raw = zlib.decompress(idat)
-    channels = 3 if color == 2 else 4
-    stride = width * channels
-    out = bytearray(height * stride)
-    prev = bytearray(stride)
-    p = 0
-    for y in range(height):
-        filt = raw[p]
-        p += 1
-        line = bytearray(raw[p:p + stride])
-        p += stride
-        if filt == 1:
-            for i in range(channels, stride):
-                line[i] = (line[i] + line[i - channels]) & 0xFF
-        elif filt == 2:
-            for i in range(stride):
-                line[i] = (line[i] + prev[i]) & 0xFF
-        elif filt == 3:
-            for i in range(stride):
-                a = line[i - channels] if i >= channels else 0
-                line[i] = (line[i] + ((a + prev[i]) >> 1)) & 0xFF
-        elif filt == 4:
-            for i in range(stride):
-                a = line[i - channels] if i >= channels else 0
-                b = prev[i]
-                c = prev[i - channels] if i >= channels else 0
-                pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
-                pr = a if (pa <= pb and pa <= pc) else (b if pb <= pc else c)
-                line[i] = (line[i] + pr) & 0xFF
-        elif filt != 0:
-            raise AssertionError("bad PNG filter %d" % filt)
-        out[y * stride:(y + 1) * stride] = line
-        prev = line
-    return width, height, channels, bytes(out)
-
-
 class Shot:
     def __init__(self, name):
         path = os.path.join(TMPDIR, name + ".png")
         mcrfpy.step(0)  # the screenshot shows the last complete frame; draw this one (#529)
         automation.screenshot(path)
-        self.w, self.h, self.ch, self.px = read_png(path)
+        self.w, self.h, self.ch, self.px = read_png(path, *CROP)
 
     def rgb(self, x, y):
+        assert 0 <= x < self.w and 0 <= y < self.h, "pixel (%d, %d) is outside the decoded crop %dx%d" % (x, y, self.w, self.h)
         i = (y * self.w + x) * self.ch
         return tuple(self.px[i:i + 3])
 

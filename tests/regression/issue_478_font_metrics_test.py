@@ -43,11 +43,18 @@ def raises(exc, fn):
     return False
 
 
+# Everything drawn lies within x < 400, y < 200 (sections 3 and 4; the Line ends at x=400 and the
+# searched regions stop at y=200); section 3's masks search the whole decoded image, so the crop must
+# hold all of it. Decoding only this corner of the 1024x768 screenshot (exact, see _png.read_png)
+# skips the rest.
+CROP = (400, 200)
+
+
 def shot(name):
     path = os.path.join(TMPDIR, name + ".png")
     mcrfpy.step(0)  # the screenshot shows the last complete frame; draw this one (#529)
     automation.screenshot(path)
-    return _png.read_png(path)
+    return _png.read_png(path, *CROP)
 
 
 UPEM, EM = 1000, 20     # 50 font units per pixel at size 20

@@ -143,16 +143,12 @@ EXTERNAL_INPUTS = {
 # sit on the 10 s default's edge: they pass alone and time out under suite load (#513).
 # Timeouts here are a per-test budget, not a flake mask: each is still bounded.
 SLOW_TESTS = {
-    "regression/issue_478_caption_baseline_test.py": 40,
+    "regression/issue_478_caption_baseline_test.py": 40,  # 2 s alone, 12 s at load 23 even after the PNG crop
     # 5-7 s alone (software-rendered screenshots; llvmpipe uses every core), 10-15 s with
     # several engines rendering at once under -j N.
     "regression/issue_536_visible_chunk_range_test.py": 40,
-    "regression/issue_552_review_test.py": 40,
-    "regression/issue_480_stretch_sprites_test.py": 40,
-    "regression/issue_476_grid_child_offset_test.py": 40,
     "regression/issue_427_layer_edit_under_cache_test.py": 40,
     "regression/issue_446_entity_collection_dirty_test.py": 40,
-    "regression/issue_453_454_grid_texture_cell_size_test.py": 40,
     "regression/issue_539_chunk_vertex_array_test.py": 40,
     "regression/issue_529_first_frame_screenshot_test.py": 120,  # 20 child engines, half windowed: 19 s idle, ~55 s with all 8 cores busy
     "integration/mcrf_project_test.py": 40,
