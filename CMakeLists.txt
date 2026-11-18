@@ -376,6 +376,37 @@ else()
     link_directories(${CMAKE_SOURCE_DIR}/__lib)
 endif()
 
+# libghostty-vt (#550): the terminal emulator core, linked STATICALLY (nothing extra to ship,
+# and one archive serves the Release, debug and sanitizer builds). Built by Zig from
+# modules/ghostty by tools/build_libghostty.sh, which build_deps*.sh run.
+if(EMSCRIPTEN)
+    set(_mcrf_vt_dir "${CMAKE_SOURCE_DIR}/__lib_wasm/ghostty-vt")
+    set(_mcrf_vt_name "libghostty-vt.a")
+    set(_mcrf_vt_script "build_deps_wasm.sh")
+elseif(MCRF_CROSS_WINDOWS)
+    set(_mcrf_vt_dir "${CMAKE_SOURCE_DIR}/__lib_windows/ghostty-vt")
+    set(_mcrf_vt_name "ghostty-vt-static.lib")
+    set(_mcrf_vt_script "build_deps_windows.sh")
+else()
+    set(_mcrf_vt_dir "${CMAKE_SOURCE_DIR}/__lib_static/ghostty-vt")
+    set(_mcrf_vt_name "libghostty-vt.a")
+    set(_mcrf_vt_script "build_deps.sh")
+endif()
+set(MCRF_GHOSTTY_VT_LIB "${_mcrf_vt_dir}/lib/${_mcrf_vt_name}")
+if(NOT EXISTS "${MCRF_GHOSTTY_VT_LIB}")
+    message(FATAL_ERROR "libghostty-vt is not built (${MCRF_GHOSTTY_VT_LIB}). "
+        "Run tools/${_mcrf_vt_script} (`make deps` on Linux), then configure again.")
+endif()
+include_directories(SYSTEM "${_mcrf_vt_dir}/include")
+add_compile_definitions(GHOSTTY_STATIC)
+list(APPEND LINK_LIBS "${MCRF_GHOSTTY_VT_LIB}")
+if(MCRF_CROSS_WINDOWS)
+    # Zig's standard library calls ntdll directly (NtCreateFile, RtlWaitOnAddress, ...);
+    # it must follow the archive on the link line.
+    list(APPEND LINK_LIBS ntdll)
+endif()
+message(STATUS "Linking libghostty-vt: ${MCRF_GHOSTTY_VT_LIB}")
+
 # Define the executable target before linking libraries
 add_executable(mcrogueface ${SOURCES})
 
