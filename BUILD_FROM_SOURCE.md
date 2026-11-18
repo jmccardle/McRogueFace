@@ -52,16 +52,28 @@ You still need `xvfb` for the tests (or use the `MCRF_HEADLESS` build below).
 
 libghostty-vt (the terminal emulator core of [Ghostty](https://ghostty.org), MIT) is built
 with Zig, which must be **exactly 0.17.1**. `tools/build_libghostty.sh` picks Zig in this
-order: `$ZIG` (the path of a zig binary), a `zig` on `PATH`, else it downloads the official
-x86_64-Linux tarball into `build-deps/` (gitignored) and checks it against a sha256 pinned in
-the script. A Zig of any other version is an error; nothing falls back to it. Ghostty's own
-Zig package dependencies are fetched over https during this step (cache:
-`build-deps/zig-global-cache`, or `$ZIG_GLOBAL_CACHE_DIR`); the engine build needs no network.
-The first build takes about 8 minutes (Zig downloads, then compiles); a rebuild with a warm
-cache is seconds. One archive serves the Release, debug and sanitizer builds. Needs `curl`
-and `xz` only when it has to download Zig. The Windows and WebAssembly variants are built by
-`build_deps_windows.sh` and `build_deps_wasm.sh` (into `__lib_windows/ghostty-vt/` and
-`__lib_wasm/ghostty-vt/`); `mcrogueface --version` prints the linked libghostty-vt version.
+order: `$ZIG` (a path or a command name; a wrong version is an error), a `zig` on `PATH`
+that is 0.17.1, else it downloads the official x86_64-Linux tarball into `build-deps/`
+(gitignored), checked against a sha256 pinned in the script. A PATH `zig` of another version
+is ignored with a message. An up-to-date staged archive needs neither Zig nor the network.
+
+- **CPU.** The Linux archive is built for the baseline CPU of the host architecture
+  (x86_64 or aarch64, glibc; needs glibc 2.36+ at link time for `arc4random_buf`), not for the
+  build machine, so a cached or packaged archive runs anywhere. All targets are stripped.
+- **Network.** Ghostty's Zig package dependencies are fetched over https during the build into
+  `build-deps/zig-pkg` and `build-deps/zig-global-cache` (or `$ZIG_GLOBAL_CACHE_DIR`); the
+  engine build needs no network. A build that fails on a network error is repeated, up to 3
+  attempts; any other failure is final. Nothing is written inside `modules/ghostty`.
+- **Time.** About 8 minutes the first time (Zig download, package fetch, compile); seconds
+  with a warm cache. `--clean` rebuilds. Uncommitted edits inside `modules/ghostty` are not
+  noticed by the up-to-date check: use `--clean` after making them.
+- **Archive.** One static archive serves the Release, debug and sanitizer builds. Zig's
+  `compiler_rt` member is removed from the Linux and WebAssembly archives (its weak `memcpy` &
+  co. would capture the engine's own calls); libgcc supplies the helpers it provided.
+  `curl` and `xz` are needed only to download Zig.
+- **Windows and WebAssembly** variants are built by `build_deps_windows.sh` and
+  `build_deps_wasm.sh` (into `__lib_windows/ghostty-vt/` and `__lib_wasm/ghostty-vt/`).
+  `mcrogueface --version` prints the linked libghostty-vt version.
 
 ### CPython and its variants
 
@@ -141,7 +153,7 @@ than the full test suite.
 If you have a `build_deps.tar.gz` (see below), skip `make deps`:
 
 ```bash
-tar -xzf /path/to/build_deps.tar.gz   # provides __lib/ and deps/
+tar -xzf /path/to/build_deps.tar.gz   # provides __lib/, __lib_static/ and deps/
 make
 ```
 
@@ -150,9 +162,10 @@ make
 ```bash
 mkdir -p build_deps_staging/deps
 cp -r __lib build_deps_staging/                     # includes __lib/include/pyconfig.h
+cp -r __lib_static build_deps_staging/              # libghostty-vt (static archive + headers)
 cp -rL deps/libtcod deps/Python deps/SFML build_deps_staging/deps/
 cp -r deps/platform build_deps_staging/deps/
-(cd build_deps_staging && tar -czf ../build_deps.tar.gz __lib deps)
+(cd build_deps_staging && tar -czf ../build_deps.tar.gz __lib __lib_static deps)
 rm -rf build_deps_staging
 ```
 
