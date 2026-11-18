@@ -351,6 +351,78 @@ def _arc_pixels(page, scene_src=ARC_SCENE_SRC):
     return _expect(not bad, "; ".join(bad) or "arc colour on every band, background elsewhere")
 
 
+# #562 scene, 1024x768 over a blue Frame (0, 0, 255). Texture sprites (16x16): 0 white@128,
+# 1 red@128. Every probe is the centre of a 32x16 grid (two cells), so cell 0's centre is
+# (x + 8, y + 8). Translucent pixels used to be multiplied by alpha twice (a chunk or a
+# cached Frame texture painted with alpha blending, then blitted with alpha blending).
+LAYER_ALPHA_SCENE_SRC = (
+    "import mcrfpy\n"
+    "data = bytearray()\n"
+    "for y in range(16):\n"
+    "    for px in ((255, 255, 255, 128), (255, 0, 0, 128)):\n"
+    "        data += bytes(px) * 16\n"
+    "tex = mcrfpy.Texture.from_bytes(bytes(data), 32, 16, 16, 16, name='<a562>')\n"
+    "tex2 = mcrfpy.Texture.from_bytes(bytes(data), 32, 16, 16, 16, name='<a562b>')\n"
+    "sc = mcrfpy.Scene('alpha562')\n"
+    "sc.children.append(mcrfpy.Frame(pos=(0, 0), size=(1024, 768),"
+    " fill_color=mcrfpy.Color(0, 0, 255)))\n"
+    "def grid(x, y, fill, parent=sc):\n"
+    "    g = mcrfpy.Grid(grid_size=(2, 1), texture=tex, pos=(x, y), size=(32, 16))\n"
+    "    g.cell_size = (16, 16)\n"
+    "    g.center = (16, 8)\n"
+    "    g.fill_color = fill\n"
+    "    parent.children.append(g)\n"
+    "    return g\n"
+    "clear = mcrfpy.Color(0, 0, 0, 0)\n"
+    "g = grid(100, 100, clear)\n"
+    "g.layer('tilesprite').set((0, 0), 0)\n"
+    "g.layer('tilesprite').set((1, 0), 1)\n"
+    "g = grid(100, 200, clear)\n"
+    "g.layer('tilesprite').set((0, 0), 0)\n"
+    "top = mcrfpy.TileLayer(name='top', z_index=1, texture=tex2)\n"
+    "g.add_layer(top)\n"
+    "top.fill(-1)\n"
+    "top.set((0, 0), 0)\n"
+    "g = grid(100, 300, mcrfpy.Color(0, 0, 0, 128))\n"
+    "g.layer('tilesprite').set((0, 0), 0)\n"
+    "cf = mcrfpy.Frame(pos=(100, 400), size=(32, 16), fill_color=clear)\n"
+    "cf.cache_subtree = True\n"
+    "g = grid(0, 0, clear, cf)\n"
+    "g.layer('tilesprite').set((0, 0), 0)\n"
+    "sc.children.append(cf)\n"
+    "cc = mcrfpy.Frame(pos=(100, 500), size=(32, 16),"
+    " fill_color=mcrfpy.Color(255, 255, 255, 128))\n"
+    "cc.cache_subtree = True\n"
+    "sc.children.append(cc)\n"
+    "mcrfpy.current_scene = sc\n"
+)
+
+
+def t_layer_alpha_pixels(page):
+    return with_scene_viewport(page, lambda: _layer_alpha_pixels(page))
+
+
+def _layer_alpha_pixels(page):
+    out = rp(page, LAYER_ALPHA_SCENE_SRC)
+    if out.strip():
+        return _expect(False, f"building the #562 scene printed/raised: {out!r}")
+    img = canvas_image(page)
+    bad = []
+
+    def expect(label, xy, want, tol=2):
+        got = img.getpixel(xy)[:3]
+        if any(abs(a - b) > tol for a, b in zip(got, want)):
+            bad.append(f"{label} at {xy}: {got} != {want}")
+
+    expect("TileLayer white@128", (108, 108), (128, 128, 255))
+    expect("TileLayer red@128", (124, 108), (128, 0, 127))
+    expect("two stacked TileLayers white@128", (108, 208), (192, 192, 255))
+    expect("translucent grid fill + white@128 tile", (108, 308), (128, 128, 191))
+    expect("transparent grid in cache_subtree frame", (108, 408), (128, 128, 255))
+    expect("cache_subtree translucent frame", (108, 508), (128, 128, 255))
+    return _expect(not bad, "; ".join(bad) or "layer, grid and cached-frame alpha applied once")
+
+
 TESTS = [
     ("basic_eval", t_basic_eval),
     ("print_stdout", t_print_stdout),
@@ -365,6 +437,7 @@ TESTS = [
     ("utf8_text", t_utf8_text),
     ("text_baseline", t_text_baseline),
     ("arc_pixels", t_arc_pixels),
+    ("layer_alpha_pixels", t_layer_alpha_pixels),
 ]
 
 
