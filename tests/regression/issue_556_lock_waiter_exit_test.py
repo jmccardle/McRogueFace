@@ -144,6 +144,91 @@ sys.exit(0)
 '''
 
 
+# A ThreadPoolExecutor worker blocked in lock() at exit. concurrent.futures.thread registers
+# its own threading-atexit hook (it joins its workers) AFTER ours, and those run in reverse:
+# unless ours is kept first, the executor joins a thread that can only be released by it.
+SCRIPTS["executor"] = r'''
+import concurrent.futures, mcrfpy, os, sys, time
+def say(s): os.write(1, (s + "\n").encode())
+mcrfpy.current_scene = mcrfpy.Scene("x556")
+def job():
+    try:
+        with mcrfpy.lock():
+            say("JOB granted")
+    except RuntimeError as e:
+        say("JOB raised: %s" % e)
+ex = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+ex.submit(job)
+while mcrfpy.get_metrics()["lock_waiting"] != 1:
+    time.sleep(0.001)
+sys.exit(0)
+'''
+
+# The same through asyncio.to_thread (the loop's default executor).
+SCRIPTS["to_thread"] = r'''
+import asyncio, mcrfpy, os, sys
+def say(s): os.write(1, (s + "\n").encode())
+mcrfpy.current_scene = mcrfpy.Scene("t556")
+def job():
+    try:
+        with mcrfpy.lock():
+            say("JOB granted")
+    except RuntimeError as e:
+        say("JOB raised: %s" % e)
+async def spawn():
+    asyncio.ensure_future(asyncio.to_thread(job))
+    while mcrfpy.get_metrics()["lock_waiting"] != 1:
+        await asyncio.sleep(0.001)
+loop = asyncio.new_event_loop()
+loop.run_until_complete(spawn())
+sys.exit(0)
+'''
+
+# The close hook is only first if it is the LAST threading-atexit entry. That list is a
+# private CPython name: this pins what the engine depends on, so an upgrade that renames or
+# reshapes it fails here, not in somebody's exit.
+SCRIPTS["pin"] = r'''
+import mcrfpy, os, sys, threading
+def say(s): os.write(1, (s + "\n").encode())
+hooks = getattr(threading, "_threading_atexits", None)
+say("PIN list=%s" % isinstance(hooks, list))
+say("PIN register=%s" % callable(getattr(threading, "_register_atexit", None)))
+say("PIN entries callable=%s" % (isinstance(hooks, list) and len(hooks) >= 1 and all(callable(h) for h in hooks)))
+# registering another hook appends: ours must be moved behind it by the next waiting lock()
+n0 = len(hooks)
+threading._register_atexit(lambda: None)
+say("PIN append=%s" % (len(hooks) == n0 + 1))
+sys.exit(0)
+'''
+
+# A DAEMON thread drives the clock and never ends before shutdown: waiting for its exit
+# would wait forever, so the lock closes at once (it cannot be relied on to stop stepping).
+SCRIPTS["daemon_owner"] = r'''
+import mcrfpy, os, sys, threading, time
+def say(s): os.write(1, (s + "\n").encode())
+mcrfpy.current_scene = mcrfpy.Scene("d556")
+claimed = threading.Event()
+def driver():
+    mcrfpy.step(0.01)
+    claimed.set()
+    while True:
+        mcrfpy.step(0.01)
+        time.sleep(0.001)
+def worker():
+    while True:
+        try:
+            with mcrfpy.lock():
+                pass
+        except RuntimeError as e:
+            say("WORKER raised: %s" % e)
+            return
+threading.Thread(target=driver, daemon=True).start()
+threading.Thread(target=worker).start()           # non-daemon
+claimed.wait()
+sys.exit(0)
+'''
+
+
 def run(label, name, args):
     tmp = tempfile.mkdtemp(prefix="mcrf556_", dir=os.getcwd())
     try:
@@ -189,6 +274,14 @@ run_plain("main thread owns the clock: atexit and __del__ keep their lock", "ate
           ["--headless"], ["ATEXIT lock ok", "DEL lock ok"])
 run_plain("a background thread owns the clock: lock stays usable, then closes", "bg_owner",
           ["--headless"], ["W1 granted", "W2 raised: engine is shutting down"])
+run_plain("executor worker blocked in lock() at exit", "executor", ["--headless"],
+          ["JOB raised: engine is shutting down"])
+run_plain("asyncio.to_thread worker blocked in lock() at exit", "to_thread", ["--headless"],
+          ["JOB raised: engine is shutting down"])
+run_plain("the private threading names the close hook depends on", "pin", ["--headless"],
+          ["PIN list=True", "PIN register=True", "PIN entries callable=True", "PIN append=True"])
+run_plain("a daemon clock owner: the lock closes at once", "daemon_owner", ["--headless"],
+          ["WORKER raised: engine is shutting down"])
 run("headless", "headless", ["--headless"])
 run("windowed", "windowed", [])
 

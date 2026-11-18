@@ -686,7 +686,8 @@ static PyMethodDef mcrfpyMethods[] = {
                    "raises RuntimeError('engine is shutting down'), including in a thread that "
                    "was already waiting, and never grants the lock. This starts when the exiting "
                    "main thread begins joining threads -- or, if another thread drives the clock, "
-                   "when that thread ends. The clock owner's lock stays a no-op throughout. "
+                   "when that thread ends (at once if that thread is a daemon). The clock owner's "
+                   "lock stays a no-op throughout. "
                    "A SystemExit raised on a background thread that drives the clock (from "
                    "step() re-raising a callback's sys.exit()) ends only that thread.")
          MCRF_LINK("docs/frame-lock.md", "The frame barrier: rules, budget, and failure modes")
@@ -814,16 +815,59 @@ static PyMethodDef mcrfpy_close_frame_lock_def = {
     "_close_frame_lock", mcrfpy_close_frame_lock, METH_NOARGS,
     "Stop granting mcrfpy.lock(): the engine is shutting down (#556)."};
 
+// threading._threading_atexits (a list, run in REVERSE by threading._shutdown()) and our
+// entry in it. concurrent.futures.thread registers a hook that joins its workers, and
+// registered after ours it would run BEFORE ours: an executor worker blocked in lock()
+// then hangs the exit. So our entry is kept LAST, i.e. first to run (keepShutdownHookFirst).
+// Both are private CPython names; their absence or a different shape fails the import.
+static PyObject* threading_atexits = nullptr;
+static PyObject* close_hook_entry = nullptr;
+
+static int register_close_hook()
+{
+    mcrf::PyRef threading_mod(PyImport_ImportModule("threading"));
+    if (!threading_mod) return -1;
+    mcrf::PyRef lst(PyObject_GetAttrString(threading_mod.get(), "_threading_atexits"));
+    if (!lst || !PyList_Check(lst.get())) {
+        PyErr_Clear();
+        PyErr_SetString(PyExc_RuntimeError,
+            "mcrfpy: threading._threading_atexits is not a list in this Python. The engine "
+            "closes the frame lock from a threading atexit hook that must run before any "
+            "other (#556) and depends on that list; see tests/regression/issue_556_*");
+        return -1;
+    }
+    mcrf::PyRef fn(PyCFunction_New(&mcrfpy_close_frame_lock_def, nullptr));
+    if (!fn) return -1;
+    const Py_ssize_t before = PyList_GET_SIZE(lst.get());
+    mcrf::PyRef r(PyObject_CallMethod(threading_mod.get(), "_register_atexit", "O", fn.get()));
+    if (!r) return -1;
+    if (PyList_GET_SIZE(lst.get()) != before + 1) {
+        PyErr_SetString(PyExc_RuntimeError,
+            "mcrfpy: threading._register_atexit no longer appends to "
+            "threading._threading_atexits (#556)");
+        return -1;
+    }
+    close_hook_entry = Py_NewRef(PyList_GET_ITEM(lst.get(), before));
+    threading_atexits = lst.release();
+    return 0;
+}
+
+int McRFPy_API::keepShutdownHookFirst()
+{
+    if (!threading_atexits || !close_hook_entry) {
+        PyErr_SetString(PyExc_RuntimeError, "mcrfpy: the shutdown hook is not registered");
+        return -1;
+    }
+    const Py_ssize_t n = PyList_GET_SIZE(threading_atexits);
+    if (n > 0 && PyList_GET_ITEM(threading_atexits, n - 1) == close_hook_entry) return 0;
+    mcrf::PyRef r(PyObject_CallMethod(threading_atexits, "remove", "O", close_hook_entry));
+    if (!r) return -1;   // not in the list any more: someone cleared it; say so
+    return PyList_Append(threading_atexits, close_hook_entry);
+}
+
 static int register_atexit_release()
 {
-    {
-        mcrf::PyRef threading_mod(PyImport_ImportModule("threading"));
-        if (!threading_mod) return -1;
-        mcrf::PyRef fn(PyCFunction_New(&mcrfpy_close_frame_lock_def, nullptr));
-        if (!fn) return -1;
-        mcrf::PyRef r(PyObject_CallMethod(threading_mod.get(), "_register_atexit", "O", fn.get()));
-        if (!r) return -1;
-    }
+    if (register_close_hook() < 0) return -1;
     mcrf::PyRef atexit_mod(PyImport_ImportModule("atexit"));
     if (!atexit_mod) return -1;
     mcrf::PyRef fn(PyCFunction_New(&mcrfpy_atexit_def, nullptr));
@@ -851,6 +895,8 @@ void McRFPy_API::release_python_references()
         }
     }
     Py_CLEAR(pending_system_exit);
+    Py_CLEAR(close_hook_entry);
+    Py_CLEAR(threading_atexits);
     mcrf::audio::shutdown();
     default_font.reset();
     default_texture.reset();
@@ -2268,6 +2314,7 @@ static bool frameAdvanceAllowed(const char* fname)
         return false;
     }
     if (!Resources::game->claimClock()) {
+        if (PyErr_Occurred()) return false;   // could not even identify this thread
         PyErr_Format(PyExc_RuntimeError,
             "mcrfpy.%s() was called from a thread that does not drive the simulation clock. "
             "Exactly one thread runs frames: the first to call step()/advance() (or the main "

@@ -3,6 +3,7 @@
 #include "GameEngine.h"
 #include "Resources.h"
 #include "McRFPy_Doc.h"
+#include "McRFPy_API.h"
 
 // Forward declarations
 static PyObject* PyLockContext_enter(PyLockContextObject* self, PyObject* args);
@@ -76,6 +77,10 @@ static PyObject* PyLockContext_enter(PyLockContextObject* self, PyObject* args) 
         Py_INCREF(self);
         return (PyObject*)self;
     }
+
+    // We are about to wait for a window that stops coming at exit: make sure our close hook
+    // runs before any other threading-atexit hook that joins threads (#556).
+    if (!Resources::game->getFrameLock().isShutdown() && McRFPy_API::keepShutdownHookFirst() < 0) return NULL;
 
     // Acquire the frame lock - this will block (with GIL released) until safe window
     if (!Resources::game->getFrameLock().acquire()) {

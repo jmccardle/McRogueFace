@@ -513,6 +513,7 @@ void GameEngine::run()
     // already claimed it with step()/advance() (headless --run-forever), the two would run
     // frame bodies concurrently over one scene graph. Refuse, loudly, rather than race.
     if (!claimClock()) {
+        if (PyErr_Occurred()) PyErr_Print();
         std::cerr << "mcrogueface: the main loop cannot start: a background thread is already "
                      "driving the simulation clock with mcrfpy.step()/advance().\n"
                      "  Only one thread may run frames. Either let the main loop run them, or "
@@ -736,6 +737,30 @@ std::shared_ptr<Timer> GameEngine::getTimer(const std::string& name)
 // runs from a thread_local destructor at thread exit, which can outlive the engine.
 namespace {
 std::atomic<std::thread::id> clock_owner{};
+// #556: whether the owner thread is a daemon thread (set with the claim, read at shutdown).
+// A daemon never "ends" before the interpreter is torn down, so a close deferred until it
+// ends would never come.
+std::atomic<bool> clock_owner_daemon{false};
+
+// threading.current_thread().daemon for the calling thread; false with a Python error set on
+// failure. Needs the GIL (the callers are Python bindings).
+bool current_thread_is_daemon(bool& out)
+{
+    PyGILState_STATE g = PyGILState_Ensure();
+    bool ok = false;
+    PyObject* threading = PyImport_ImportModule("threading");
+    PyObject* thread = threading ? PyObject_CallMethod(threading, "current_thread", nullptr) : nullptr;
+    PyObject* daemon = thread ? PyObject_GetAttrString(thread, "daemon") : nullptr;
+    if (daemon) {
+        int v = PyObject_IsTrue(daemon);
+        if (v >= 0) { out = (v != 0); ok = true; }
+    }
+    Py_XDECREF(daemon);
+    Py_XDECREF(thread);
+    Py_XDECREF(threading);
+    PyGILState_Release(g);
+    return ok;
+}
 
 struct ClockOwnerRelease {
     bool owns = false;
@@ -764,7 +789,10 @@ void GameEngine::closeFrameLockForShutdown()
 {
     std::lock_guard<std::mutex> g(deferred_close_mtx);
     const std::thread::id owner = clock_owner.load();
-    if (owner == std::thread::id{} || owner == std::this_thread::get_id()) {
+    if (owner == std::thread::id{} || owner == std::this_thread::get_id() ||
+        clock_owner_daemon.load()) {
+        // Nobody can open a window, or the owner is a daemon thread that will not end by
+        // itself before the interpreter is torn down: waiting for it would wait forever.
         frameLock.shutdown();
     } else {
         deferred_close = &frameLock;
@@ -776,6 +804,13 @@ bool GameEngine::claimClock()
     const std::thread::id me = std::this_thread::get_id();
     std::thread::id expected{};
     if (clock_owner.compare_exchange_strong(expected, me)) {
+        // The main thread is never a daemon (and the constructor claims before Python is up).
+        bool daemon = false;
+        if (me != main_thread_id && !current_thread_is_daemon(daemon)) {
+            clock_owner.store(std::thread::id{});   // the claim did not take; the error is set
+            return false;
+        }
+        clock_owner_daemon.store(daemon);
         clock_owner_release.owns = true;
         return true;
     }

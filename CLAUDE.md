@@ -849,12 +849,17 @@ checked once in `frameAdvanceAllowed`.
 
 **Shutdown closes the frame lock (#556).** CPython joins non-daemon threads before the
 `atexit` handlers run, so the lock is closed by a hook registered with
-`threading._register_atexit` (runs before the join): waiters and later `mcrfpy.lock()` calls
+`threading._register_atexit` (runs before the join). Those hooks run in REVERSE order and a
+`ThreadPoolExecutor` (so `asyncio.to_thread`) registers one that joins its workers, so a thread
+about to wait in `lock()` first moves our entry to the end of `threading._threading_atexits`
+(`McRFPy_API::keepShutdownHookFirst`; the private name is checked at import and pinned by
+`tests/regression/issue_556_*`). Waiters and later `mcrfpy.lock()` calls
 in threads that would have to wait raise `RuntimeError("engine is shutting down")`, and the
 lock is never granted after that. It closes only when no thread can open a window any more:
 now if the exiting main thread owns the clock or nobody does, otherwise when the thread that
 drives the clock ends (`GameEngine::closeFrameLockForShutdown`; the owner's thread-exit is
-its only release point). The clock owner's own `lock()` stays a no-op after shutdown
+its only release point) -- but at once if that owner is a daemon thread, which never ends before
+the interpreter is torn down (recorded at `claimClock()`). The clock owner's own `lock()` stays a no-op after shutdown
 (`atexit` handlers and `__del__` on the main thread may take it). A driver that stops
 stepping but stays alive while a non-daemon thread waits in `lock()` still hangs the exit.
 

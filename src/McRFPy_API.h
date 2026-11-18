@@ -140,11 +140,18 @@ public:
     static bool deferSystemExit();   // true if the pending error was a SystemExit taken (or dropped)
     static bool exitPending();
     static void raisePendingExit();  // sets the recorded SystemExit as the current error
-    // For a binding that dispatched callbacks synchronously for its Python caller
-    // (step(), advance(), Grid.step(), Scene.activate(), the current_scene setter): if one
-    // asked to exit, set it as the current error and return true (the binding returns
-    // NULL / -1), so it comes out of the call into the caller's own code like any raise.
+    // For a binding that dispatches callbacks synchronously for its Python caller
+    // (Grid.step(), Scene.activate(), the current_scene setter, the Scene constructor, the
+    // automation.* event injectors): call it FIRST (an exit already requested is raised before
+    // the binding does anything) and again before returning (one the dispatch asked for comes
+    // out of the call into the caller's own code like any raise). If it returns true, set the
+    // error and the binding returns NULL / -1. On a thread that does not own the clock it
+    // returns false and the exit stays pending for the owner.
     static bool propagatePendingExit();
+    // #556: keep the frame-lock close hook the first threading-atexit hook to run. Called by
+    // a thread about to wait in mcrfpy.lock(), because later registrations (a
+    // ThreadPoolExecutor's) land after ours and would run before it. 0, or -1 with an error set.
+    static int keepShutdownHookFirst();
 
     static void signalPythonException();  // Called by exception handlers
     static bool shouldExit();             // Checked by game loop
