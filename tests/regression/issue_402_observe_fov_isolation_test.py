@@ -104,10 +104,14 @@ SWITCH_INTERVAL = 1e-4
 # Per participant. The >= 30 gate is checked separately and is the requirement; 200 is
 # what this costs (~20 ms for the whole section), and more cycles means more places a
 # clobber could land, so the number is chosen for sensitivity, not for the gate.
+# The deadlines only stop a stuck loop; the gates are the counts. Scaled like the
+# runner's own timeout, so a loaded machine (CI: 6 runners on 12 cores) is not a
+# failure: section 3 managed 23 of 25 frames in 6 s at load average 50 (goblin 2057).
+_SLOW = float(os.environ.get("MCRF_TIMEOUT_MULTIPLIER", "1"))
 S2_TARGET_ITERS = 200
-S2_DEADLINE = 3.0
+S2_DEADLINE = 3.0 * _SLOW
 S3_FRAMES = 25                # each frame forces a real render (~60 ms in headless)
-S3_DEADLINE = 6.0
+S3_DEADLINE = 6.0 * _SLOW
 
 failures = []
 scene_counter = [0]
