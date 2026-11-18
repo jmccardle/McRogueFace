@@ -673,11 +673,15 @@ add_custom_command(TARGET mcrogueface POST_BUILD
 # tools/build_debug_libs.sh (__lib_asan/, __lib_fuzz/ or __lib_tsan/) replaces the plain one.
 # lib/ is replaced, not merged: copy_directory never deletes, so modules and libraries
 # from an older Python stayed importable in the build and went into packages (#420).
-add_custom_command(TARGET mcrogueface POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E remove_directory $<TARGET_FILE_DIR:mcrogueface>/lib
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_SOURCE_DIR}/__lib $<TARGET_FILE_DIR:mcrogueface>/lib)
-if(NOT MCRF_PYTHON_LIB_DIR STREQUAL "${CMAKE_SOURCE_DIR}/__lib")
+# A web build has no use for it: its stdlib is wasm_stdlib/, preloaded into the .data
+# file, and a web-only checkout has no __lib/ (it never runs `make deps`).
+if(NOT EMSCRIPTEN)
+    add_custom_command(TARGET mcrogueface POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E remove_directory $<TARGET_FILE_DIR:mcrogueface>/lib
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/__lib $<TARGET_FILE_DIR:mcrogueface>/lib)
+endif()
+if(NOT EMSCRIPTEN AND NOT MCRF_PYTHON_LIB_DIR STREQUAL "${CMAKE_SOURCE_DIR}/__lib")
     add_custom_command(TARGET mcrogueface POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${MCRF_PYTHON_LIB_DIR} $<TARGET_FILE_DIR:mcrogueface>/lib)

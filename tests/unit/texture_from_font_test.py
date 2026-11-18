@@ -1,10 +1,10 @@
 """#547 Texture.from_font: a static glyph atlas with codepoint <-> tile lookup (EXPERIMENTAL API).
 
 Pixels are checked by drawing tiles through a real TileLayer at 1:1 over a blue background and
-reading the screenshot. White over blue gives R == G, and R == 0 means transparent. How R relates to
-the glyph's alpha depends on the TileLayer chunk blend (currently alpha is applied twice, so a
-partial-alpha pixel reads darker than its alpha), so these checks only use R == G, R == 0, R == 255
-and "R takes several distinct values"; none depends on the exact curve. The test fonts are vendored in
+reading the screenshot. White over blue gives R == G with B == 255 (#562: the chunk blend is
+premultiplied, so a partial-alpha pixel keeps B at 255), and a transparent pixel reads exactly the
+background (0, 0, 255). How R relates to the glyph's alpha is not pinned to an exact curve; checks use
+R == G, B == 255, R == 0, R == 255 and "R takes several distinct values". The test fonts are vendored in
 tests/assets/fonts/ and the test fails, not skips, if one is missing.
 """
 import os
@@ -39,7 +39,12 @@ def raises(name, exc, fn, needle=None):
 
 
 # --- screenshot reading -------------------------------------------------------------------
-def read_png(path):
+def read_png(path, crop_w=None, crop_h=None):
+    """Decode the top-left crop_w x crop_h pixels of a PNG (the whole image by default).
+
+    Un-filtering a row needs only the row above and the bytes to the left, so a prefix of each row
+    and the first crop_h rows decode exactly as in the full image. The pure-Python filter loop over a
+    whole 1024x768 screenshot took ~0.7 s (several times that under the debug CPython build)."""
     d = open(path, "rb").read()
     p, idat = 8, b""
     while p < len(d):
@@ -51,10 +56,12 @@ def read_png(path):
         elif typ == b"IDAT":
             idat += body
     bpp = {2: 3, 6: 4}[ct]
-    raw, stride, rows, prev, q = zlib.decompress(idat), w * bpp, [], bytearray(w * bpp), 0
-    for _ in range(h):
-        ft, line = raw[q], bytearray(raw[q + 1:q + 1 + w * bpp])
-        q += 1 + stride
+    raw, full_stride, q = zlib.decompress(idat), w * bpp, 0
+    stride = min(w, crop_w or w) * bpp
+    rows, prev = [], bytearray(stride)
+    for _ in range(min(h, crop_h or h)):
+        ft, line = raw[q], bytearray(raw[q + 1:q + 1 + stride])
+        q += 1 + full_stride
         for i in range(stride):
             a = line[i - bpp] if i >= bpp else 0
             b = prev[i]
@@ -92,16 +99,16 @@ def render(tex, tiles, cols=8, rows=2):
     path = f"test_547_{_shot[0]}.png"
     _shot[0] += 1
     automation.screenshot(path)
-    _w, _h, bpp, px = read_png(path)
+    _w, _h, bpp, px = read_png(path, cols * cw, ch)  # only row 0 of the grid is inspected
     out = {}
     for (cx, cy) in tiles:
         out[(cx, cy)] = [[px[cy * ch + y][(cx * cw + x) * bpp] for x in range(cw)] for y in range(ch)]
-        # a white pixel of alpha a over blue has R == G (the engine's chunk blend dims B for partial
-        # alpha, so only R/G are compared); R != G means the glyph pixel was not white
+        # a white pixel of alpha a over blue has R == G and B == 255 (#562: premultiplied blend);
+        # a transparent pixel is exactly (0, 0, 255). Anything else means the glyph pixel was not white
         for y in range(ch):
             for x in range(cw):
                 r_, g_, b_ = (px[cy * ch + y][(cx * cw + x) * bpp + k] for k in range(3))
-                if abs(r_ - g_) > 1:
+                if abs(r_ - g_) > 1 or b_ != 255:
                     BAD_PIXELS.append((cx, cy, x, y, r_, g_, b_))
     return out
 

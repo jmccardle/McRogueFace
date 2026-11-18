@@ -14,6 +14,9 @@
 #include "PythonObjectCache.h"
 #include <sstream>
 
+// #562: a chunk is painted into a transparent RenderTexture with kCachePaintBlend, then
+// composited onto the target with kPremultipliedBlend (see Common.h).
+
 // =============================================================================
 // HeightMap helper functions for layer operations
 // =============================================================================
@@ -453,7 +456,8 @@ void ColorLayer::renderChunkToTexture(int chunk_x, int chunk_y, int cell_width, 
         }
     }
     if (!verts.empty()) {
-        chunk_textures[chunk_idx]->draw(verts.data(), verts.size(), sf::Triangles);
+        chunk_textures[chunk_idx]->draw(verts.data(), verts.size(), sf::Triangles,
+                                        sf::RenderStates(kCachePaintBlend));
     }
 
     chunk_textures[chunk_idx]->display();
@@ -537,7 +541,7 @@ void ColorLayer::render(sf::RenderTarget& target,
             chunk_sprite.setPosition(sf::Vector2f(dest_x, dest_y));
             chunk_sprite.setScale(sf::Vector2f(zoom, zoom));
 
-            target.draw(chunk_sprite);
+            target.draw(chunk_sprite, kPremultipliedBlend);
         }
     }
 }
@@ -666,8 +670,9 @@ void TileLayer::renderChunkToTexture(int chunk_x, int chunk_y, int cell_width, i
         }
     }
     if (!verts.empty()) {
-        chunk_textures[chunk_idx]->draw(verts.data(), verts.size(), sf::Triangles,
-                                        sf::RenderStates(&texture->sfTexture()));
+        sf::RenderStates states(&texture->sfTexture());
+        states.blendMode = kCachePaintBlend;
+        chunk_textures[chunk_idx]->draw(verts.data(), verts.size(), sf::Triangles, states);
     }
 
     chunk_textures[chunk_idx]->display();
@@ -755,7 +760,7 @@ void TileLayer::render(sf::RenderTarget& target,
             chunk_sprite.setPosition(sf::Vector2f(dest_x, dest_y));
             chunk_sprite.setScale(sf::Vector2f(zoom, zoom));
 
-            target.draw(chunk_sprite);
+            target.draw(chunk_sprite, kPremultipliedBlend);
         }
     }
 }

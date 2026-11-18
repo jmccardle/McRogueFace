@@ -40,3 +40,15 @@ constexpr int GRID_MAX = 8192;
 #include <codecvt>
 #include <filesystem>
 
+
+// #562: blend modes for the render-texture-cache-then-composite pattern (layer chunks, Frame
+// clip_children/cache_subtree). Content is painted into a transparent RenderTexture with
+// kCachePaintBlend (the stored colour is premultiplied; stored alpha accumulates as
+// a + (1-a)*dst_a), then the texture is composited with kPremultipliedBlend so alpha is not
+// applied a second time. A sprite drawn this way scales its opacity with a colour of
+// (o, o, o, o), not (255, 255, 255, o).
+inline const sf::BlendMode kCachePaintBlend(
+    sf::BlendMode::SrcAlpha, sf::BlendMode::OneMinusSrcAlpha, sf::BlendMode::Add,
+    sf::BlendMode::One, sf::BlendMode::OneMinusSrcAlpha, sf::BlendMode::Add);
+inline const sf::BlendMode kPremultipliedBlend(
+    sf::BlendMode::One, sf::BlendMode::OneMinusSrcAlpha, sf::BlendMode::Add);

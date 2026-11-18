@@ -108,7 +108,9 @@ mcrfpy.current_scene = scene
 mcrfpy.step(0)
 path = os.path.join(tempfile.mkdtemp(prefix="mcrf552_"), "shot.png")
 automation.screenshot(path)
-width, height, ch, px = read_png(path)
+# decode only the corner holding the sampled pixels (exact; see _png.read_png)
+width, height, ch, px = read_png(path, max(x for _l, (x, _y), _w in cases) + 1,
+                                 max(y for _l, (_x, y), _w in cases) + 1)
 for label, (x, y), want in cases:
     o = (y * width + x) * ch
     got = tuple(px[o:o + 3])

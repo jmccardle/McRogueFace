@@ -25,8 +25,116 @@ env:
     libfreetype-dev libudev-dev libvorbis-dev libflac-dev libogg-dev
     libgl-dev libopenal-dev libzstd-dev uuid-dev
     curl xz-utils ca-certificates
+  # The web job's toolchain: the emsdk tools/release.sh built 0.3.6's WASM package with.
+  # (.github/workflows/package.yaml still pins 4.0.19.)
+  EMSDK_VERSION: "5.0.0"
+  WEB_APT_PACKAGES: >-
+    build-essential cmake git python3 python3-venv pkg-config
+    autoconf automake libtool curl xz-utils ca-certificates
 
 jobs:
+  # Both web builds (the shipped game build and the docs-site playground), driven in
+  # headless Chromium by tests/wasm/ -- the check for the SDL2/Emscripten backend,
+  # which the native jobs never compile. No native engine build: the web
+  # build cross-compiles its own CPython (tools/build_deps_wasm.sh).
+  # Runs on master and on pull requests only (John, 2026-11-18): about 7 min of build
+  # CPU a run, on runners several branches share. A feature branch that touches the
+  # web build can be checked locally (tools/build_deps_wasm.sh; make wasm-game
+  # playground test-wasm) or through a PR.
+  web:
+    runs-on: ffwf-k8s
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y $WEB_APT_PACKAGES
+
+      # Computed into variables first: with `shell: bash` (-e -o pipefail) a failing
+      # input command fails the step instead of silently hashing less.
+      - name: Web dependency cache key
+        id: web-key
+        shell: bash
+        run: |
+          tree=$(git ls-tree HEAD modules/cpython modules/libtcod-headless modules/SFML modules/ghostty)
+          files=$(cat tools/build_deps_wasm.sh tools/build_python_wasm.sh tools/build_libghostty.sh /etc/os-release)
+          echo "key=$(printf '%s\n' "$tree" "$files" | sha256sum | cut -c1-16)-$EMSDK_VERSION" >> "$GITHUB_OUTPUT"
+          echo "emsdk=$EMSDK_VERSION-$(sha256sum < /etc/os-release | cut -c1-8)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore emsdk
+        id: emsdk-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/emsdk
+          key: emsdk-${{ steps.web-key.outputs.emsdk }}
+
+      - name: Install emsdk ${{ env.EMSDK_VERSION }}
+        if: steps.emsdk-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$HOME/emsdk"
+          "$HOME/emsdk/emsdk" install "$EMSDK_VERSION"
+          "$HOME/emsdk/emsdk" activate "$EMSDK_VERSION"
+
+      - name: Save emsdk
+        if: steps.emsdk-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/emsdk
+          key: emsdk-${{ steps.web-key.outputs.emsdk }}
+
+      # The cached outputs live inside the submodule directories, so the submodules are
+      # cloned first: `git submodule update` refuses a non-empty directory.
+      - name: Submodules
+        run: tools/build_deps_wasm.sh --submodules-only
+
+      # Restore, build, save right after the build: a later failure keeps the deps.
+      - name: Restore the Emscripten dependency builds
+        id: wasm-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            modules/cpython/cross-build
+            modules/libtcod-headless/build-emscripten
+            __lib_wasm
+            build-deps/dl
+            build-deps/zig-global-cache
+            build-deps/zig-pkg
+          key: wasm-deps-${{ steps.web-key.outputs.key }}
+
+      - name: Build the Emscripten dependencies (CPython, libtcod, stb, libghostty-vt)
+        run: |
+          source "$HOME/emsdk/emsdk_env.sh"
+          tools/build_deps_wasm.sh
+
+      - name: Save the Emscripten dependency builds
+        if: steps.wasm-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            modules/cpython/cross-build
+            modules/libtcod-headless/build-emscripten
+            __lib_wasm
+            build-deps/dl
+            build-deps/zig-global-cache
+            build-deps/zig-pkg
+          key: wasm-deps-${{ steps.web-key.outputs.key }}
+
+      - name: Build (web game + playground)
+        run: |
+          source "$HOME/emsdk/emsdk_env.sh"
+          make wasm-game
+          make playground
+
+      - name: Browser test environment (Playwright + headless Chromium)
+        run: |
+          make test-wasm-setup
+          sudo .venv-wasmtest/bin/python -m playwright install-deps chromium-headless-shell
+
+      - name: Test (headless Chromium)
+        run: make test-wasm
   # Source-only gates: no dependency build, runs in seconds.
   lint:
     runs-on: ffwf-k8s

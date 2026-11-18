@@ -281,18 +281,45 @@ enum PrimitiveType {
     Quads  // Deprecated in SFML 3.0
 };
 
-// BlendMode stub
+// BlendMode: the SFML 2.x interface (factors + equations, separate colour/alpha).
+// #562: the SDL2 renderer applies these with glBlendFuncSeparate/glBlendEquationSeparate;
+// the Headless stub only records them.
 struct BlendMode {
-    BlendMode() = default;
-    static const BlendMode Alpha;
-    static const BlendMode Add;
-    static const BlendMode Multiply;
-    static const BlendMode None;
+    enum Factor {
+        Zero, One, SrcColor, OneMinusSrcColor, DstColor, OneMinusDstColor,
+        SrcAlpha, OneMinusSrcAlpha, DstAlpha, OneMinusDstAlpha
+    };
+    enum Equation { Add, Subtract, ReverseSubtract };
+
+    // Default is SFML's BlendAlpha.
+    BlendMode()
+        : colorSrcFactor(SrcAlpha), colorDstFactor(OneMinusSrcAlpha), colorEquation(Add),
+          alphaSrcFactor(One), alphaDstFactor(OneMinusSrcAlpha), alphaEquation(Add) {}
+    BlendMode(Factor src, Factor dst, Equation eq = Add)
+        : colorSrcFactor(src), colorDstFactor(dst), colorEquation(eq),
+          alphaSrcFactor(src), alphaDstFactor(dst), alphaEquation(eq) {}
+    BlendMode(Factor colorSrc, Factor colorDst, Equation colorEq,
+              Factor alphaSrc, Factor alphaDst, Equation alphaEq)
+        : colorSrcFactor(colorSrc), colorDstFactor(colorDst), colorEquation(colorEq),
+          alphaSrcFactor(alphaSrc), alphaDstFactor(alphaDst), alphaEquation(alphaEq) {}
+
+    Factor colorSrcFactor, colorDstFactor;
+    Equation colorEquation;
+    Factor alphaSrcFactor, alphaDstFactor;
+    Equation alphaEquation;
 };
-inline const BlendMode BlendMode::Alpha{};
-inline const BlendMode BlendMode::Add{};
-inline const BlendMode BlendMode::Multiply{};
-inline const BlendMode BlendMode::None{};
+inline bool operator==(const BlendMode& l, const BlendMode& r) {
+    return l.colorSrcFactor == r.colorSrcFactor && l.colorDstFactor == r.colorDstFactor &&
+           l.colorEquation == r.colorEquation && l.alphaSrcFactor == r.alphaSrcFactor &&
+           l.alphaDstFactor == r.alphaDstFactor && l.alphaEquation == r.alphaEquation;
+}
+inline bool operator!=(const BlendMode& l, const BlendMode& r) { return !(l == r); }
+inline const BlendMode BlendAlpha(BlendMode::SrcAlpha, BlendMode::OneMinusSrcAlpha, BlendMode::Add,
+                                  BlendMode::One, BlendMode::OneMinusSrcAlpha, BlendMode::Add);
+inline const BlendMode BlendAdd(BlendMode::SrcAlpha, BlendMode::One, BlendMode::Add,
+                                BlendMode::One, BlendMode::One, BlendMode::Add);
+inline const BlendMode BlendMultiply(BlendMode::DstColor, BlendMode::Zero);
+inline const BlendMode BlendNone(BlendMode::One, BlendMode::Zero);
 
 // Forward declare Shader and Texture for RenderStates
 class Shader;
@@ -300,9 +327,10 @@ class Texture;
 
 class RenderStates {
 public:
+    BlendMode blendMode;
     RenderStates() = default;
     RenderStates(const Transform& transform) {}  // Implicit conversion from Transform
-    RenderStates(const BlendMode& mode) {}
+    RenderStates(const BlendMode& mode) : blendMode(mode) {}
     RenderStates(const Texture* texture) {}  // #539: textured vertex arrays
     RenderStates(const Shader* shader) {}  // Implicit conversion from Shader pointer
     static const RenderStates Default;

@@ -160,6 +160,7 @@ SLOW_TESTS = {
     # uicaption_visual 8.5 s on arecibo), so any contention timed them out (CI 1997/1998).
     "unit/procgen_interactive_test.py": 40,
     "unit/test_uicaption_visual.py": 40,
+    "regression/issue_402_observe_fov_isolation_test.py": 40,  # its loop deadlines scale too
     "integration/issue_509_deps_keeps_foreign_venv_test.py": 40,
     "integration/issue_517_console_scripts_test.py": 40,
     "integration/venv_pip_end_to_end_test.py": 90,
