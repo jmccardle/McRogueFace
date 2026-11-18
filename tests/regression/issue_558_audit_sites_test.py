@@ -282,6 +282,7 @@ def uicollection_finalizer_mutates():
         ("children.pop(1)", lambda: parent.children.pop(1)),
         ("children[1] = Frame()", lambda: parent.children.__setitem__(1, mcrfpy.Frame())),
         ("del children[1:]", lambda: parent.children.__delitem__(slice(1, None))),
+        ("children[1:] = [Frame()]", lambda: parent.children.__setitem__(slice(1, None), [mcrfpy.Frame()])),
     ):
         parent.children.clear()
         ran.clear()
@@ -289,6 +290,32 @@ def uicollection_finalizer_mutates():
         parent.children.append(Evil())
         F.attempt(f"UICollection {label} whose removed child's __del__ clears the collection", op)
         parent.children.clear()
+
+
+@case
+def uicollection_replace_links_only_members():
+    # Replacing a child whose __del__ empties the collection: the incoming frame must not keep a
+    # parent link to a collection that no longer holds it (a pinned non-member is never freed;
+    # LeakSanitizer reports it under `make asan-test`).
+    parent = mcrfpy.Frame()
+
+    class Evil(mcrfpy.Frame):
+        def __del__(self):
+            parent.children.clear()
+
+    for label, op in (
+        ("children[1] = n", lambda n: parent.children.__setitem__(1, n)),
+        ("children[1:] = [n]", lambda n: parent.children.__setitem__(slice(1, None), [n])),
+    ):
+        parent.children.clear()
+        parent.children.append(mcrfpy.Frame())
+        parent.children.append(Evil())
+        n = mcrfpy.Frame()
+        op(n)
+        member = any(c is n for c in parent.children)
+        if (n.parent is parent) != member:
+            F.add(f"UICollection {label}: parent link {n.parent!r} but member={member}")
+    parent.children.clear()
 
 
 @case

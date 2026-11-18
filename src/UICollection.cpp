@@ -238,11 +238,14 @@ int UICollection::setitem(PyUICollectionObject* self, Py_ssize_t index, PyObject
     // Preserve the z_index of the replaced element
     new_drawable->z_index = old_z_index;
 
+    // #377: parent to the scene, not to a null owner, when this is a scene collection. Linked
+    // BEFORE the old element is unlinked (#558): unlinking can run a __del__ that removes the new
+    // element again, and a parent link made after that would pin an object the collection
+    // no longer holds (a wrapper <-> pin cycle nothing can free).
+    link_child(self, new_drawable);
+
     // #122: Clear parent of old element (user code may run here: the collection is consistent)
     unlink_child(old_drawable);
-
-    // #377: parent to the scene, not to a null owner, when this is a scene collection
-    link_child(self, new_drawable);
 
     // Mark scene as needing resort after replacing element
     McRFPy_API::markSceneNeedsSort();
@@ -576,14 +579,16 @@ int UICollection::ass_subscript(PyUICollectionObject* self, PyObject* key, PyObj
 
             *self->data = result;
 
+            // Link the members first (#558): unlinking a displaced item can run a __del__ that
+            // empties the collection, and a link made after that would pin a non-member.
+            for (auto& item : result) {
+                link_child(self, item);
+            }
             // Anything the slice displaced is no longer a member -- drop its parent link.
             for (auto& old_item : previous) {
                 if (!contains_ptr(result, old_item.get())) {
                     unlink_child(old_item);
                 }
-            }
-            for (auto& item : result) {
-                link_child(self, item);
             }
 
 
