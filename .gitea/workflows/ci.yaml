@@ -2,15 +2,17 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: ["**"]
   pull_request:
     branches: [master]
 
 # Every job starts from a plain checkout: `make deps` shallow-inits the
 # submodules it needs and builds SFML, libtcod and CPython into __lib/
-# (cached on the submodule pins + build scripts). Tests run under Xvfb -- the
-# SFML build opens an X display even with --headless -- with OpenAL's null
-# backend standing in for an audio device.
+# (cached on the submodule pins + build scripts). Tests need an X display -- the
+# SFML build opens one even with --headless -- so `run_tests.py -j N` starts N
+# private Xvfb servers itself (no outer xvfb-run), with OpenAL's null backend
+# standing in for an audio device. Jobs run on the `ffwf-k8s` runner: a fresh
+# Ubuntu 24.04 container per job, 10 CPUs, no docker daemon, egress on 80/443 only.
 
 env:
   ALSOFT_DRIVERS: "null"
@@ -23,7 +25,7 @@ env:
 jobs:
   # Source-only gates: no dependency build, runs in seconds.
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ffwf-k8s
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,7 +37,7 @@ jobs:
         run: ./tools/check_frozen_docstrings.sh
 
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: ffwf-k8s
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -62,7 +64,7 @@ jobs:
         run: make linux
 
       - name: Run tests (Release)
-        run: cd tests && xvfb-run -a -s "-noreset" python3 run_tests.py -v
+        run: cd tests && python3 run_tests.py -v -j 8
 
       - name: Test run left the tree clean
         run: |
@@ -73,7 +75,7 @@ jobs:
           fi
 
   debug-test:
-    runs-on: ubuntu-latest
+    runs-on: ffwf-k8s
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -101,10 +103,10 @@ jobs:
           ls __lib_debug/libpython3.*d.so.1.0 >/dev/null 2>&1 || make python-debug
 
       - name: Build and test (debug Python)
-        run: xvfb-run -a -s "-noreset" make debug-test
+        run: make debug-test TEST_JOBS=8
 
   asan-test:
-    runs-on: ubuntu-latest
+    runs-on: ffwf-k8s
     if: github.event_name == 'pull_request'
     steps:
       - name: Checkout
@@ -133,10 +135,10 @@ jobs:
           ls __lib_debug/libpython3.*d.so.1.0 >/dev/null 2>&1 || make python-debug
 
       - name: Build and test (ASan + UBSan)
-        run: xvfb-run -a -s "-noreset" make asan-test
+        run: make asan-test TEST_JOBS=8
 
   valgrind-test:
-    runs-on: ubuntu-latest
+    runs-on: ffwf-k8s
     if: github.event_name == 'pull_request'
     steps:
       - name: Checkout
@@ -165,5 +167,5 @@ jobs:
           ls __lib_debug/libpython3.*d.so.1.0 >/dev/null 2>&1 || make python-debug
 
       - name: Build and test (Valgrind memcheck)
-        run: xvfb-run -a -s "-noreset" make valgrind-test
+        run: make valgrind-test TEST_JOBS=8
         timeout-minutes: 30

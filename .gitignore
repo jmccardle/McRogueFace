@@ -100,3 +100,6 @@ docs/MCROGUFACE_LITE_PICOCALC_RESEARCH.md
 docs/3D_SYSTEM_GUIDE.md
 docs/PROCEDURAL_GENERATION_SPEC.md
 # <<< generated-docs <<<
+
+# scratch working directories of `tests/run_tests.py -j N`
+/.test-worker-*/
