@@ -830,6 +830,12 @@ static PyObject* close_hook_entry = nullptr;
 
 static int register_close_hook()
 {
+#ifdef __EMSCRIPTEN__
+    // The web build is single-threaded and its curated stdlib (wasm_stdlib/) has no
+    // threading module: no other thread can wait in mcrfpy.lock(), so there is no lock
+    // to close at exit and nothing to register.
+    return 0;
+#endif
     mcrf::PyRef threading_mod(PyImport_ImportModule("threading"));
     if (!threading_mod) return -1;
     mcrf::PyRef lst(PyObject_GetAttrString(threading_mod.get(), "_threading_atexits"));
@@ -859,6 +865,9 @@ static int register_close_hook()
 
 int McRFPy_API::keepShutdownHookFirst()
 {
+#ifdef __EMSCRIPTEN__
+    return 0;   // no close hook in the single-threaded web build (see register_close_hook)
+#endif
     if (!threading_atexits || !close_hook_entry) {
         PyErr_SetString(PyExc_RuntimeError, "mcrfpy: the shutdown hook is not registered");
         return -1;
