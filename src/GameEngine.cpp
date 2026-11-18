@@ -498,8 +498,11 @@ static void emscriptenMainLoopCallback(void* arg) {
 void GameEngine::exitForPendingSystemExit()
 {
     McRFPy_API::raisePendingExit();
-    PyErr_Print();  // SystemExit: runs atexit (the #468 release included), finalizes, exits
-    std::_Exit(1);  // unreachable: PyErr_Print() on SystemExit never returns
+    // PyErr_Print() on SystemExit runs atexit (the #468 release included), finalizes and
+    // exits the process. In inspect mode (-i) CPython instead prints it and carries on --
+    // that is what a top-level sys.exit() does there, and so does a callback's: we return
+    // and the loop continues. Never _Exit() here: this is a user-reachable path.
+    PyErr_Print();
 }
 
 void GameEngine::run()
@@ -1022,6 +1025,7 @@ void GameEngine::sUserInput()
         if (filterDevInput(event)) continue;
 
         processEvent(event);
+        if (McRFPy_API::exitPending()) return;  // #557: no more events once a handler asked to exit
     }
 }
 

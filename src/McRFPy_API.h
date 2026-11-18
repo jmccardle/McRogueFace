@@ -140,6 +140,11 @@ public:
     static bool deferSystemExit();   // true if the pending error was a SystemExit taken (or dropped)
     static bool exitPending();
     static void raisePendingExit();  // sets the recorded SystemExit as the current error
+    // For a binding that dispatched callbacks synchronously for its Python caller
+    // (step(), advance(), Grid.step(), Scene.activate(), the current_scene setter): if one
+    // asked to exit, set it as the current error and return true (the binding returns
+    // NULL / -1), so it comes out of the call into the caller's own code like any raise.
+    static bool propagatePendingExit();
 
     static void signalPythonException();  // Called by exception handlers
     static bool shouldExit();             // Checked by game loop

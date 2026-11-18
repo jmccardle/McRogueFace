@@ -468,7 +468,7 @@ static PyMethodDef mcrfpyMethods[] = {
                    "render and input.")
          MCRF_ARGS_START
          MCRF_ARG("dt", "Time to advance in seconds, finite and >= 0. If None, advances to the next scheduled event (timer/animation).")
-         MCRF_RETURNS("float: Actual time advanced in seconds. Returns 0.0 in windowed mode.")
+         MCRF_RETURNS("float: Actual time advanced in seconds. Returns 0.0 in windowed mode (when called outside a frame).")
          MCRF_NOTE("Rendering is deliberately excluded: it is orthogonal to the clock and costs "
                    "zero simulation time, so a screenshot draws arbitrary state without time "
                    "passing. In windowed mode this is a no-op returning 0.0. Timers run on "
@@ -489,9 +489,18 @@ static PyMethodDef mcrfpyMethods[] = {
                    "mcrfpy.lock(). Advancing a frame from inside the lock re-enters the frame "
                    "the lock synchronises with, which cannot complete until the caller releases. "
                    "Inside the lock, mutate only. (lock() is a no-op on the thread that drives "
-                   "the clock, so this cannot fire from script init or a timer callback.)")
+                   "the clock, so this cannot fire on it.)")
+         MCRF_RAISES("RuntimeError", "Called from inside a running frame -- a timer, animation, "
+                   "input, scene or behaviour callback, headless or windowed (the message says a "
+                   "frame is already in progress). A frame cannot be re-entered (#551). In windowed "
+                   "mode this used to return 0.0.")
          MCRF_RAISES("RuntimeError", "Called from a thread that does not drive the simulation "
                    "clock. The first thread to run a frame owns the clock until it exits (#411).")
+         MCRF_NOTE("sys.exit() raised in a callback during the frame does not finalize the "
+                   "interpreter mid-frame: the frame stops dispatching and unwinds, and step() "
+                   "re-raises the SystemExit to its caller (#557). If a background thread drives "
+                   "the clock, that caller is the thread, and, as for any SystemExit outside the "
+                   "main thread, it only ends that thread.")
          MCRF_LINK("docs/frame-lock.md", "The frame barrier: rules, budget, and failure modes")
      )},
     {"advance", McRFPy_API::_advance, METH_VARARGS,
@@ -516,7 +525,9 @@ static PyMethodDef mcrfpyMethods[] = {
                    "The 'runtime' key is wall clock and is unrelated to simulated time.")
          MCRF_RAISES("OverflowError", "ms would carry the clock past its int-millisecond range")
          MCRF_RAISES("RuntimeError", "Called from a background thread that currently holds "
-                   "mcrfpy.lock(), or from a thread that does not drive the clock; see step().")
+                   "mcrfpy.lock(), from a thread that does not drive the clock, or from inside a "
+                   "running frame (any callback, headless or windowed); see step(). A callback's "
+                   "sys.exit() ends advance() with the SystemExit, as for step().")
          MCRF_LINK("docs/frame-lock.md", "The frame barrier: rules, budget, and failure modes")
      )},
     {"exit", McRFPy_API::_exit, METH_NOARGS,
@@ -771,7 +782,8 @@ PyObject* PyInit_mcrfpy()
 static PyObject* mcrfpy_module_instance = nullptr;
 static bool python_references_released = false;
 // #557 - the SystemExit a callback raised inside a frame, waiting for the frame to unwind.
-// Only the exception value is kept (no traceback: it would pin the frames that must go).
+// Only the exception instance is kept, with its __traceback__ detached (it would pin the
+// frames of the callback that raised it, which must be free before the exit).
 static PyObject* pending_system_exit = nullptr;
 
 static PyObject* mcrfpy_atexit_release(PyObject*, PyObject*)
@@ -2129,6 +2141,7 @@ PyObject* McRFPy_API::_setScene(PyObject* self, PyObject* args) {
 		PyErr_SetString(PyExc_RuntimeError, e.what());
 		return NULL;
 	}
+    if (propagatePendingExit()) return NULL;  // #557
     Py_INCREF(Py_None);
     return Py_None;		
 }
@@ -2225,8 +2238,9 @@ PyObject* McRFPy_API::api_get_animations()
 // instant of the mistake. Fail Early.
 //
 // Note this cannot fire on the clock's owner (#411): mcrfpy.lock() is a no-op there, so
-// the owner never becomes a holder and `with mcrfpy.lock(): mcrfpy.step()` in a script or
-// a timer callback keeps working exactly as before.
+// the owner never becomes a holder and `with mcrfpy.lock(): mcrfpy.step()` in a SCRIPT
+// (outside any frame) keeps working. Inside a timer or other callback step() is refused
+// by the third check below (#551), lock or no lock.
 //
 // #411 - The second check: only the clock's owner may run a frame. Without it a thread
 // that holds nothing could call step() while another thread (or the engine's own loop)
@@ -2868,6 +2882,9 @@ bool McRFPy_API::deferSystemExit() {
     PyObject *type, *value, *tb;
     PyErr_Fetch(&type, &value, &tb);
     PyErr_NormalizeException(&type, &value, &tb);
+    // The instance carries __traceback__ (3.12+), which would keep the callback's frames
+    // (and their locals) alive until the exit; detach it.
+    if (value) PyException_SetTraceback(value, Py_None);
     Py_XDECREF(tb);
     Py_XDECREF(type);
     if (pending_system_exit) {
@@ -2879,6 +2896,12 @@ bool McRFPy_API::deferSystemExit() {
 }
 
 bool McRFPy_API::exitPending() { return pending_system_exit != nullptr; }
+
+bool McRFPy_API::propagatePendingExit() {
+    if (!pending_system_exit) return false;
+    raisePendingExit();
+    return true;
+}
 
 void McRFPy_API::raisePendingExit() {
     PyObject* value = pending_system_exit;

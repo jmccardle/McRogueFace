@@ -254,7 +254,7 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
     // TextureWarning). This can change the cell size, so it comes before anything
     // that reads it.
     if (!grid_data->ensureTextureForDrawing()) {
-        PyErr_Print();
+        mcrf::print_callback_exception();  // the TextureWarning goes through user warnings hooks
         if (McRFPy_API::game && McRFPy_API::game->getConfig().exit_on_exception) {
             McRFPy_API::signalPythonException();
         }

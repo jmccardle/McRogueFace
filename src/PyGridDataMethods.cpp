@@ -1019,11 +1019,17 @@ PyObject* PyGridData::py_step(PyGridDataObject* self, PyObject* args, PyObject* 
                 }
             }
             next_entity:;
+            // #557: a behaviour callback asked to exit: no other entity's callback runs
+            if (McRFPy_API::exitPending()) break;
         }
+        if (McRFPy_API::exitPending()) break;
     }
 
     // #351 - invalidate the view's render early-out once if anything moved.
     if (content_changed) grid->markCompositeDirty();
+
+    // ...and the SystemExit comes out of grid.step() into the callback that called it.
+    if (McRFPy_API::propagatePendingExit()) return NULL;
 
     Py_RETURN_NONE;
 }

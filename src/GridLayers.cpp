@@ -257,7 +257,7 @@ void GridLayer::ensureChunkTexture(int chunk_idx, int cell_width, int cell_heigh
             << cx << ", " << cy << "); drawing it cell by cell, which is much slower. "
             << "Use a smaller cell size or grid.";
         if (PyErr_WarnEx(McRFPy_API::texture_warning, msg.str().c_str(), 1) < 0) {
-            PyErr_Print();
+            mcrf::print_callback_exception();  // a user warnings hook/filter may raise anything
             if (McRFPy_API::game && McRFPy_API::game->getConfig().exit_on_exception) {
                 McRFPy_API::signalPythonException();
             }

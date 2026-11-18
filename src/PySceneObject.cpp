@@ -220,6 +220,7 @@ PyObject* PySceneClass::activate(PySceneObject* self, PyObject* args, PyObject* 
         PyErr_SetString(PyExc_RuntimeError, e.what());
         return NULL;
     }
+    if (McRFPy_API::propagatePendingExit()) return NULL;  // an on_exit/on_enter asked to exit (#557)
 
     Py_RETURN_NONE;
 }
@@ -856,6 +857,7 @@ int McRFPy_API::api_set_current_scene(PyObject* value)
         PyErr_SetString(PyExc_RuntimeError, e.what());
         return -1;
     }
+    if (McRFPy_API::propagatePendingExit()) return -1;  // #557
 
     return 0;
 }

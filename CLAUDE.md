@@ -817,18 +817,35 @@ Gate: `tests/regression/issue_468_exit_teardown_test.py` (markers on every exit 
 no LSan report under `make asan-test`).
 
 **`sys.exit()` in a callback (#557).** It must not finalize under the frame loop's live
-frames. A callback error path that can see `SystemExit` (every user-callback failure inside
-`doFrame()`/`runSimFrame()`) goes through `mcrf::print_callback_exception()` /
-`print_callback_error()`, never a bare `PyErr_Print()`: inside a frame it records the exit
-(`McRFPy_API::deferSystemExit`), the frame stops dispatching (`McRFPy_API::exitPending()`
-checkpoints) and returns, and the exit happens at the top -- `step()`/`advance()` re-raise it
-to their caller, the windowed loop calls `GameEngine::exitForPendingSystemExit()` -- so the
-code, `atexit` and #468 teardown are those of a top-level `sys.exit()`. A new frame phase
-that runs callbacks needs an `exitPending()` check after it. Gate:
-`tests/regression/issue_557_callback_sys_exit_test.py`.
+frames. Every error path of a user callback that runs inside `doFrame()`/`runSimFrame()` --
+this includes `PyErr_WarnEx`, which can run a user `warnings` hook -- goes through
+`mcrf::print_callback_exception()` / `print_callback_error()`, never a bare `PyErr_Print()`
+(a bare one is right only for an engine-side failure that user code cannot cause, such as
+building a callback's argument). Inside a frame that records the `SystemExit`
+(`McRFPy_API::deferSystemExit`; outside a frame it still exits on the spot, as before) and:
+- **stops**: the rest of the frame (`exitPending()` checkpoints between the phases of
+  `doFrame`/`runSimFrame`), further timers and the timer's catch-up loop, animation
+  callbacks, the remaining queued input events in `sUserInput`, the rest of a hover walk,
+  the remaining entities in `Grid.step`, `advance()`'s further frames;
+- **unwinds**, and the exit happens at the top: `step()`/`advance()`, and the bindings that
+  dispatch synchronously for their caller (`Grid.step`, `Scene.activate()`, the
+  `current_scene` setter; helper `McRFPy_API::propagatePendingExit()`), re-raise the
+  `SystemExit` into the caller's Python code, where it propagates like any raise; the windowed
+  loop calls `GameEngine::exitForPendingSystemExit()`. Code, stderr text and `atexit`/#468
+  order are those of a top-level `sys.exit()`; under `-i` CPython prints it and carries on, so
+  does this (never `_Exit` on a user-reachable path);
+- **may still run**: the remainder of the callback that dispatched through something that
+  does not re-raise (`automation.*` event injection, and any other binding not listed above) -- it
+  finishes, then the frame unwinds -- and callbacks already past their checkpoint. A new
+  frame phase or dispatch loop needs an `exitPending()` check, and a new synchronous binding
+  that dispatches callbacks should end with `propagatePendingExit()`.
+A `SystemExit` re-raised out of `step()` on a background thread that drives the clock (#411)
+ends only that thread (Python's rule for `SystemExit` off the main thread); it does not exit
+the process. Gate: `tests/regression/issue_557_callback_sys_exit_test.py`.
 
 **Frames do not nest (#551).** `step()`/`advance()` from inside any callback raise
-`RuntimeError` (`GameEngine::inFrame()`, checked once in `frameAdvanceAllowed`).
+`RuntimeError`, windowed as well (it used to return 0.0 there): `GameEngine::inFrame()`,
+checked once in `frameAdvanceAllowed`.
 
 **Shutdown closes the frame lock (#556).** CPython joins non-daemon threads before the
 `atexit` handlers run, so the lock is closed by a hook registered with
