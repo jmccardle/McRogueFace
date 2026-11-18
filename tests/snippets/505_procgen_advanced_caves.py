@@ -1,10 +1,10 @@
+# mcrf: objects=[BSP,Caption,Color,ColorLayer,Grid,HeightMap,NoiseSource,Scene] verified=0.3.6-dev status=ok
 """Advanced: Natural Cave System
 
-Combines: Noise (cave formation) + Threshold (open areas) + Kernel (smoothing) + BSP (structured areas)
+Combines: Noise (cave formation) + Threshold (open areas) + Sparse kernel (smoothing) + BSP (structured areas)
 Creates organic cave networks with some structured rooms.
 """
 import mcrfpy
-from mcrfpy import automation
 
 GRID_WIDTH, GRID_HEIGHT = 64, 48
 CELL_SIZE = 16
@@ -18,8 +18,9 @@ def run_demo(runtime):
     cave_noise.normalize(0.0, 1.0)
 
     # Step 2: Create cave mask via threshold
-    # Values > 0.45 become open cave, rest is rock
-    cave_mask = cave_noise.threshold_binary((0.4, 1.0), 1.0)
+    # Turbulence noise piles up near 1.0 (a threshold of 0.4 leaves ~90% of the map open),
+    # so values >= 0.75 become open cave (about half the map), rest is rock
+    cave_mask = cave_noise.threshold_binary((0.75, 1.0), 1.0)
 
     # Step 3: Apply smoothing kernel to remove isolated pixels
     smooth_kernel = {
@@ -27,7 +28,8 @@ def run_demo(runtime):
         (-1,  0): 2, (0,  0): 4, (1,  0): 2,
         (-1,  1): 1, (0,  1): 2, (1,  1): 1,
     }
-    cave_mask.kernel_transform(smooth_kernel)
+    # sparse_kernel returns a NEW HeightMap
+    cave_mask = cave_mask.sparse_kernel(smooth_kernel)
     cave_mask.normalize(0.0, 1.0)
 
     # Re-threshold after smoothing
@@ -35,15 +37,20 @@ def run_demo(runtime):
 
     # Step 4: Add some structured rooms using BSP in one corner
     # This represents ancient ruins within the caves
-    bsp = mcrfpy.BSP(pos=(GRID_WIDTH - 22, GRID_HEIGHT - 18), size=(18, 14))
+    # to_heightmap draws relative to the BSP's own origin, so lay the ruins out at (0, 0)
+    # and copy that block into the corner of a full-size map.
+    ruins_origin = (GRID_WIDTH - 22, GRID_HEIGHT - 18)
+    bsp = mcrfpy.BSP(pos=(0, 0), size=(18, 14))
     bsp.split_recursive(depth=2, min_size=(6, 5), seed=42)
 
-    ruins_hmap = bsp.to_heightmap(
-        size=(GRID_WIDTH, GRID_HEIGHT),
+    ruins_block = bsp.to_heightmap(
+        size=(18, 14),
         select='leaves',
         shrink=1,
         value=1.0
     )
+    ruins_hmap = mcrfpy.HeightMap((GRID_WIDTH, GRID_HEIGHT), fill=0.0)
+    ruins_hmap.copy_from(ruins_block, pos=ruins_origin)
 
     # Step 5: Combine caves and ruins
     combined = mcrfpy.HeightMap((GRID_WIDTH, GRID_HEIGHT), fill=0.0)
@@ -107,7 +114,7 @@ def run_demo(runtime):
                     ))
                 elif in_ruins and ruins_hmap.get((x, y)) > 0.5:
                     # Ruins floor (worked stone)
-                    base = 85 + ((x + y) % 3) * 5
+                    base = 125 + ((x + y) % 3) * 6
                     color_layer.set(((x, y)), mcrfpy.Color(base + 10, base + 5, base))
                 else:
                     # Natural cave floor
@@ -150,14 +157,11 @@ grid = mcrfpy.Grid(
     layers={}
 )
 grid.fill_color = mcrfpy.Color(0, 0, 0)
-color_layer = grid.add_layer("color", z_index=-1)
+color_layer = mcrfpy.ColorLayer(z_index=-1, name="color")
+grid.add_layer(color_layer)
 scene.children.append(grid)
 
 scene.activate()
 
 # Run the demo
 run_demo(0)
-
-# Take screenshot
-automation.screenshot("procgen_33_advanced_caves.png")
-print("Screenshot saved: procgen_33_advanced_caves.png")

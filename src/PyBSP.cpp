@@ -341,6 +341,7 @@ PyMethodDef PyBSP::methods[] = {
          MCRF_ARG("horizontal", "True for horizontal divider (top/bottom), False for vertical (left/right)")
          MCRF_ARG("position", "Split coordinate (y for horizontal, x for vertical)")
          MCRF_RETURNS("BSP: self, for method chaining")
+         MCRF_RAISES("ValueError", "position is not strictly inside the root's extent (x < position < x + w for a vertical split, y < position < y + h for a horizontal one), so a child would be empty; the tree is left unchanged")
      )},
     {"split_recursive", (PyCFunction)PyBSP::split_recursive, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(BSP, split_recursive,
@@ -632,6 +633,14 @@ PyObject* PyBSP::split_once(PyBSPObject* self, PyObject* args, PyObject* kwds)
             PyErr_Format(PyExc_ValueError,
                 "position %d is too far from the BSP's %s edge: the child sizes must fit in a C int",
                 position, horizontal ? "y" : "x");
+            return nullptr;
+        }
+        // Both children must be non-empty: lo < position < lo + extent (#540).
+        if (first < 1 || second < 1) {
+            PyErr_Format(PyExc_ValueError,
+                "%s split position %d is outside the node's extent: must be in %lld..%lld "
+                "(both children non-empty)",
+                horizontal ? "horizontal (y)" : "vertical (x)", position, lo + 1, lo + extent - 1);
             return nullptr;
         }
     }

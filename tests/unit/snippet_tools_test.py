@@ -91,6 +91,32 @@ check(rules("import mcrfpy\nmcrfpy.exit()\n") == ["R2"], "mcrfpy.exit() is R2 (a
 check(rules("from mcrfpy import automation\n") == ["R3"], "importing automation is R3")
 check(rules("import mcrfpy\nmcrfpy.automation.screenshot('x')\n") == ["R3", "R4"],
       "mcrfpy.automation use is R3 (and not in the manifest, R4)")
+# exit inside a function body is handler code (allowed); at module level, in a class body, a
+# decorator or a default value it runs at import (still R2)
+check(rules("import sys\ndef quit_now():\n    sys.exit(0)\n") == [], "sys.exit inside a def is allowed")
+check(rules("import mcrfpy\ndef f():\n    mcrfpy.exit()\n") == [], "mcrfpy.exit() inside a def is allowed")
+check(rules("import sys\nclass A:\n    def m(self):\n        sys.exit(0)\n") == [], "sys.exit inside a method is allowed")
+check(rules("import sys\nf = lambda: sys.exit(0)\n") == [], "sys.exit inside a lambda is allowed")
+check(rules("import sys\ndef f():\n    def g():\n        exit()\n") == [], "exit inside a nested def is allowed")
+check(rules("import sys\nclass A:\n    sys.exit(0)\n") == ["R2"], "sys.exit in a class body is R2")
+check(rules("import sys\ndef f(x=sys.exit(0)):\n    pass\n") == ["R2"], "sys.exit in a default value is R2")
+check(rules("import sys\n@sys.exit\ndef f():\n    pass\n") == ["R2"], "sys.exit as a decorator is R2")
+check(rules("import sys\nif True:\n    sys.exit(0)\n") == ["R2"], "sys.exit in a module-level if is R2")
+check(rules("import sys\ndef f():\n    pass\nsys.exit(0)\n") == ["R2"], "module-level exit after a def is R2")
+# automation opt-in: an explicit header marker, nothing else
+MARK = "# snippet: allow-automation\n"
+check(rules('"""Doc."""\n' + MARK + "from mcrfpy import automation\nautomation.screenshot('x')\n") == [],
+      "allow-automation after the docstring allows automation")
+check(rules(MARK + "import mcrfpy\nmcrfpy.automation.screenshot('x')\n") == [],
+      "allow-automation also lets mcrfpy.automation through R4")
+check(rules("import mcrfpy\n" + MARK + "from mcrfpy import automation\n") == ["R3"],
+      "the marker after the first statement is not a header: R3")
+check(rules("from mcrfpy import automation\n" + MARK) == ["R3"], "the marker below the code is R3")
+check(rules("# snippet: allow-automation please\nfrom mcrfpy import automation\n") == ["R3"],
+      "a marker with extra text is not the marker")
+check(rules("# snippet: allow-automation\nimport sys\nsys.exit(0)\n") == ["R2"],
+      "allow-automation does not allow a module-level exit")
+check(rules(MARK + "import mcrfpy\nmcrfpy.Nope()\n") == ["R4"], "allow-automation does not weaken R4 for other names")
 check(rules("import mcrfpy\nmcrfpy.setTimer('a', None, 1)\n") == ["R4"], "unknown mcrfpy name is R4")
 check(rules("import mcrfpy\nmcrfpy.Animation(1)\n") == ["R4"], "mcrfpy.Animation (not exported) is R4")
 check(rules("from mcrfpy import Frame, Nope\n") == ["R4"], "from mcrfpy import <unknown> is R4")
