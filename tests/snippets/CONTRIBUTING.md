@@ -193,8 +193,10 @@ Each of these 20 scripts builds a scene, then ends with `automation.screenshot(.
 ## Must not
 
 * Wrap anything in `try`/`except`, use `contextlib.suppress`, or reference `SystemExit`.
-* Add `exit()`, `sys.exit()`, `mcrfpy.exit()`, `atexit`, `automation.`, `open(` or network/file
-  modules; hide names (`import mcrfpy as m`, `from mcrfpy import x as y`, `getattr(mcrfpy, ...)`,
+* Add a module-level `exit()`, `sys.exit()`, `mcrfpy.exit()` (inside a `def` or `lambda` body
+  it is handler code the harness never runs at import, and is allowed; a class body, a
+  decorator or a default value runs at import and is not), `atexit`, `automation.` (see the
+  opt-in below), `open(` or network/file modules; hide names (`import mcrfpy as m`, `from mcrfpy import x as y`, `getattr(mcrfpy, ...)`,
   assigning to `mcrfpy.Something`); use dead-code blocks (`if False:`); write the words
   `SNIPPET_OK` / `SHOT_OK` anywhere.
 * Write stubs, `pass` bodies, or "TODO"s to make something run; delete a function or class to
@@ -205,6 +207,24 @@ Each of these 20 scripts builds a scene, then ends with `automation.screenshot(.
 * Run the full-corpus check (`stamp_snippets.py --check` with no `--only`): the orchestrator
   does that once. Use `--only` with your own numbers.
 * Skip a step of the gate, or report a file as done when the gate did not say so.
+
+### Opt-in: a snippet that teaches screenshots
+
+`automation` is a test API, so it is an error by default. A snippet whose *subject* is taking
+screenshots may say so with one explicit marker line in its header, after the docstring and
+before the first statement:
+
+```python
+"""Taking a screenshot ..."""
+# snippet: allow-automation
+import mcrfpy
+from mcrfpy import automation
+```
+
+The marker allows `automation` (and `mcrfpy.automation`) in that file and nothing else: a
+module-level exit, an unknown `mcrfpy.X` or any other rule still fails. It is per snippet and
+is never inferred from a file name. Do not add it to make a snippet pass; only where
+screenshots are what the reader is learning.
 
 ## Stop and report (do not work around)
 

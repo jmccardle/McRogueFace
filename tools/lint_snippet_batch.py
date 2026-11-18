@@ -31,8 +31,14 @@ WHAT A BATCH MAY CHANGE (anything else is a violation, R8)
 
 RULES, on lines the batch added (every line, for a new file):
   R1  try/except
-  R2  exit()/quit()/sys.exit()/os._exit()/mcrfpy.exit()/builtins.exit, even as a bare reference
-  R3  `automation`
+  R2  exit()/quit()/sys.exit()/os._exit()/mcrfpy.exit()/builtins.exit, even as a bare reference.
+      Allowed inside a function or lambda BODY: that is handler code the harness never runs at
+      import (a def's decorators and default values still run at import, so still count).
+      A module-level exit, or one in a class body outside any function, stays an error.
+  R3  `automation`. Allowed in a snippet whose header carries the opt-in marker line
+      `# snippet: allow-automation` (a comment before the first statement after the docstring),
+      for the snippets whose subject is taking screenshots. `mcrfpy.automation` then also
+      passes R4, since the manifest does not list modules.
   R7  hiding names from the manifest check: `import mcrfpy as X`, `from mcrfpy import a as b`,
       `from mcrfpy import *`, `m = mcrfpy`, getattr/setattr/delattr/vars on mcrfpy, sys, os or
       builtins, assigning to or deleting an mcrfpy name that is not a module attribute,
@@ -76,6 +82,7 @@ HEADER_RE = re.compile(r"^\s*#\s*mcrf:")
 DOC_PAGE_RE = re.compile(r"/cookbook/(\w+)")
 EXIT_NAMES = {"exit", "quit"}
 WATCHED_MODULES = {"mcrfpy", "sys", "os", "builtins"}
+ALLOW_AUTOMATION_RE = re.compile(r"^\s*#\s*snippet:\s*allow-automation\s*$")
 HARNESS_STRINGS = ("SNIPPET_OK", "SNIPPET_FAIL", "SHOT_OK", "SHOT_FAIL")
 IO_MODULES = {"socket", "ssl", "urllib", "http", "requests", "ftplib", "smtplib",
               "subprocess", "shutil", "pathlib", "tempfile", "glob", "asyncio"}
@@ -182,6 +189,33 @@ def _is_stub(fn):
 
 
 # --- per-file judgement -------------------------------------------------------------------
+def _function_body_nodes(tree):
+    """ids of every node inside a function or lambda body (not its decorators, defaults or
+    annotations, which run when the def statement does)."""
+    inside = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            roots = node.body
+        elif isinstance(node, ast.Lambda):
+            roots = [node.body]
+        else:
+            continue
+        for r in roots:
+            inside.update(id(n) for n in ast.walk(r))
+    return inside
+
+
+def allows_automation(tree, lines):
+    """True when the header has the `# snippet: allow-automation` line: before the first
+    statement that is not the module docstring."""
+    body = list(tree.body)
+    if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) \
+            and isinstance(body[0].value.value, str):
+        body = body[1:]
+    limit = body[0].lineno if body else len(lines) + 1
+    return any(ALLOW_AUTOMATION_RE.match(t) for t in lines[:limit - 1])
+
+
 def lint_source(new, old=None, known=frozenset(), before_defs_src=None,
                 settable=frozenset(), warnings=None):
     """Return a sorted list of (line, rule, message) for one NEW or converted snippet.
@@ -200,6 +234,8 @@ def lint_source(new, old=None, known=frozenset(), before_defs_src=None,
         return [(e.lineno or 1, "syntax", f"does not parse: {e.msg}")]
     added = added_lines(old, new)
     lines = new.splitlines()
+    in_function = _function_body_nodes(tree)
+    automation_ok = allows_automation(tree, lines)
 
     for i, text in enumerate(lines, start=1):
         if i in added:
@@ -214,7 +250,7 @@ def lint_source(new, old=None, known=frozenset(), before_defs_src=None,
 
         # whole-file rule R4
         if isinstance(node, ast.Attribute) and _name_of(node.value) == "mcrfpy" \
-                and node.attr not in known:
+                and node.attr not in known and not (automation_ok and node.attr == "automation"):
             out.append((line, "R4", f"mcrfpy.{node.attr} is not in api/manifest.json"))
         if isinstance(node, ast.ImportFrom) and node.module == "mcrfpy":
             for a in node.names:
@@ -226,9 +262,9 @@ def lint_source(new, old=None, known=frozenset(), before_defs_src=None,
 
         if isinstance(node, ast.Try) or type(node).__name__ == "TryStar":
             out.append((line, "R1", "try/except is not allowed: a snippet must fail loudly"))
-        if _is_exit_reference(node):
+        if _is_exit_reference(node) and id(node) not in in_function:
             out.append((line, "R2", "exit/quit/sys.exit is not allowed in a snippet"))
-        if _mentions_automation(node):
+        if _mentions_automation(node) and not automation_ok:
             out.append((line, "R3", "automation is a test API; a reader's game does not call it"))
 
         # R7: hiding or rewriting names
