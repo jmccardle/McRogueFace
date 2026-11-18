@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 TOOLS = os.path.join(ROOT, "tools")
@@ -176,6 +177,15 @@ def make_repo(files):
     write_files(d, files)
     git(d, "add", "-A")
     git(d, "commit", "-q", "-m", "base")
+    # A case edits a file right after this commit. If the edit lands in the same
+    # timestamp tick as the commit and keeps the size ("c\n" -> "d\n"), git's stat cache
+    # can call it unchanged, and the linter sees no diff -- seen once under heavy CI
+    # load (goblin task 2020). Backdate the committed files and refresh the index, so
+    # any later write has a different mtime than the one the index recorded.
+    old = time.time() - 60
+    for rel in files:
+        os.utime(os.path.join(d, rel), (old, old))
+    git(d, "update-index", "-q", "--refresh")
     return d
 
 
