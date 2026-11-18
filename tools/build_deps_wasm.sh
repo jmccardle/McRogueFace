@@ -29,9 +29,17 @@ cd "$PROJECT_ROOT"
 git submodule update --init --depth 1 modules/SFML modules/libtcod-headless modules/cpython
 git -C modules/libtcod-headless submodule update --init --depth 1 src/vendor/utf8proc
 
+# --- deps/ include links ----------------------------------------------------
+# CMakeLists.txt finds the wasm CPython build and the libtcod headers through
+# deps/, which tools/build_deps.sh links for the native build. A web-only
+# checkout (CI's web job) never runs that, so link the ones the web build reads.
+mkdir -p deps
+ln -sfn ../modules/cpython deps/cpython
+ln -sfn ../modules/cpython/Include deps/Python
+ln -sfn ../modules/libtcod-headless/src/libtcod deps/libtcod
+
 # --- stb_image.h ------------------------------------------------------------
 # The copy SFML vendors, which the desktop build already decodes images with.
-mkdir -p deps
 ln -sfn ../modules/SFML/extlibs/headers/stb_image deps/stb
 [ -f deps/stb/stb_image.h ] || { echo "ERROR: deps/stb/stb_image.h missing" >&2; exit 1; }
 
