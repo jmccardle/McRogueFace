@@ -284,6 +284,10 @@ public:
     static PyObject* TileLayer_fill_rect(PyTileLayerObject* self, PyObject* args, PyObject* kwds);
     static PyObject* TileLayer_apply_threshold(PyTileLayerObject* self, PyObject* args, PyObject* kwds);
     static PyObject* TileLayer_apply_ranges(PyTileLayerObject* self, PyObject* args);
+    // #550: the bodies, without the TerminalLayer dispatch (TerminalLayer's apply_* run them
+    // against a scratch copy of its tiles)
+    static PyObject* TileLayer_apply_threshold_impl(PyTileLayerObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* TileLayer_apply_ranges_impl(PyTileLayerObject* self, PyObject* args);
     static PyObject* TileLayer_get_z_index(PyTileLayerObject* self, void* closure);
     static int TileLayer_set_z_index(PyTileLayerObject* self, PyObject* value, void* closure);
     static PyObject* TileLayer_get_visible(PyTileLayerObject* self, void* closure);

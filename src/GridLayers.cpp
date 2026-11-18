@@ -15,6 +15,12 @@
 #include "PythonObjectCache.h"
 #include <sstream>
 
+// #550: a TerminalLayer's cells are its terminal's. TileLayer's writers, called on one (also
+// unbound: mcrfpy.TileLayer.set(term, ...)), do what the TerminalLayer's own methods do.
+static bool is_terminal(PyTileLayerObject* self) {
+    return PyObject_TypeCheck(reinterpret_cast<PyObject*>(self), &mcrfpydef::PyTerminalLayerType);
+}
+
 // #562: a chunk is painted into a transparent RenderTexture with kCachePaintBlend, then
 // composited onto the target with kPremultipliedBlend (see Common.h).
 
@@ -2139,6 +2145,7 @@ PyObject* PyGridLayerAPI::TileLayer_at(PyTileLayerObject* self, PyObject* args, 
         return NULL;
     }
 
+    self->data->prepareRead();  // #550: a TerminalLayer refreshes from its emulator
     return PyLong_FromLong(self->data->at(x, y));
 }
 
@@ -2170,6 +2177,7 @@ static bool TileIndexToInt(long long value, int* out) {
 }
 
 PyObject* PyGridLayerAPI::TileLayer_set(PyTileLayerObject* self, PyObject* args) {
+    if (is_terminal(self)) return TerminalLayerAPI::py_set((PyObject*)self, args);
     PyObject* pos_obj;
     int index;
     if (!PyArg_ParseTuple(args, "Oi", &pos_obj, &index)) {
@@ -2222,10 +2230,12 @@ PyObject* PyGridLayerAPI::TileLayer_subscript(PyTileLayerObject* self, PyObject*
         return NULL;
     }
 
+    self->data->prepareRead();  // #550
     return PyLong_FromLong(self->data->at(x, y));
 }
 
 int PyGridLayerAPI::TileLayer_subscript_assign(PyTileLayerObject* self, PyObject* key, PyObject* value) {
+    if (is_terminal(self)) return TerminalLayerAPI::py_ass_subscript((PyObject*)self, key, value);
     if (!self->data) {
         PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
         return -1;
@@ -2276,6 +2286,7 @@ PyMappingMethods PyGridLayerAPI::TileLayer_mapping_methods = {
 };
 
 PyObject* PyGridLayerAPI::TileLayer_fill(PyTileLayerObject* self, PyObject* args) {
+    if (is_terminal(self)) return TerminalLayerAPI::py_fill((PyObject*)self, args);
     int index;
     if (!PyArg_ParseTuple(args, "i", &index)) {
         return NULL;
@@ -2292,6 +2303,7 @@ PyObject* PyGridLayerAPI::TileLayer_fill(PyTileLayerObject* self, PyObject* args
 }
 
 PyObject* PyGridLayerAPI::TileLayer_fill_rect(PyTileLayerObject* self, PyObject* args, PyObject* kwds) {
+    if (is_terminal(self)) return TerminalLayerAPI::py_fill_rect((PyObject*)self, args, kwds);
     static const char* kwlist[] = {"pos", "size", "index", NULL};
     PyObject* pos_obj;
     PyObject* size_obj;
@@ -2321,6 +2333,16 @@ PyObject* PyGridLayerAPI::TileLayer_fill_rect(PyTileLayerObject* self, PyObject*
 }
 
 PyObject* PyGridLayerAPI::TileLayer_apply_threshold(PyTileLayerObject* self, PyObject* args, PyObject* kwds) {
+    if (is_terminal(self)) return TerminalLayerAPI::py_apply_threshold((PyObject*)self, args, kwds);
+    return TileLayer_apply_threshold_impl(self, args, kwds);
+}
+
+PyObject* PyGridLayerAPI::TileLayer_apply_ranges(PyTileLayerObject* self, PyObject* args) {
+    if (is_terminal(self)) return TerminalLayerAPI::py_apply_ranges((PyObject*)self, args);
+    return TileLayer_apply_ranges_impl(self, args);
+}
+
+PyObject* PyGridLayerAPI::TileLayer_apply_threshold_impl(PyTileLayerObject* self, PyObject* args, PyObject* kwds) {
     static const char* kwlist[] = {"source", "range", "tile", NULL};
     PyObject* source_obj;
     PyObject* range_obj;
@@ -2396,7 +2418,7 @@ PyObject* PyGridLayerAPI::TileLayer_apply_threshold(PyTileLayerObject* self, PyO
     return (PyObject*)self;
 }
 
-PyObject* PyGridLayerAPI::TileLayer_apply_ranges(PyTileLayerObject* self, PyObject* args) {
+PyObject* PyGridLayerAPI::TileLayer_apply_ranges_impl(PyTileLayerObject* self, PyObject* args) {
     PyObject* source_obj;
     PyObject* ranges_obj;
 
@@ -2574,6 +2596,7 @@ PyObject* PyGridLayerAPI::TileLayer_get_texture(PyTileLayerObject* self, void* c
 }
 
 int PyGridLayerAPI::TileLayer_set_texture(PyTileLayerObject* self, PyObject* value, void* closure) {
+    if (is_terminal(self)) return TerminalLayerAPI::py_set_texture((PyObject*)self, value);
     if (!self->data) {
         PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
         return -1;

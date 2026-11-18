@@ -286,7 +286,7 @@ class Texture:
         ...
 
     def is_wide(self, codepoint: Union[str, int]) -> bool:
-        """EXPERIMENTAL. Whether the codepoint is East Asian Wide/Fullwidth (two tiles). Codepoint-only."""
+        """EXPERIMENTAL. Whether the codepoint takes two terminal cells (two tiles), by libghostty-vt's width rule. Codepoint-only."""
         ...
 
     missing: Optional[List[int]]            # Read-only
@@ -924,15 +924,15 @@ class TerminalLayer(TileLayer):
     set/fill/fill_rect/layer[x, y] = i/apply_* print the tile's glyph; edit() is read-only.
     """
 
-    def __init__(self, name: Optional[str] = None, z_index: int = -1, *,
-                 texture: Texture,
+    def __init__(self, name: Optional[str] = None, z_index: int = -1,
+                 texture: Optional[Texture] = None,
                  grid_size: Optional[Tuple[int, int]] = None,
                  grid: Optional['Grid'] = None,
                  scrollback: int = 1000,
                  on_output: Optional[Callable[[bytes], Any]] = None) -> None: ...
 
     on_output: Optional[Callable[[bytes], Any]]   # replies to queries, and encoded input
-    texture: Texture                    # must come from Texture.from_font
+    texture: Texture                    # from Texture.from_font; None assigns the shared default atlas
     title: str                          # Read-only
     cursor: Optional[Tuple[int, int]]   # Read-only; None when not in the viewport
     cursor_style: str                   # Read-only: 'block', 'bar', 'underline', 'block_hollow'

@@ -7,7 +7,9 @@ premultiplied (#562), so an opaque pixel reads back exactly. Glyph shapes are co
 same atlas tile drawn by a plain TileLayer in the same scene, or by coverage relations (bold
 faked by a second draw 1 px right covers the regular glyph and its shift).
 """
+import atexit
 import os
+import shutil
 import sys
 import tempfile
 
@@ -18,6 +20,7 @@ from mcrfpy import automation  # noqa: E402
 
 errors = []
 TMP = tempfile.mkdtemp(prefix="mcrf550_")
+atexit.register(shutil.rmtree, TMP, True)
 
 
 def test(name, cond, msg=""):
@@ -324,6 +327,20 @@ img = shot()
 off_px = cell_px(img, 2, 1, *MID)
 test("a blinking cursor follows the blink phase", on_px == (255, 255, 255) and off_px == BLUE, f"{on_px} {off_px}")
 test("...without repainting chunks", t.chunk_repaints == before, f"{t.chunk_repaints - before}")
+
+# --- the cursor over a cell whose stored tile is not in a smaller, swapped-in atlas ---------------
+print("=== texture swap under the cursor ===")
+t = mcrfpy.TerminalLayer(texture=TEX, grid_size=(6, 2), z_index=-1)
+scene_with(t, 6, 2)
+t.blink_interval = None
+t.write(b"}~\x1b[H")
+shot()
+tiny = mcrfpy.Texture.from_font(FONT, 16, codepoints="}~")
+mcrfpy.TileLayer.texture.__set__(t, tiny)   # the unbound base setter: dispatched to the terminal's
+img = shot()
+test("the block cursor over a re-mapped cell draws (no stale index read)", cell_px(img, 0, 0, 0, 0) == (255, 255, 255),
+     f"{cell_px(img, 0, 0, 0, 0)}")
+test("cells re-mapped to the new atlas", t.at(0, 0) == tiny.index("}") and t.at(1, 0) == tiny.index("~"))
 
 print()
 if errors:

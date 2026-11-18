@@ -21,7 +21,9 @@ GPU driver it is mostly CPU submit time. A step() does not render headless; a sc
 Usage:
   cd build && xvfb-run -a -s "-noreset" ./mcrogueface --headless --exec ../tests/benchmarks/terminal_layer_bench.py
 """
+import atexit
 import os
+import shutil
 import statistics
 import sys
 import tempfile
@@ -32,7 +34,9 @@ from mcrfpy import automation
 
 FRAMES = 40
 WARMUP = 4
-SHOT = os.path.join(tempfile.mkdtemp(prefix="mcrf_termbench_"), "f.png")
+_TMP = tempfile.mkdtemp(prefix="mcrf_termbench_")
+atexit.register(shutil.rmtree, _TMP, True)
+SHOT = os.path.join(_TMP, "f.png")
 FONT = mcrfpy.Font("assets/JetbrainsMono.ttf")
 TEX = mcrfpy.Texture.from_font(FONT, 8, codepoints=[(0x20, 0x7E), (0x2500, 0x259F)])
 CW, CH = TEX.sprite_width, TEX.sprite_height

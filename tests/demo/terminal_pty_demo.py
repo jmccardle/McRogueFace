@@ -69,15 +69,34 @@ window.explorer_key = None
 window.profiler_key = None
 
 
+# The minimal wiring, all of it:
+#     term.on_output = lambda data: os.write(fd, data)      # replies and input -> program
+#     term.write(os.read(fd, 65536))                        # program -> screen (polled)
+#     scene.on_key  = lambda key, state: term.key(key, state)
+#     scene.on_text = lambda text: term.text(text)          # minus the Ctrl/Alt filter below
+
+
+# Keys that type a character (key() sends them only as Ctrl/Alt combinations).
+TEXT_KEYS = {k for k in mcrfpy.Key if len(k.name) == 1 or k.name.startswith("NUM_") or k.name in (
+    "SPACE", "COMMA", "PERIOD", "SLASH", "BACKSLASH", "SEMICOLON", "APOSTROPHE", "GRAVE", "EQUAL",
+    "HYPHEN", "LEFT_BRACKET", "RIGHT_BRACKET")}
+
+
 def on_key(key, state):
+    kb = mcrfpy.keyboard
+    if kb.ctrl and kb.alt and key in TEXT_KEYS:
+        return   # AltGr: the character arrives through on_text
     term.key(key, state)
 
 
 def on_text(text):
-    # A Ctrl/Alt combination was already sent by key(); its text (if the platform reports any)
-    # would be a second copy.
-    if not (mcrfpy.keyboard.ctrl or mcrfpy.keyboard.alt):
-        term.text(text)
+    # key() already sent a Ctrl or Alt combination (Ctrl+C, Alt+x); text the platform also
+    # reports for it would be a second copy. Ctrl and Alt TOGETHER is AltGr on many layouts
+    # (e.g. AltGr+q = @ on a German keyboard): that text is the character the user typed.
+    kb = mcrfpy.keyboard
+    if (kb.ctrl or kb.alt) and not (kb.ctrl and kb.alt):
+        return
+    term.text(text)
 
 
 scene.on_key = on_key

@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <unordered_set>
 
+#include "EastAsianWide.h"
 #include "GameEngine.h"
 #include "GridData.h"
 #include "McRFPy_API.h"
@@ -19,6 +20,7 @@
 #include "PyKey.h"
 #include "PyMouseButton.h"
 #include "PyPositionHelper.h"
+#include "PyFont.h"
 #include "PyTexture.h"
 #include "PyWrap.h"
 #include "Resources.h"
@@ -191,11 +193,6 @@ void TerminalLayer::createTerminal(int cols, int rows) {
         uint64_t limit = 0;
         GhosttyResult r = ghostty_terminal_set(term_, GHOSTTY_TERMINAL_OPT_KITTY_IMAGE_STORAGE_LIMIT, &limit);
         if (r != GHOSTTY_UNSUPPORTED) ck(r, "ghostty_terminal_set(KITTY_IMAGE_STORAGE_LIMIT)");
-        if (has_background_) {
-            GhosttyColorRgb c{background_.r, background_.g, background_.b};
-            ck(ghostty_terminal_set(term_, GHOSTTY_TERMINAL_OPT_COLOR_BACKGROUND, &c),
-               "ghostty_terminal_set(COLOR_BACKGROUND)");
-        }
         if (texture) {
             ck(ghostty_terminal_resize(term_, static_cast<uint16_t>(cols), static_cast<uint16_t>(rows),
                                        static_cast<uint32_t>(texture->sprite_width),
@@ -203,6 +200,15 @@ void TerminalLayer::createTerminal(int cols, int rows) {
                "ghostty_terminal_resize");
         }
         ck(ghostty_render_state_new(nullptr, &rs_), "ghostty_render_state_new");
+        // The colours the library draws by default, made explicit: a program asking for the
+        // default foreground, background or cursor colour (OSC 10/11/12 ?) gets an answer
+        // only for colours that are set.
+        ck(ghostty_render_state_update(rs_, term_), "ghostty_render_state_update");
+        GhosttyRenderStateColors colors = GHOSTTY_INIT_SIZED(GhosttyRenderStateColors);
+        ck(ghostty_render_state_get(rs_, GHOSTTY_RENDER_STATE_DATA_COLORS, &colors), "ghostty_render_state_get(COLORS)");
+        nominal_fg_ = Rgb{colors.foreground.r, colors.foreground.g, colors.foreground.b};
+        nominal_bg_ = Rgb{colors.background.r, colors.background.g, colors.background.b};
+        applyDefaultColours();
         ck(ghostty_render_state_row_iterator_new(nullptr, &row_it_), "ghostty_render_state_row_iterator_new");
         ck(ghostty_render_state_row_cells_new(nullptr, &cells_), "ghostty_render_state_row_cells_new");
         ck(ghostty_key_encoder_new(nullptr, &key_enc_), "ghostty_key_encoder_new");
@@ -453,13 +459,15 @@ void TerminalLayer::sync(bool notify) {
                         default_bg = true;
                     }
                 }
-                // Inverse (per cell, and DECSCNM for the screen): swap at fill time. The
-                // swapped-in background is a real colour, so it is always drawn.
-                const bool inverse = static_cast<bool>(sflags & GHOSTTY_STYLE_FLAG_INVERSE) != screen_reverse_;
-                if (inverse) {
+                // Inverse: swap at fill time. The swapped-in background is a real colour, so it
+                // is always drawn. DECSCNM (the whole screen reversed) the library applies to the
+                // default colours it reports; the default background is then the foreground
+                // colour, so it is drawn too.
+                if (sflags & GHOSTTY_STYLE_FLAG_INVERSE) {
                     std::swap(fg, bg);
                     default_bg = false;
                 }
+                if (screen_reverse_) default_bg = false;
                 if (default_bg) fl |= CF_DEFAULT_BG;
                 if (sflags & GHOSTTY_STYLE_FLAG_FAINT) {
                     fg.r = static_cast<sf::Uint8>(fg.r / 2);
@@ -596,19 +604,21 @@ void TerminalLayer::setBlinkInterval(double seconds) {
 // Colours, title, text, scrolling
 // =============================================================================
 
+// Foreground, background and cursor defaults, always set. With no `background` the
+// background reported is the library's nominal one (black), though nothing is drawn there.
+void TerminalLayer::applyDefaultColours() {
+    GhosttyColorRgb fg{nominal_fg_.r, nominal_fg_.g, nominal_fg_.b};
+    GhosttyColorRgb bg = has_background_ ? GhosttyColorRgb{background_.r, background_.g, background_.b}
+                                         : GhosttyColorRgb{nominal_bg_.r, nominal_bg_.g, nominal_bg_.b};
+    ck(ghostty_terminal_set(term_, GHOSTTY_TERMINAL_OPT_COLOR_FOREGROUND, &fg), "ghostty_terminal_set(COLOR_FOREGROUND)");
+    ck(ghostty_terminal_set(term_, GHOSTTY_TERMINAL_OPT_COLOR_BACKGROUND, &bg), "ghostty_terminal_set(COLOR_BACKGROUND)");
+    ck(ghostty_terminal_set(term_, GHOSTTY_TERMINAL_OPT_COLOR_CURSOR, &fg), "ghostty_terminal_set(COLOR_CURSOR)");
+}
+
 void TerminalLayer::setBackground(const sf::Color* colour) {
     has_background_ = colour != nullptr;
     background_ = colour ? *colour : sf::Color::Transparent;
-    if (term_) {
-        if (colour) {
-            GhosttyColorRgb c{colour->r, colour->g, colour->b};
-            ck(ghostty_terminal_set(term_, GHOSTTY_TERMINAL_OPT_COLOR_BACKGROUND, &c),
-               "ghostty_terminal_set(COLOR_BACKGROUND)");
-        } else {
-            ck(ghostty_terminal_set(term_, GHOSTTY_TERMINAL_OPT_COLOR_BACKGROUND, nullptr),
-               "ghostty_terminal_set(COLOR_BACKGROUND)");
-        }
-    }
+    if (term_) applyDefaultColours();
     force_full_ = true;
     needs_sync_ = true;
     markDirty();
@@ -691,16 +701,19 @@ size_t TerminalLayer::scrollbackRows() const {
     return n;
 }
 
-long TerminalLayer::scrollOffset() const {
+long long TerminalLayer::scrollOffset() const {
     if (!term_) return 0;
     GhosttyTerminalScrollbar sb{};
     ck(ghostty_terminal_get(term_, GHOSTTY_TERMINAL_DATA_SCROLLBAR, &sb), "ghostty_terminal_get(SCROLLBAR)");
     const uint64_t live = sb.total > sb.len ? sb.total - sb.len : 0;
-    return sb.offset >= live ? 0 : static_cast<long>(live - sb.offset);
+    return sb.offset >= live ? 0 : static_cast<long long>(live - sb.offset);
 }
 
-void TerminalLayer::scrollBy(long rows_back) {
+void TerminalLayer::scrollBy(long long rows_back) {
     if (!term_) throw std::logic_error("TerminalLayer has no size yet");
+    // Clamped before it is negated (-LLONG_MIN overflows): no scrollback is anywhere near 2^30 rows.
+    constexpr long long kMax = 1LL << 30;
+    rows_back = std::clamp(rows_back, -kMax, kMax);
     GhosttyTerminalScrollViewport sv{};
     sv.tag = GHOSTTY_TERMINAL_SCROLL_VIEWPORT_DELTA;
     sv.value.delta = -static_cast<intptr_t>(rows_back);   // the library's up is negative
@@ -709,7 +722,7 @@ void TerminalLayer::scrollBy(long rows_back) {
     notifyGrid();
 }
 
-void TerminalLayer::setScrollOffset(long rows_back) {
+void TerminalLayer::setScrollOffset(long long rows_back) {
     if (!term_) throw std::logic_error("TerminalLayer has no size yet");
     GhosttyTerminalScrollViewport sv{};
     if (rows_back <= 0) {
@@ -775,7 +788,10 @@ void TerminalLayer::encodeMouse(float cell_x, float cell_y, int button, int acti
     if (button > 0) ck(ghostty_mouse_event_set_button(mev, static_cast<GhosttyMouseButton>(button)), "ghostty_mouse_event_set_button");
     else ck(ghostty_mouse_event_clear_button(mev), "ghostty_mouse_event_clear_button");
     ck(ghostty_mouse_event_set_mods(mev, static_cast<GhosttyMods>(mods)), "ghostty_mouse_event_set_mods");
-    ck(ghostty_mouse_event_set_position(mev, GhosttyMousePosition{cell_x * cw, cell_y * ch}),
+    // Clamped to the layer: a drag that leaves it reports the edge cell, as terminals do.
+    const float px = std::clamp(cell_x * static_cast<float>(cw), 0.0f, static_cast<float>(size.screen_width) - 1.0f);
+    const float py = std::clamp(cell_y * static_cast<float>(ch), 0.0f, static_cast<float>(size.screen_height) - 1.0f);
+    ck(ghostty_mouse_event_set_position(mev, GhosttyMousePosition{px, py}),
        "ghostty_mouse_event_set_position");
     uint8_t buf[128];
     size_t n = 0;
@@ -970,7 +986,9 @@ void TerminalLayer::drawCursor(sf::RenderTarget& target, float left_spritepixels
     if (cursor_wide_ && x0 > 0) --x0;
     const size_t i0 = static_cast<size_t>(cursor_y_) * grid_x + x0;
     int span = 1;
-    if (x0 + 1 < grid_x && tiles[i0] >= 0 && tiles[i0 + 1] == tiles[i0] + 1 &&
+    // Every stored index is checked against the atlas before it is used to look anything up.
+    const int atlas_tiles = static_cast<int>(fa.tiles.size());
+    if (x0 + 1 < grid_x && tiles[i0] >= 0 && tiles[i0] + 1 < atlas_tiles && tiles[i0 + 1] == tiles[i0] + 1 &&
         fa.tiles[tiles[i0] + 1].kind == FontAtlasData::Tile::GLYPH_RIGHT)
         span = 2;
     const float ox = (x0 * cw - left_spritepixels) * zoom, oy = (cursor_y_ * ch - top_spritepixels) * zoom;
@@ -1143,6 +1161,21 @@ bool feed_and_flush(const std::shared_ptr<TerminalLayer>& L, const std::string& 
 
 void utf8_append(std::string& out, uint32_t cp) { appendUtf8(out, cp); }
 
+// The terminal's width for a codepoint (the table Texture.from_font shares, generated from
+// libghostty-vt's rule: see tools/generate_east_asian_wide.py).
+bool terminal_wide(uint32_t cp) {
+    const auto* first = EAST_ASIAN_WIDE_RANGES;
+    const auto* last = first + sizeof(EAST_ASIAN_WIDE_RANGES) / sizeof(EAST_ASIAN_WIDE_RANGES[0]);
+    const auto* it = std::lower_bound(first, last, cp,
+        [](const EastAsianWideRange& r, uint32_t c) { return r.hi < c; });
+    return it != last && cp >= it->lo;
+}
+
+// A codepoint the layer may print as text: not a C0 control, DEL or a C1 control.
+bool printable_cp(uint32_t cp) {
+    return !(cp < 0x20 || (cp >= 0x7F && cp <= 0x9F));
+}
+
 // The codepoint and face of a tile index on a font texture. ValueError for an index that
 // has none: -1, out of range, the box, the white tile, a right half, padding.
 bool glyph_of(const std::shared_ptr<TerminalLayer>& L, long long index, uint32_t* cp, int* face, bool* wide) {
@@ -1169,27 +1202,38 @@ bool glyph_of(const std::shared_ptr<TerminalLayer>& L, long long index, uint32_t
     }
     *cp = fa->tiles[index].codepoint;
     *face = fa->tiles[index].face;
+    if (!printable_cp(*cp)) {
+        PyErr_Format(PyExc_ValueError,
+                     "tile index %lld is the control character U+%04X, which a terminal does not print "
+                     "(send control sequences with write())", index, static_cast<unsigned>(*cp));
+        return false;
+    }
     *wide = index + 1 < n && fa->tiles[index + 1].kind == FontAtlasData::Tile::GLYPH_RIGHT;
     return true;
 }
 
 // Wrap terminal input written by the layer (not by the program) so that it lands at
-// absolute cells in plain ASCII and leaves no trace: the cursor, its attributes, origin
-// mode and the character set are saved (DECSC) and restored (DECRC); insert mode, which
-// DECSC does not save, is switched off and back on.
+// absolute cells in plain ASCII, never writes outside the cells it targets and leaves no
+// trace: the cursor, its attributes, origin mode and the character set are saved (DECSC)
+// and restored (DECRC); insert mode and autowrap (DECAWM), which DECSC does not save, are
+// switched off and back on. With autowrap off nothing placed can wrap or scroll the screen.
 struct Placement {
     std::string pre, post;
     explicit Placement(const std::shared_ptr<TerminalLayer>& L) {
         const bool origin = L->modeEnabled(6, false);
         const bool insert = L->modeEnabled(4, true);
+        const bool autowrap = L->modeEnabled(7, false);
         pre = "\x1b" "7";
         if (origin) pre += "\x1b[?6l";
         if (insert) pre += "\x1b[4l";
+        if (autowrap) pre += "\x1b[?7l";
         pre += "\x1b(B\x0f";
         if (insert) post += "\x1b[4h";
+        if (autowrap) post += "\x1b[?7h";
         post += "\x1b" "8";
     }
 };
+
 
 std::string cup(int x, int y) {
     return "\x1b[" + std::to_string(y + 1) + ";" + std::to_string(x + 1) + "H";
@@ -1208,11 +1252,8 @@ bool fill_through_terminal(const std::shared_ptr<TerminalLayer>& L, int x1, int 
     if (!glyph_of(L, index, &cp, &face, &wide)) return false;
     if (x2 <= x1 || y2 <= y1) return true;
     const int w = x2 - x1;
-    if (wide && (w % 2) != 0) {
-        PyErr_Format(PyExc_ValueError,
-                     "tile index %lld is a wide glyph (two cells); the filled width must be even (got %d)", index, w);
-        return false;
-    }
+    // A wide glyph fills the rectangle in pairs of cells; an odd last column is blanked.
+    const bool odd_tail = wide && (w % 2) != 0;
     std::string glyph;
     utf8_append(glyph, cp);
     const int count = wide ? w / 2 : w;
@@ -1222,8 +1263,11 @@ bool fill_through_terminal(const std::shared_ptr<TerminalLayer>& L, int x1, int 
         seq = p.pre + face_sgr(face);
         for (int y = y1; y < y2; ++y) {
             seq += cup(x1, y);
-            seq += glyph;
-            if (count > 1) seq += "\x1b[" + std::to_string(count - 1) + "b";   // REP
+            if (count > 0) {
+                seq += glyph;
+                if (count > 1) seq += "\x1b[" + std::to_string(count - 1) + "b";   // REP
+            }
+            if (odd_tail) seq += cup(x2 - 1, y) + "\x1b[0m \x1b[0" + face_sgr(face).substr(3);
         }
         seq += p.post;
     } catch (const std::exception& e) {
@@ -1677,15 +1721,21 @@ static PyObject* TL_print(PyObject* self, PyObject* args, PyObject* kwds) {
     if (fg_obj && fg_obj != Py_None && !colour_sgr(fg_obj, true, sgr)) return nullptr;
     if (bg_obj && bg_obj != Py_None && !colour_sgr(bg_obj, false, sgr)) return nullptr;
     sgr += "m";
-    Py_ssize_t n = 0;
-    const char* s = PyUnicode_AsUTF8AndSize(text_obj, &n);
-    if (!s) return nullptr;
-    // A newline starts the next line at column 0, as print() does on a console.
-    std::string text;
-    text.reserve(static_cast<size_t>(n));
+    // Text only: printable characters, "\n" and "\t". Anything else would be a control
+    // sequence (a title change, a mode switch, a query whose reply the program would read as
+    // input); write() is the path for raw bytes.
+    std::vector<std::vector<uint32_t>> lines(1);
+    const Py_ssize_t n = PyUnicode_GET_LENGTH(text_obj);
     for (Py_ssize_t i = 0; i < n; ++i) {
-        if (s[i] == '\n') text += "\r\n";
-        else text += s[i];
+        const Py_UCS4 cp = PyUnicode_READ_CHAR(text_obj, i);
+        if (cp == '\n') { lines.emplace_back(); continue; }
+        if ((cp != '\t' && !printable_cp(cp)) || (cp >= 0xD800 && cp <= 0xDFFF)) {
+            PyErr_Format(PyExc_ValueError,
+                         "print() takes text: U+%04X at index %zd is a control character "
+                         "(use write() for raw terminal sequences)", static_cast<unsigned>(cp), i);
+            return nullptr;
+        }
+        lines.back().push_back(cp);
     }
 
     auto L = layer_of(self);
@@ -1694,10 +1744,29 @@ static PyObject* TL_print(PyObject* self, PyObject* args, PyObject* kwds) {
     std::string seq;
     try {
         if (has_pos) {
+            // Placed text stays inside the layer: each line starts at pos's column on the next
+            // row, a line is clipped at the right edge, and lines below the bottom row are dropped.
             Placement p(L);
-            seq = p.pre + cup(px, py) + sgr + text + p.post;
+            seq = p.pre + sgr;
+            for (size_t k = 0; k < lines.size() && py + static_cast<int>(k) < L->grid_y; ++k) {
+                seq += cup(px, py + static_cast<int>(k));
+                int col = px;
+                for (uint32_t cp : lines[k]) {
+                    const int adv = cp == '\t' ? (8 - col % 8) : terminal_wide(cp) ? 2 : 1;
+                    if (col + adv > L->grid_x) break;
+                    utf8_append(seq, cp);
+                    col += adv;
+                }
+            }
+            seq += p.post;
         } else {
-            seq = sgr + text + "\x1b[0m";
+            // At the cursor the terminal's own wrapping and scrolling apply; "\n" is CR LF.
+            seq = sgr;
+            for (size_t k = 0; k < lines.size(); ++k) {
+                if (k) seq += "\r\n";
+                for (uint32_t cp : lines[k]) utf8_append(seq, cp);
+            }
+            seq += "\x1b[0m";
         }
     } catch (const std::exception& e) {
         raise_from(e);
@@ -1759,13 +1828,21 @@ static PyObject* TL_screen_text(PyObject* self, PyObject* Py_UNUSED(args)) {
     return PyUnicode_DecodeUTF8(s.data(), static_cast<Py_ssize_t>(s.size()), "replace");
 }
 
+// An int argument, saturated to the long long range (scrolling clamps anyway).
+static bool saturated_ll(PyObject* v, long long* out) {
+    int overflow = 0;
+    *out = PyLong_AsLongLongAndOverflow(v, &overflow);
+    if (overflow) *out = overflow > 0 ? LLONG_MAX : LLONG_MIN;
+    return !(*out == -1 && PyErr_Occurred());
+}
+
 static PyObject* TL_scroll(PyObject* self, PyObject* arg) {
     if (!PyLong_Check(arg) || PyBool_Check(arg)) {
         PyErr_SetString(PyExc_TypeError, "scroll() takes an int");
         return nullptr;
     }
-    long n = PyLong_AsLong(arg);
-    if (n == -1 && PyErr_Occurred()) return nullptr;
+    long long n;
+    if (!saturated_ll(arg, &n)) return nullptr;
     auto L = layer_of(self);
     if (!L || !require_size(L)) return nullptr;
     try {
@@ -1866,7 +1943,7 @@ static PyObject* apply_ranges_kw(PyTileLayerObject* self, PyObject* args, PyObje
         PyErr_SetString(PyExc_TypeError, "apply_ranges() takes no keyword arguments");
         return nullptr;
     }
-    return PyGridLayerAPI::TileLayer_apply_ranges(self, args);
+    return PyGridLayerAPI::TileLayer_apply_ranges_impl(self, args);
 }
 
 static PyObject* TL_edit(PyObject* self, PyObject* Py_UNUSED(args)) {
@@ -2073,7 +2150,7 @@ static int TL_set_blink_interval(PyObject* self, PyObject* value, void*) {
 static PyObject* TL_get_scroll_offset(PyObject* self, void*) {
     auto L = layer_of(self);
     if (!L) return nullptr;
-    try { return PyLong_FromLong(L->scrollOffset()); } catch (const std::exception& e) { raise_from(e); return nullptr; }
+    try { return PyLong_FromLongLong(L->scrollOffset()); } catch (const std::exception& e) { raise_from(e); return nullptr; }
 }
 
 static int TL_set_scroll_offset(PyObject* self, PyObject* value, void*) {
@@ -2081,8 +2158,8 @@ static int TL_set_scroll_offset(PyObject* self, PyObject* value, void*) {
         PyErr_SetString(PyExc_TypeError, "scroll_offset must be an int");
         return -1;
     }
-    long n = PyLong_AsLong(value);
-    if (n == -1 && PyErr_Occurred()) return -1;
+    long long n;
+    if (!saturated_ll(value, &n)) return -1;
     if (n < 0) {
         PyErr_SetString(PyExc_ValueError, "scroll_offset counts rows back from the live screen and cannot be negative");
         return -1;
@@ -2117,12 +2194,43 @@ static PyObject* TL_get_texture(PyObject* self, void*) {
     return PyTexture::pyobject_for(L->texture);
 }
 
-// A font texture (Texture.from_font): anything else has no codepoint <-> tile tables.
-static bool font_texture(PyObject* value, std::shared_ptr<PyTexture>* out) {
-    if (!value || value == Py_None) {
-        PyErr_SetString(PyExc_ValueError, "a TerminalLayer needs a texture built by Texture.from_font");
+// The atlas a TerminalLayer gets when it is given none: mcrfpy.default_font at 16 px with
+// Texture.from_font's default codepoints. Shared by every layer that uses it while one is
+// alive (the cache holds it weakly, so nothing outlives the layers); a new default_font
+// gets a new atlas.
+static bool default_atlas(std::shared_ptr<PyTexture>* out) {
+    static std::weak_ptr<PyTexture> cached;
+    static std::weak_ptr<PyFont> cached_font;
+    PyObject* mod = PyImport_ImportModule("mcrfpy");
+    if (!mod) return false;
+    PyObject* font = PyObject_GetAttrString(mod, "default_font");
+    Py_DECREF(mod);
+    if (!font) return false;
+    if (!PyObject_TypeCheck(font, &mcrfpydef::PyFontType)) {
+        Py_DECREF(font);
+        PyErr_SetString(PyExc_RuntimeError, "TerminalLayer: no texture= given and mcrfpy.default_font is not a Font");
         return false;
     }
+    std::shared_ptr<PyFont> font_ptr = reinterpret_cast<PyFontObject*>(font)->data;
+    if (auto hit = cached.lock(); hit && cached_font.lock() == font_ptr) {
+        Py_DECREF(font);
+        *out = hit;
+        return true;
+    }
+    PyObject* tex = PyObject_CallMethod(reinterpret_cast<PyObject*>(&mcrfpydef::PyTextureType), "from_font", "Oi", font, 16);
+    Py_DECREF(font);
+    if (!tex) return false;
+    *out = reinterpret_cast<PyTextureObject*>(tex)->data;
+    Py_DECREF(tex);
+    cached = *out;
+    cached_font = font_ptr;
+    return true;
+}
+
+// A font texture (Texture.from_font): anything else has no codepoint <-> tile tables.
+// None (or no texture at all) is the shared default atlas.
+static bool font_texture(PyObject* value, std::shared_ptr<PyTexture>* out) {
+    if (!value || value == Py_None) return default_atlas(out);
     if (!PyObject_TypeCheck(value, &mcrfpydef::PyTextureType)) {
         PyErr_SetString(PyExc_TypeError, "texture must be a Texture built by Texture.from_font");
         return false;
@@ -2162,10 +2270,6 @@ static int TL_init(PyObject* self, PyObject* args, PyObject* kwds) {
     if (grid_obj && grid_obj != Py_None && !PyObject_TypeCheck(grid_obj, &mcrfpydef::PyGridDataType) &&
         !PyObject_TypeCheck(grid_obj, &mcrfpydef::PyUIGridViewType)) {
         PyErr_SetString(PyExc_TypeError, "grid must be a mcrfpy.Grid instance");
-        return -1;
-    }
-    if (!texture_obj) {
-        PyErr_SetString(PyExc_TypeError, "TerminalLayer() needs texture= (a Texture built by Texture.from_font)");
         return -1;
     }
     std::shared_ptr<PyTexture> tex;
@@ -2275,7 +2379,7 @@ static PyMethodDef TL_methods[] = {
          MCRF_ARGS_START
          MCRF_ARG("data", "Bytes from the program")
          MCRF_RAISES("RuntimeError", "The layer has no size yet (no grid_size= and not attached to a Grid)")
-         MCRF_NOTE("An exception raised by on_output propagates out of write(). on_output may call write() itself: its replies are delivered after the callback returns, in order.")
+         MCRF_NOTE("An exception raised by on_output propagates out of write(). Delivery is at most once: the bytes handed to a callback that raises are not delivered again. on_output may call write() itself: its replies are delivered after the callback returns, in order.")
      )},
     {"key", (PyCFunction)TL_key, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(TerminalLayer, key,
@@ -2300,12 +2404,13 @@ static PyMethodDef TL_methods[] = {
     {"mouse", (PyCFunction)TL_mouse, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(TerminalLayer, mouse,
          MCRF_SIG("(pos, button: MouseButton = None, state: InputState = None, mods=None)", "None"),
-         MCRF_DESC("Report a mouse event to the program, if it turned mouse reporting on, in the format it chose (X10, UTF-8, SGR, URxvt, SGR pixels). Sent through on_output; nothing is sent while reporting is off."),
+         MCRF_DESC("Report a mouse event to the program, if it turned mouse reporting on, in the format it chose (X10, UTF-8 1005, SGR 1006, URxvt 1015, SGR-pixels 1016). Sent through on_output; nothing is sent while reporting is off. A position outside the layer reports the nearest edge cell."),
          MCRF_ARGS_START
-         MCRF_ARG("pos", "Cell position (x, y); fractions address pixels within the cell")
+         MCRF_ARG("pos", "Cell position (x, y); fractions address pixels within the cell; clamped to the layer")
          MCRF_ARG("button", "The button, a SCROLL_* wheel direction, or None for motion with no button")
          MCRF_ARG("state", "PRESSED or RELEASED for a button event; None for motion (a wheel step is a press)")
          MCRF_ARG("mods", "As for key()")
+         MCRF_RAISES("ValueError", "pos is not finite (NaN or infinite)")
      )},
     {"paste", (PyCFunction)TL_paste, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(TerminalLayer, paste,
@@ -2334,10 +2439,10 @@ static PyMethodDef TL_methods[] = {
     {"print", (PyCFunction)TL_print, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(TerminalLayer, print,
          MCRF_SIG("(text: str, pos=None, fg=None, bg=None, bold=False, italic=False, underline=False, blink=False, inverse=False, strike=False, faint=False)", "None"),
-         MCRF_DESC("Draw text from game code, as terminal control sequences written to the terminal: at the cursor (which moves past it), or at pos with the cursor saved and restored around it. Attributes apply to this text only."),
+         MCRF_DESC("Draw text from game code, as terminal control sequences written to the terminal: at the cursor (which moves past it; the terminal wraps and scrolls as usual), or at pos with the cursor saved and restored around it. Attributes apply to this text only."),
          MCRF_ARGS_START
-         MCRF_ARG("text", "The text; a newline continues at column 0 of the next line")
-         MCRF_ARG("pos", "Cell (x, y) to print at, leaving the cursor where it was; None prints at the cursor")
+         MCRF_ARG("text", "Printable text, newlines and tabs. At the cursor a newline continues at column 0 of the next line")
+         MCRF_ARG("pos", "Cell (x, y) to print at, leaving the cursor where it was; None prints at the cursor. Placed text never wraps or scrolls: each line is clipped at the right edge, a newline continues at pos's column on the next row, and lines below the bottom row are dropped")
          MCRF_ARG("fg", "Foreground: a Color, (r, g, b) tuple or colour name (truecolor), or a palette index 0-255; None for the default")
          MCRF_ARG("bg", "Background, as fg")
          MCRF_ARG("bold", "Bold (the atlas's bold face, else drawn twice)")
@@ -2347,7 +2452,7 @@ static PyMethodDef TL_methods[] = {
          MCRF_ARG("inverse", "Foreground and background swapped")
          MCRF_ARG("strike", "Struck through")
          MCRF_ARG("faint", "Foreground at half brightness")
-         MCRF_RAISES("ValueError", "A colour has alpha below 255, or a palette index is outside 0-255")
+         MCRF_RAISES("ValueError", "text holds a control character other than newline and tab (send raw sequences with write()), a colour has alpha below 255, or a palette index is outside 0-255")
          MCRF_RAISES("IndexError", "pos is outside the layer")
      )},
     {"clear", (PyCFunction)TL_clear, METH_NOARGS,
@@ -2402,19 +2507,19 @@ static PyMethodDef TL_methods[] = {
          MCRF_DESC("Print the glyph of a tile index in every cell, through the terminal, as fill_rect over the whole layer."),
          MCRF_ARGS_START
          MCRF_ARG("index", "A glyph tile of the layer's texture")
-         MCRF_RAISES("ValueError", "As for set(); a wide glyph also needs an even width")
+         MCRF_RAISES("ValueError", "As for set()")
      )},
     {"fill_rect", (PyCFunction)TL_fill_rect, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(TerminalLayer, fill_rect,
          MCRF_SIG("(pos: tuple, size: tuple, index: int)", "None"),
-         MCRF_DESC("Print the glyph of a tile index over a rectangle (clipped to the layer), through the terminal: one cursor move and a repeated character (REP) per row, with cursor and attributes saved and restored."),
+         MCRF_DESC("Print the glyph of a tile index over a rectangle (clipped to the layer), through the terminal: one cursor move and a repeated character (REP) per row, with cursor, attributes and autowrap saved and restored. A wide glyph fills the rectangle in pairs of cells; an odd last column is left blank."),
          MCRF_ARGS_START
          MCRF_ARG("pos", "Top-left corner: (x, y) tuple, list or Vector")
          MCRF_ARG("size", "Dimensions: (width, height) tuple, list or Vector")
          MCRF_ARG("index", "A glyph tile of the layer's texture")
-         MCRF_RAISES("ValueError", "As for set(); a wide glyph also needs an even (clipped) width")
+         MCRF_RAISES("ValueError", "As for set()")
      )},
-    {"apply_threshold", (PyCFunction)TL_apply<PyGridLayerAPI::TileLayer_apply_threshold>, METH_VARARGS | METH_KEYWORDS,
+    {"apply_threshold", (PyCFunction)TL_apply<PyGridLayerAPI::TileLayer_apply_threshold_impl>, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(TerminalLayer, apply_threshold,
          MCRF_SIG("(source: HeightMap, range: tuple, tile: int)", "TerminalLayer"),
          MCRF_DESC("As TileLayer.apply_threshold, with every changed cell printed through the terminal."),
@@ -2448,9 +2553,9 @@ static PyGetSetDef TL_getsetters[] = {
     {"on_output", TL_get_on_output, TL_set_on_output,
      MCRF_PROPERTY(on_output, "Where the terminal's bytes for the program go (Callable | None): called with one bytes argument for the replies to queries during write, and for the input encoded by key, text, mouse, paste and focus. None drops them."), NULL},
     {"texture", TL_get_texture, TL_set_texture,
-     MCRF_PROPERTY(texture, "The font atlas the cells are drawn from (Texture). Must be built by Texture.from_font; a new one re-maps every cell."), NULL},
+     MCRF_PROPERTY(texture, "The font atlas the cells are drawn from (Texture). Must be built by Texture.from_font; a new one re-maps every cell. None assigns the shared default atlas (mcrfpy.default_font at 16 px)."), NULL},
     {"title", TL_get_title, NULL,
-     MCRF_PROPERTY(title, "The window title the program set with OSC 0/2 (str, read-only)."), NULL},
+     MCRF_PROPERTY(title, "The window title the program set with OSC 0/2 (str, read-only). The emulator keeps at most 1024 bytes of it; an OSC sequence of about 4 KB or more, or a title that is not valid UTF-8, is ignored and the previous title stays."), NULL},
     {"cursor", TL_get_cursor, NULL,
      MCRF_PROPERTY(cursor, "The cursor's cell (x, y), or None when it is not in the viewport (scrolled back) (tuple | None, read-only)."), NULL},
     {"cursor_style", TL_get_cursor_style, NULL,
@@ -2462,19 +2567,31 @@ static PyGetSetDef TL_getsetters[] = {
     {"palette", TL_get_palette, TL_set_palette,
      MCRF_PROPERTY(palette, "The 256-colour palette in use, OSC 4 changes included (list, of 256 Color). Setting a sequence of 256 colours replaces the default palette; None restores the built-in one."), NULL},
     {"background", TL_get_background, TL_set_background,
-     MCRF_PROPERTY(background, "The terminal's default background (Color | None). None (default): cells with the default background draw nothing, so what is under the layer shows. A Color is drawn for them, and is what the program is told on a background query. Explicit SGR backgrounds always draw."), NULL},
+     MCRF_PROPERTY(background, "The terminal's default background (Color | None). None (default): cells with the default background draw nothing, so what is under the layer shows; a background query (OSC 11) is then answered with the emulator's nominal black. A Color is drawn for them and is what OSC 11 reports. Explicit SGR backgrounds always draw. OSC 10 and 12 report the default foreground."), NULL},
     {"blink_interval", TL_get_blink_interval, TL_set_blink_interval,
      MCRF_PROPERTY(blink_interval, "Seconds per blink phase on the engine clock (float | None). None draws blinking cells and a blinking cursor steady. Default 0.5. Costs nothing while nothing blinks."), NULL},
     {"scroll_offset", TL_get_scroll_offset, TL_set_scroll_offset,
      MCRF_PROPERTY(scroll_offset, "Rows the viewport is scrolled back into history (int); 0 is the live screen."), NULL},
     {"scrollback", TL_get_scrollback, NULL,
-     MCRF_PROPERTY(scrollback, "Lines of history kept, as given to the constructor (int, read-only)."), NULL},
+     MCRF_PROPERTY(scrollback, "Lines of history asked for at construction (int, read-only). Approximate: the emulator trims history by memory page, so it can hold many more rows than this (scrollback=1 held about 2000 short rows); 0 keeps none. Very large values are bounded only by memory."), NULL},
     {"scrollback_rows", TL_get_scrollback_rows, NULL,
      MCRF_PROPERTY(scrollback_rows, "Rows of history currently held (int, read-only)."), NULL},
     {"chunk_repaints", TL_get_chunk_repaints, NULL,
      MCRF_PROPERTY(chunk_repaints, "Chunk textures this layer has repainted since it was made (int, read-only); for checking that output repaints only what changed."), NULL},
     {NULL}
 };
+
+namespace TerminalLayerAPI {
+PyObject* py_set(PyObject* self, PyObject* args) { return TL_set(self, args); }
+PyObject* py_fill(PyObject* self, PyObject* args) { return TL_fill(self, args); }
+PyObject* py_fill_rect(PyObject* self, PyObject* args, PyObject* kwds) { return TL_fill_rect(self, args, kwds); }
+int py_ass_subscript(PyObject* self, PyObject* key, PyObject* value) { return TL_ass_subscript(self, key, value); }
+PyObject* py_apply_threshold(PyObject* self, PyObject* args, PyObject* kwds) {
+    return TL_apply<PyGridLayerAPI::TileLayer_apply_threshold_impl>(self, args, kwds);
+}
+PyObject* py_apply_ranges(PyObject* self, PyObject* args) { return TL_apply<apply_ranges_kw>(self, args, nullptr); }
+int py_set_texture(PyObject* self, PyObject* value) { return TL_set_texture(self, value, nullptr); }
+}  // namespace TerminalLayerAPI
 
 PyTypeObject mcrfpydef::PyTerminalLayerType = {
     .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
@@ -2486,7 +2603,7 @@ PyTypeObject mcrfpydef::PyTerminalLayerType = {
     .tp_as_mapping = &TL_mapping,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
     .tp_doc = PyDoc_STR(
-        "TerminalLayer(name=None, z_index=-1, texture=..., grid_size=None, grid=None, scrollback=1000, on_output=None)\n\n"
+        "TerminalLayer(name=None, z_index=-1, texture=None, grid_size=None, grid=None, scrollback=1000, on_output=None)\n\n"
         "EXPERIMENTAL (not part of the 1.0 freeze). A TileLayer whose cells are a terminal screen,\n"
         "emulated by libghostty-vt: bytes in through write(), cells out, bytes for the program\n"
         "through on_output. The layer does no I/O: run a program by connecting a PTY (in Python)\n"
@@ -2497,10 +2614,11 @@ PyTypeObject mcrfpydef::PyTerminalLayerType = {
         "Args:\n"
         "    name (str): Layer name for Grid.layer(name) lookup. Default: None\n"
         "    z_index (int): Render order relative to entities. Default: -1\n"
-        "    texture (Texture): Required. A font atlas from Texture.from_font; its cell is the terminal's.\n"
+        "    texture (Texture): A font atlas from Texture.from_font; its cell is the terminal's. Default: None,\n"
+        "        a shared atlas of mcrfpy.default_font at 16 px with from_font's default codepoints.\n"
         "    grid_size (tuple): (columns, rows). None or (0, 0): the size of the Grid it is attached to.\n"
         "    grid (Grid): Attach to this Grid at construction. Default: None\n"
-        "    scrollback (int): Lines of history to keep. Default: 1000\n"
+        "    scrollback (int): Lines of history to keep (approximate, see scrollback). Default: 1000\n"
         "    on_output (callable): Receives the bytes for the program. Default: None (dropped)\n\n"
         "Drawing: one vertex array per chunk from the one atlas (backgrounds, glyphs, lines). Inverse swaps\n"
         "colours, faint halves the foreground, bold/italic use the atlas's faces or are faked (drawn twice /\n"
@@ -2508,9 +2626,8 @@ PyTypeObject mcrfpydef::PyTerminalLayerType = {
         "follows blink_interval on the engine clock. The cursor is drawn over the cached chunks.\n"
         "Default-background cells are transparent unless background is set.\n\n"
         "Example:\n"
-        "    tex = mcrfpy.Texture.from_font(mcrfpy.default_font, 16)\n"
-        "    term = mcrfpy.TerminalLayer(texture=tex, grid_size=(80, 24))\n"
-        "    grid = mcrfpy.Grid(grid_size=(80, 24), texture=tex, layers=[term])\n"
+        "    term = mcrfpy.TerminalLayer(grid_size=(80, 24))\n"
+        "    grid = mcrfpy.Grid(grid_size=(80, 24), texture=term.texture, layers=[term])\n"
         "    term.print('HP 12/20', pos=(0, 23), fg='green')\n"
         "    term.write(b'\\x1b[1mbold\\x1b[0m')"),
     .tp_traverse = TL_traverse,

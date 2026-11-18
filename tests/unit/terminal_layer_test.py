@@ -66,10 +66,15 @@ test("scrollback default 1000", t.scrollback == 1000)
 test("blink_interval default 0.5", t.blink_interval == 0.5)
 test("background default None", t.background is None)
 test("show_cursor default True", t.show_cursor is True)
-raises("texture is required", TypeError, lambda: mcrfpy.TerminalLayer(grid_size=(4, 4)), "texture")
+d1 = mcrfpy.TerminalLayer(grid_size=(4, 4))
+d2 = mcrfpy.TerminalLayer(texture=None, grid_size=(4, 4))
+test("no texture: a default atlas from default_font", d1.texture.white_tile == 1 and d1.texture.index("A") > 1)
+test("...shared by every layer that uses it", d1.texture is d2.texture)
+test("...16 px", d1.texture.sprite_height == mcrfpy.Texture.from_font(mcrfpy.default_font, 16).sprite_height)
+d1.write(b"ok")
+test("...and it works", d1.screen_text().startswith("ok") and d1.at(0, 0) == d1.texture.index("o"))
 raises("a non-font texture is refused", ValueError,
        lambda: mcrfpy.TerminalLayer(texture=mcrfpy.default_texture, grid_size=(4, 4)), "from_font")
-raises("texture=None is refused", ValueError, lambda: mcrfpy.TerminalLayer(texture=None, grid_size=(4, 4)))
 raises("negative scrollback", ValueError, lambda: mcrfpy.TerminalLayer(texture=TEX, grid_size=(4, 4), scrollback=-1))
 raises("on_output must be callable", TypeError,
        lambda: mcrfpy.TerminalLayer(texture=TEX, grid_size=(4, 4), on_output=3))
@@ -378,7 +383,12 @@ test("print at pos", lines(t)[4] == "HP 12/20", repr(lines(t)[4]))
 test("cursor restored around print(pos=)", t.cursor == (1, 1), f"{t.cursor}")
 t.write(b"\x1b[0m")
 t.print("a\nb", pos=(10, 0))
-test("newline continues at column 0", lines(t)[0].endswith("a") and lines(t)[1].startswith("b"), repr(t.screen_text()))
+test("with pos=, a newline continues at pos's column", lines(t)[0][10:] == "a" and lines(t)[1][10:11] == "b",
+     repr(t.screen_text()))
+t.move(0, 3)
+t.print("c\nd")
+test("at the cursor, a newline continues at column 0", lines(t)[3] == "c" and lines(t)[4].startswith("d"),
+     repr(t.screen_text()))
 t.print("p", pos=(0, 0), fg=200, bg=mcrfpy.Color(1, 2, 3))
 raises("palette index range", ValueError, lambda: t.print("x", fg=256))
 raises("translucent colour refused", ValueError, lambda: t.print("x", fg=(1, 2, 3, 4)))
@@ -485,8 +495,8 @@ tex2 = mcrfpy.Texture.from_font(FONT, 20)
 z.texture = tex2
 test("texture swap re-maps the cells", z.at(0, 0) == tex2.index("z"), f"{z.at(0, 0)} vs {tex2.index('z')}")
 raises("a non-font texture is refused", ValueError, lambda: setattr(z, "texture", mcrfpy.default_texture))
-raises("texture None is refused", ValueError, lambda: setattr(z, "texture", None))
-test("...and the old one stays", z.texture is tex2)
+z.texture = None
+test("texture None assigns the shared default atlas", z.texture is d1.texture and z.at(0, 0) == d1.texture.index("z"))
 # re-running TileLayer.__init__ on the wrapper turns it into a plain TileLayer: its methods say so
 odd = mcrfpy.TerminalLayer(texture=TEX, grid_size=(2, 2))
 mcrfpy.TileLayer.__init__(odd, grid_size=(2, 2))
@@ -497,6 +507,147 @@ for _ in range(50):
     tmp.write(b"x" * 100)
 del tmp
 gc.collect()
+
+# --- review fixes: no path writes cells around the terminal ---------------------------------
+print("=== TileLayer methods on a TerminalLayer ===")
+
+
+def consistent(t):
+    """Every cell's tile is the one its character on screen maps to (narrow text only)."""
+    rows = t.screen_text().split("\n")
+    for y in range(t.grid_size[1]):
+        row = rows[y] if y < len(rows) else ""
+        for x in range(t.grid_size[0]):
+            ch = row[x] if x < len(row) else None
+            want = TEX.index(ch) if ch not in (None, " ") else None
+            got = t.at(x, y)
+            if want is None and got not in (-1, TEX.index(" ")):
+                return False
+            if want is not None and got != want:
+                return False
+    return True
+
+
+TL = mcrfpy.TileLayer
+t, out = term(10, 3)
+t.write(b"abc")
+raises("TileLayer.set(term, huge index) refuses like set()", ValueError, lambda: TL.set(t, (0, 0), 10**7), "no codepoint")
+raises("TileLayer.set(term, -1)", ValueError, lambda: TL.set(t, (1, 0), -1))
+TL.set(t, (4, 1), I("Q"))
+test("TileLayer.set(term) prints through the terminal", lines(t)[1] == "    Q" and consistent(t), repr(t.screen_text()))
+TL.fill_rect(t, (0, 2), (3, 1), I("#"))
+test("TileLayer.fill_rect(term)", lines(t)[2] == "###" and consistent(t), repr(t.screen_text()))
+TL.__setitem__(t, (9, 0), I("Z"))
+test("TileLayer.__setitem__(term)", lines(t)[0].endswith("Z") and consistent(t), repr(t.screen_text()))
+hm2 = mcrfpy.HeightMap((10, 3))
+hm2.fill(0.5)
+TL.apply_threshold(t, hm2, (0.0, 1.0), I("~"))
+test("TileLayer.apply_threshold(term)", lines(t)[0] == "~" * 10 and consistent(t), repr(t.screen_text()))
+TL.apply_ranges(t, hm2, [((0.0, 1.0), I("="))])
+test("TileLayer.apply_ranges(term)", lines(t)[1] == "=" * 10 and consistent(t), repr(t.screen_text()))
+TL.fill(t, I("."))
+test("TileLayer.fill(term)", t.screen_text() == "\n".join(["." * 10] * 3) and consistent(t))
+tiny = mcrfpy.Texture.from_font(FONT, 16, codepoints="}~")
+t.write(b"\x1b[2J\x1b[H}~\x1b[H")
+TL.texture.__set__(t, tiny)
+test("TileLayer.texture setter on a terminal re-maps the cells", t.texture is tiny and t.at(0, 0) == tiny.index("}"),
+     f"{t.at(0, 0)}")
+raises("TileLayer.texture setter refuses a non-font texture", ValueError, lambda: TL.texture.__set__(t, mcrfpy.default_texture))
+TL.texture.__set__(t, TEX)
+test("TileLayer.at(term) reads the synced cells", (t.write(b"\x1b[2;2HR"), TL.at(t, 1, 1))[1] == I("R"))
+
+print("=== print() is text only ===")
+t, out = term(10, 3)
+raises("print() refuses ESC", ValueError, lambda: t.print("\x1b]2;pwned\x07\x1b[?1049h\x1b[6n", pos=(0, 0)), "write()")
+test("...and sends nothing", t.title == "" and out == [] and t.screen_text() == "\n\n")
+raises("print() refuses BEL", ValueError, lambda: t.print("a\x07"), "U+0007")
+raises("print() refuses DEL", ValueError, lambda: t.print("\x7f"))
+raises("print() refuses C1 CSI", ValueError, lambda: t.print("\x9b6n"), "U+009B")
+raises("print() refuses CR", ValueError, lambda: t.print("a\rb"))
+t.print("a\tb", pos=(0, 0))
+test("tab is allowed", lines(t)[0] == "a       b", repr(lines(t)[0]))
+# (A tile whose codepoint is a control character is refused by set()/fill_rect too; no font has a
+# glyph for one, so from_font never makes such a tile and that check cannot be reached from here.)
+
+print("=== placed text never wraps or scrolls ===")
+t, out = term(6, 3)
+t.write(b"top\r\nmid\r\nbot")
+t.set((5, 2), I("x"))
+test("set() at the bottom-right corner does not scroll", lines(t) == ["top", "mid", "bot  x"], repr(t.screen_text()))
+t.print("0123456789", pos=(4, 0))
+test("print(pos=) is clipped at the right edge", lines(t)[0] == "top 01" and lines(t)[1] == "mid", repr(t.screen_text()))
+t.print("A\nB\nC\nD", pos=(2, 1))
+test("print(pos=) lines stop at the bottom row (no scroll)",
+     lines(t) == ["top 01", "miA", "boB  x"], repr(t.screen_text()))
+t, out = term(10, 3)
+t.write(b"line0")
+t.print("0123456789ABCDEF", pos=(5, 2))
+test("a 10-column layer keeps line0 when placed text is too long", lines(t)[0] == "line0" and lines(t)[2] == "     01234",
+     repr(t.screen_text()))
+t.write(b"\x1b[3;1H")
+t.write(b"0123456789ABC")
+test("the program's own autowrap is restored afterwards (13 chars on the last row wrap and scroll)",
+     lines(t) == ["", "0123456789", "ABC"], repr(t.screen_text()))
+t2, _ = term(10, 3)
+t2.write(b"\x1b[?7l")
+t2.set((0, 0), I("q"))
+t2.write(b"\x1b[1;9H0123")
+test("...and a program's autowrap-off stays off", lines(t2)[0] == "q       03" and lines(t2)[1] == "", repr(t2.screen_text()))
+
+print("=== wide fill_rect ===")
+TW = mcrfpy.Texture.from_font(WIDE, 16, codepoints=[(0x20, 0x7E), 0x65E5])
+wt = mcrfpy.TerminalLayer(texture=TW, grid_size=(6, 2))
+wt.write(b"zzzzzz")
+wt.fill_rect((0, 0), (5, 1), TW.index(0x65E5))
+test("a wide glyph fills pairs; the odd last column is blank", wt.screen_text().split("\n")[0] == "\u65e5\u65e5 z",
+     repr(wt.screen_text()))
+test("...cells: left, right, left, right, blank", [wt.at(x, 0) for x in range(5)] ==
+     [TW.index(0x65E5), TW.index(0x65E5) + 1, TW.index(0x65E5), TW.index(0x65E5) + 1, TW.index(" ")],
+     f"{[wt.at(x, 0) for x in range(6)]}")
+
+print("=== default colour queries ===")
+for label, bg in (("background=None", None), ("background=Color", mcrfpy.Color(10, 20, 30))):
+    t, out = term(4, 1)
+    t.background = bg
+    for q in (b"\x1b]10;?\x1b\\", b"\x1b]11;?\x1b\\", b"\x1b]12;?\x1b\\"):
+        t.write(q)
+    want_bg = b"rgb:0000/0000/0000" if bg is None else b"rgb:0a0a/1414/1e1e"
+    test(f"OSC 10/11/12 answered ({label})", len(out) == 3 and b"10;rgb:ffff/ffff/ffff" in out[0] and
+         want_bg in out[1] and b"12;rgb:ffff/ffff/ffff" in out[2], f"{out}")
+    out.clear()
+    p = t.palette
+    p[0] = mcrfpy.Color(5, 5, 5)
+    t.palette = p
+    for q in (b"\x1b]10;?\x1b\\", b"\x1b]11;?\x1b\\", b"\x1b]12;?\x1b\\"):
+        t.write(q)
+    test(f"...still answered after a palette change ({label})", len(out) == 3 and want_bg in out[1], f"{out}")
+
+print("=== extremes ===")
+s, _ = term(10, 3, scrollback=100)
+s.write(b"\r\n".join(b"l%d" % i for i in range(20)))
+for n, want in ((2**63, 17), (10**30, 17), (-(2**63), 0), (-(10**30), 0), (2**63 - 1, 17), (-(2**63) + 1, 0)):
+    s.scroll_offset = 0
+    s.scroll(5)
+    s.scroll(n)
+    test(f"scroll({n}) clamps", s.scroll_offset == want, f"{s.scroll_offset}")
+for n in (2**63, 10**30):
+    s.scroll_offset = n
+    test(f"scroll_offset = {n} clamps to the top", s.scroll_offset == 17, f"{s.scroll_offset}")
+raises("scroll_offset = -2**63", ValueError, lambda: setattr(s, "scroll_offset", -(2**63)))
+m, out = term(10, 5)
+m.write(b"\x1b[?1000h\x1b[?1006h")
+for pos, want in (((1e9, 1e9), b"\x1b[<0;10;5M"), ((-1e9, -5), b"\x1b[<0;1;1M"), ((3e38, 2), b"\x1b[<0;10;3M"),
+                  ((-3e38, 3e38), b"\x1b[<0;1;5M")):
+    out.clear()
+    m.mouse(pos, mcrfpy.MouseButton.LEFT, mcrfpy.InputState.PRESSED)
+    test(f"mouse({pos}) clamps to the edge cell", out == [want], f"{out}")
+# Non-finite positions are refused by the engine's position conversion (#540), like every pos=.
+raises("mouse(NaN)", ValueError, lambda: m.mouse((float("nan"), 0), mcrfpy.MouseButton.LEFT, mcrfpy.InputState.PRESSED), "finite")
+raises("mouse(inf)", ValueError, lambda: m.mouse((float("inf"), 0), mcrfpy.MouseButton.LEFT, mcrfpy.InputState.PRESSED), "finite")
+m.write(b"\x1b[?1006l\x1b[?1015h")
+out.clear()
+m.mouse((1, 1), mcrfpy.MouseButton.LEFT, mcrfpy.InputState.PRESSED)
+test("URxvt (1015) format", out == [b"\x1b[32;2;2M"], f"{out}")
 
 print()
 if errors:

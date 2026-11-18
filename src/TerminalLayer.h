@@ -83,9 +83,9 @@ public:
     std::string screenText();
     size_t scrollbackRows() const;
     // Rows the viewport is scrolled back from the live screen (0 = live).
-    long scrollOffset() const;
-    void scrollBy(long rows_back);
-    void setScrollOffset(long rows_back);
+    long long scrollOffset() const;
+    void scrollBy(long long rows_back);
+    void setScrollOffset(long long rows_back);
 
     // Palette: the current 256 colours (OSC 4 overrides included); setting replaces the
     // default palette (an empty vector restores the built-in one).
@@ -134,6 +134,7 @@ public:
 
 private:
     void createTerminal(int cols, int rows);
+    void applyDefaultColours();
     void freeAll() noexcept;
     void updateBlinkRegistration();
     void tick(int now_ms);
@@ -170,6 +171,8 @@ private:
     int hold_start_ms_ = 0;
 
     bool has_background_ = false;
+    struct Rgb { uint8_t r, g, b; };
+    Rgb nominal_fg_{255, 255, 255}, nominal_bg_{0, 0, 0};   // the library's default colours
     sf::Color background_ = sf::Color::Transparent;
     sf::Color default_fg_ = sf::Color::White, default_bg_ = sf::Color::Black, cursor_colour_ = sf::Color::White;
 
@@ -195,4 +198,13 @@ namespace TerminalLayerAPI {
     // Hand pending_output to on_output where no Python caller can receive an error (a
     // resize from the grid): a failure is reported as engine callbacks report theirs.
     void flush_from_engine(const std::shared_ptr<TerminalLayer>& layer);
+    // TileLayer's writers dispatch here when called on a TerminalLayer (GridLayers.cpp), so
+    // no path writes `tiles` directly: the same behaviour as the TerminalLayer's own methods.
+    PyObject* py_set(PyObject* self, PyObject* args);
+    PyObject* py_fill(PyObject* self, PyObject* args);
+    PyObject* py_fill_rect(PyObject* self, PyObject* args, PyObject* kwds);
+    int py_ass_subscript(PyObject* self, PyObject* key, PyObject* value);
+    PyObject* py_apply_threshold(PyObject* self, PyObject* args, PyObject* kwds);
+    PyObject* py_apply_ranges(PyObject* self, PyObject* args);
+    int py_set_texture(PyObject* self, PyObject* value);
 }
