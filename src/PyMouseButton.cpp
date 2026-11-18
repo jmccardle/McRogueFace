@@ -14,6 +14,8 @@ struct MouseButtonEntry {
 // Custom values for scroll wheel (beyond sf::Mouse::Button range)
 static const int SCROLL_UP_VALUE = 10;
 static const int SCROLL_DOWN_VALUE = 11;
+static const int SCROLL_LEFT_VALUE = 12;   // #548
+static const int SCROLL_RIGHT_VALUE = 13;
 
 static const MouseButtonEntry mouse_button_table[] = {
     {"LEFT", sf::Mouse::Left, "left"},
@@ -23,6 +25,8 @@ static const MouseButtonEntry mouse_button_table[] = {
     {"X2", sf::Mouse::XButton2, "x2"},
     {"SCROLL_UP", SCROLL_UP_VALUE, "wheel_up"},
     {"SCROLL_DOWN", SCROLL_DOWN_VALUE, "wheel_down"},
+    {"SCROLL_LEFT", SCROLL_LEFT_VALUE, "wheel_left"},      // #548
+    {"SCROLL_RIGHT", SCROLL_RIGHT_VALUE, "wheel_right"},
 };
 
 static const int NUM_MOUSE_BUTTON_ENTRIES = sizeof(mouse_button_table) / sizeof(mouse_button_table[0]);
@@ -82,6 +86,8 @@ PyObject* PyMouseButton::create_enum_class(PyObject* module) {
     code << "        X2: Extra mouse button 2\n";
     code << "        SCROLL_UP: Scroll wheel up\n";
     code << "        SCROLL_DOWN: Scroll wheel down\n";
+    code << "        SCROLL_LEFT: Horizontal scroll wheel left\n";
+    code << "        SCROLL_RIGHT: Horizontal scroll wheel right\n";
     code << "    \"\"\"\n";
 
     // Add enum members
@@ -160,8 +166,8 @@ int PyMouseButton::from_arg(PyObject* arg, sf::Mouse::Button* out_button) {
         if (val == -1 && PyErr_Occurred()) {
             return 0;
         }
-        // Valid values: 0-4 (mouse buttons) or 10-11 (scroll wheel)
-        if ((val >= 0 && val <= 4) || val == SCROLL_UP_VALUE || val == SCROLL_DOWN_VALUE) {
+        // Valid values: 0-4 (mouse buttons) or 10-13 (scroll wheel)
+        if ((val >= 0 && val <= 4) || (val >= SCROLL_UP_VALUE && val <= SCROLL_RIGHT_VALUE)) {
             *out_button = static_cast<sf::Mouse::Button>(val);
             return 1;
         }
@@ -176,14 +182,15 @@ int PyMouseButton::from_arg(PyObject* arg, sf::Mouse::Button* out_button) {
         if (val == -1 && PyErr_Occurred()) {
             return 0;
         }
-        // Check if it's a valid mouse button (0-4) or scroll value (10-11)
-        if ((val >= 0 && val <= 4) || val == SCROLL_UP_VALUE || val == SCROLL_DOWN_VALUE) {
+        // Check if it's a valid mouse button (0-4) or scroll value (10-13)
+        if ((val >= 0 && val <= 4) || (val >= SCROLL_UP_VALUE && val <= SCROLL_RIGHT_VALUE)) {
             *out_button = static_cast<sf::Mouse::Button>(val);
             return 1;
         }
         PyErr_Format(PyExc_ValueError,
             "Invalid MouseButton value: %ld. Must be 0 (LEFT), 1 (RIGHT), 2 (MIDDLE), "
-            "3 (X1), 4 (X2), 10 (SCROLL_UP), or 11 (SCROLL_DOWN).", val);
+            "3 (X1), 4 (X2), 10 (SCROLL_UP), 11 (SCROLL_DOWN), "
+            "12 (SCROLL_LEFT), or 13 (SCROLL_RIGHT).", val);
         return 0;
     }
 

@@ -201,6 +201,9 @@ PyScene::PyScene(GameEngine* g) : Scene(g)
     registerAction(ActionCode::MOUSEBUTTON + sf::Mouse::XButton2, "x2");  // existed but never fired
     registerAction(ActionCode::MOUSEWHEEL + ActionCode::WHEEL_DEL, "wheel_up");
     registerAction(ActionCode::MOUSEWHEEL + ActionCode::WHEEL_NEG + ActionCode::WHEEL_DEL, "wheel_down");
+    // #548: horizontal wheel (sf::Mouse::HorizontalWheel = 1 -> WHEEL_NUM bit). Delta > 0 is left.
+    registerAction(ActionCode::MOUSEWHEEL + ActionCode::WHEEL_NUM + ActionCode::WHEEL_DEL, "wheel_left");
+    registerAction(ActionCode::MOUSEWHEEL + ActionCode::WHEEL_NUM + ActionCode::WHEEL_NEG + ActionCode::WHEEL_DEL, "wheel_right");
 
     // console (` / ~ key) - don't hard code.
     //registerAction(ActionCode::KEY + sf::Keyboard::Grave, "debug_menu");
@@ -270,7 +273,8 @@ void PyScene::doAction(std::string name, std::string type)
 {
     if (name.compare("left") == 0 || name.compare("right") == 0 || name.compare("middle") == 0 ||
         name.compare("x1") == 0 || name.compare("x2") == 0 ||
-        name.compare("wheel_up") == 0 || name.compare("wheel_down") == 0) {
+        name.compare("wheel_up") == 0 || name.compare("wheel_down") == 0 ||
+        name.compare("wheel_left") == 0 || name.compare("wheel_right") == 0) {
         do_mouse_input(name, type);
     }
     else if ACTIONONCE("debug_menu") {

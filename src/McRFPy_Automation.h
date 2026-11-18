@@ -46,7 +46,7 @@ public:
     static PyObject* _keyUp(PyObject* self, PyObject* args);
     
     // Helper functions
-    static void injectMouseEvent(sf::Event::EventType type, int x, int y, sf::Mouse::Button button = sf::Mouse::Left, float scrollDelta = 0.0f);
+    static void injectMouseEvent(sf::Event::EventType type, int x, int y, sf::Mouse::Button button = sf::Mouse::Left, float scrollDelta = 0.0f, bool horizontal = false);
     // #367 - Window-level events (LostFocus, GainedFocus) carry no payload at all, so
     // they do not belong in injectMouseEvent's coordinate-bearing signature.
     static void injectWindowEvent(sf::Event::EventType type);

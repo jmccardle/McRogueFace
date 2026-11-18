@@ -234,6 +234,8 @@ submodule automation
   MIDDLE = 2
   RIGHT = 1
   SCROLL_DOWN = 11
+  SCROLL_LEFT = 12
+  SCROLL_RIGHT = 13
   SCROLL_UP = 10
   X1 = 3
   X2 = 4
@@ -1302,7 +1304,7 @@ func onScreen :: onScreen(x: int, y: int) or (pos: tuple | list | Vector) -> boo
 func position :: position() -> Vector
 func rightClick :: rightClick(pos: tuple | list | Vector | None = None) -> None
 func screenshot :: screenshot(filename: str) -> bool
-func scroll :: scroll(clicks: int, pos: tuple | list | Vector | None = None) -> None
+func scroll :: scroll(clicks: int, pos: tuple | list | Vector | None = None, horizontal: bool = False) -> None
 func size :: size() -> Vector
 func tripleClick :: tripleClick(pos: tuple | list | Vector | None = None) -> None
 func typeText :: typeText(text: str) -> None
