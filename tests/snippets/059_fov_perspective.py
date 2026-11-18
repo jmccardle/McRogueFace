@@ -42,7 +42,7 @@ status.outline_color = mcrfpy.Color(0, 0, 0)
 scene.children.append(status)
 
 def on_key(key, action):
-    if action != mcrfpy.InputState.PRESSED:
+    if action == mcrfpy.InputState.RELEASED:  # PRESSED and REPEATED: a held key keeps moving (#549)
         return
     x, y = player.grid_x, player.grid_y
     if key == mcrfpy.Key.W: player.grid_pos = (x, y - 1)

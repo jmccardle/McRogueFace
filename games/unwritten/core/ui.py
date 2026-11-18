@@ -142,9 +142,12 @@ class MenuList:
         self._place_cursor()
 
     def handle(self, key, state):
-        if state != mcrfpy.InputState.PRESSED:
-            return False
         K = mcrfpy.Key
+        if state == mcrfpy.InputState.RELEASED:
+            return False
+        # PRESSED and REPEATED: a held W/S/Up/Down keeps moving (#549); one-shots need PRESSED
+        if state == mcrfpy.InputState.REPEATED and key not in (K.W, K.UP, K.S, K.DOWN):
+            return False
         if key in (K.W, K.UP):
             self.move(-1)
             return True
@@ -533,9 +536,13 @@ class DialogueBox:
 
     # -------------------------------------------------------------------- input
     def handle(self, key, state):
-        if state != mcrfpy.InputState.PRESSED:
-            return False
         K = mcrfpy.Key
+        if state == mcrfpy.InputState.RELEASED:
+            return False
+        # PRESSED and REPEATED: held W/S/Up/Down keeps moving the choice cursor (#549); one-shots need PRESSED
+        if state == mcrfpy.InputState.REPEATED and not (
+                self._choices and not self._typing and key in (K.W, K.UP, K.S, K.DOWN)):
+            return False
         # typing: any advance key skips to full
         if self._typing:
             if key in (K.SPACE, K.ENTER):

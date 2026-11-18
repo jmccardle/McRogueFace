@@ -219,7 +219,10 @@ timer = mcrfpy.Timer("rotate_cam", rotate_camera, 33)
 def handle_key(key, action):
     """Keyboard handler"""
     global rotation_enabled, seed, camera_distance, camera_height
-    if action != mcrfpy.InputState.PRESSED:
+    if action == mcrfpy.InputState.RELEASED:
+        return  # PRESSED and REPEATED pass; one-shot keys still need PRESSED (#549)
+    if action == mcrfpy.InputState.REPEATED and key not in (
+            mcrfpy.Key.EQUALS, mcrfpy.Key.ADD, mcrfpy.Key.DASH, mcrfpy.Key.SUBTRACT):
         return
 
     if key == mcrfpy.Key.R:

@@ -24,7 +24,7 @@ pos_label = mcrfpy.Caption(text="scene.pos = (0, 0)", pos=(380, 600))
 scene.children.append(pos_label)
 
 def on_key(key, action):
-    if action != mcrfpy.InputState.PRESSED:
+    if action == mcrfpy.InputState.RELEASED:  # PRESSED and REPEATED: a held key keeps moving (#549)
         return
     x, y = scene.pos.x, scene.pos.y
     step = 20

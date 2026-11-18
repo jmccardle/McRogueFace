@@ -53,7 +53,7 @@ def check_collision():
     return False
 
 def on_key(key, action):
-    if action != mcrfpy.InputState.PRESSED: return
+    if action == mcrfpy.InputState.RELEASED: return  # PRESSED and REPEATED: a held key keeps moving (#549)
     x, y = player.grid_x, player.grid_y
     nx, ny = x, y
     if key == mcrfpy.Key.W: ny -= 1

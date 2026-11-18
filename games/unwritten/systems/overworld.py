@@ -451,6 +451,10 @@ class _World:
         K = mcrfpy.Key
         if self.frozen:
             return False
+        if state == mcrfpy.InputState.REPEATED:
+            # held-key movement is timer-driven via self.held (#549); swallow repeats
+            # so they are neither a second step nor treated as a release
+            return key in _DIRS
         if state == mcrfpy.InputState.PRESSED:
             if key in _DIRS:
                 d = _DIRS[key]

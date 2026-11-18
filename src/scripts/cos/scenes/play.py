@@ -197,7 +197,11 @@ class PlayScene:
           Old: if key == "W" and state == "end": ...
           New: if key == mcrfpy.Key.W and action == mcrfpy.InputState.PRESSED: ...
         """
-        if action != mcrfpy.InputState.PRESSED:
+        if action == mcrfpy.InputState.RELEASED:
+            return
+        # PRESSED and REPEATED: a held WASD key keeps moving (#549); other keys need PRESSED
+        if action == mcrfpy.InputState.REPEATED and key not in (
+                mcrfpy.Key.W, mcrfpy.Key.A, mcrfpy.Key.S, mcrfpy.Key.D):
             return
 
         direction = None

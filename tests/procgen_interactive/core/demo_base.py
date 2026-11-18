@@ -443,7 +443,10 @@ class ProcgenDemoBase(ABC):
     def _on_key(self, key, action):
         """Handle keyboard input."""
         # Only process on key press
-        if action != mcrfpy.InputState.PRESSED:
+        if action == mcrfpy.InputState.RELEASED:
+            return  # PRESSED and REPEATED pass; one-shot keys still need PRESSED (#549)
+        if action == mcrfpy.InputState.REPEATED and key not in (
+                mcrfpy.Key.LEFT, mcrfpy.Key.RIGHT):
             return
 
         # Check specific keys using enums

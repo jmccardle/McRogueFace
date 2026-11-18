@@ -46,7 +46,7 @@ grid.entities.append(treasure)
 
 # Movement handler using modern API
 def handle_keys(key, state):
-    if state == mcrfpy.InputState.PRESSED:
+    if state != mcrfpy.InputState.RELEASED:  # PRESSED and REPEATED: a held key keeps moving (#549)
         x, y = player.pos[0], player.pos[1]
         if key == mcrfpy.Key.W:
             player.pos = (x, y - 1)

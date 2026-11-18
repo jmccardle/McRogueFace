@@ -206,7 +206,11 @@ class CookbookLauncher:
 
     def on_key(self, key, state):
         """Handle keyboard input."""
-        if state != mcrfpy.InputState.PRESSED:
+        if state == mcrfpy.InputState.RELEASED:
+            return  # PRESSED and REPEATED pass; one-shot keys still need PRESSED (#549)
+        if state == mcrfpy.InputState.REPEATED and key not in (
+                mcrfpy.Key.LEFT, mcrfpy.Key.RIGHT, mcrfpy.Key.UP, mcrfpy.Key.DOWN,
+                mcrfpy.Key.A, mcrfpy.Key.D, mcrfpy.Key.W, mcrfpy.Key.S):
             return
 
         category = self.categories[self.selected_category]

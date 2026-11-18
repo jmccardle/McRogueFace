@@ -80,8 +80,10 @@ def handle_keys(key: mcrfpy.Key, action: mcrfpy.InputState) -> None:
         action: mcrfpy.InputState.PRESSED or mcrfpy.InputState.RELEASED
     """
     # Only respond to key press, not release
-    if action != mcrfpy.InputState.PRESSED:
+    if action == mcrfpy.InputState.RELEASED:
         return
+    if action == mcrfpy.InputState.REPEATED and key not in (mcrfpy.Key.W, mcrfpy.Key.UP, mcrfpy.Key.S, mcrfpy.Key.DOWN, mcrfpy.Key.A, mcrfpy.Key.LEFT, mcrfpy.Key.D, mcrfpy.Key.RIGHT):
+        return  # held movement keys keep moving; Escape needs a fresh press (#549)
 
     # Get current player position
     px, py = player.grid_x, player.grid_y

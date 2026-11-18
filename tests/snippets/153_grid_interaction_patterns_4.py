@@ -33,7 +33,7 @@ move_map = {
 }
 
 def handle_key(key, action):
-    if action != mcrfpy.InputState.PRESSED:
+    if action == mcrfpy.InputState.RELEASED:  # PRESSED and REPEATED: a held key keeps moving (#549)
         return
     if key in move_map:
         dx, dy = move_map[key]

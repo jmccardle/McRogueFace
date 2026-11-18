@@ -326,8 +326,10 @@ def regenerate_dungeon() -> None:
 
 def handle_keys(key: mcrfpy.Key, action: mcrfpy.InputState) -> None:
     """Handle keyboard input."""
-    if action != mcrfpy.InputState.PRESSED:
+    if action == mcrfpy.InputState.RELEASED:
         return
+    if action == mcrfpy.InputState.REPEATED and key not in (mcrfpy.Key.W, mcrfpy.Key.Up, mcrfpy.Key.S, mcrfpy.Key.Down, mcrfpy.Key.A, mcrfpy.Key.Left, mcrfpy.Key.D, mcrfpy.Key.Right):
+        return  # held movement keys keep moving; R/Escape/other keys need a fresh press (#549)
 
     px, py = player.grid_x, player.grid_y
     new_x, new_y = px, py

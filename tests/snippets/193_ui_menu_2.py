@@ -262,8 +262,10 @@ def switch_menu(new_menu):
 
 def handle_keys(key, state):
     global current_menu
-    if state != mcrfpy.InputState.PRESSED:
+    if state == mcrfpy.InputState.RELEASED:
         return
+    if state == mcrfpy.InputState.REPEATED and key not in (mcrfpy.Key.UP, mcrfpy.Key.W, mcrfpy.Key.DOWN, mcrfpy.Key.S):
+        return  # held arrows keep navigating; Enter/Space/Escape need a fresh press (#549)
 
     if key == mcrfpy.Key.UP or key == mcrfpy.Key.W:
         current_menu.move_up()

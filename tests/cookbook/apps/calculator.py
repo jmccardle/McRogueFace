@@ -183,7 +183,10 @@ class Calculator:
 
     def on_key(self, key, state):
         """Handle keyboard input."""
-        if state != mcrfpy.InputState.PRESSED:
+        if state == mcrfpy.InputState.RELEASED:
+            return  # PRESSED and REPEATED pass; one-shot keys still need PRESSED (#549)
+        if state == mcrfpy.InputState.REPEATED and key not in (
+                mcrfpy.Key.NUM_0, mcrfpy.Key.NUM_1, mcrfpy.Key.NUM_2, mcrfpy.Key.NUM_3, mcrfpy.Key.NUM_4, mcrfpy.Key.NUM_5, mcrfpy.Key.NUM_6, mcrfpy.Key.NUM_7, mcrfpy.Key.NUM_8, mcrfpy.Key.NUM_9, mcrfpy.Key.PERIOD, mcrfpy.Key.BACKSPACE):
             return
 
         if key == mcrfpy.Key.ESCAPE:

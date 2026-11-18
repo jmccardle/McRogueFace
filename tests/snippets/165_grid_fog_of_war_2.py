@@ -56,7 +56,7 @@ def update_visibility():
     player.update_visibility()
 
 def handle_input(key, action):
-    if action != mcrfpy.InputState.PRESSED:
+    if action == mcrfpy.InputState.RELEASED:  # PRESSED and REPEATED: a held key keeps moving (#549)
         return
 
     x, y = player.grid_x, player.grid_y

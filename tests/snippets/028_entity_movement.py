@@ -29,7 +29,7 @@ grid.entities.append(player)
 
 # Movement with keyboard
 def on_key(key, action):
-    if action != mcrfpy.InputState.PRESSED:
+    if action == mcrfpy.InputState.RELEASED:  # PRESSED and REPEATED: a held key keeps moving (#549)
         return
     x, y = player.grid_x, player.grid_y
     if key == mcrfpy.Key.UP or key == mcrfpy.Key.W:

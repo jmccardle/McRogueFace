@@ -1466,8 +1466,10 @@ else:
 def handle_keys(key: mcrfpy.Key, action: mcrfpy.InputState) -> None:
     global game_over, game_mode
 
-    if action != mcrfpy.InputState.PRESSED:
+    if action == mcrfpy.InputState.RELEASED:
         return
+    if action == mcrfpy.InputState.REPEATED and key not in (mcrfpy.Key.W, mcrfpy.Key.UP, mcrfpy.Key.S, mcrfpy.Key.DOWN, mcrfpy.Key.A, mcrfpy.Key.LEFT, mcrfpy.Key.D, mcrfpy.Key.RIGHT):
+        return  # held movement keys keep moving; R/Escape/other keys need a fresh press (#549)
 
     # Always allow restart
     if key == mcrfpy.Key.R:

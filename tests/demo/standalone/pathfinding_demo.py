@@ -235,7 +235,10 @@ for i, text in enumerate(instructions):
 
 
 def on_key(key, state):
-    if state != mcrfpy.InputState.PRESSED:
+    if state == mcrfpy.InputState.RELEASED:
+        return  # PRESSED and REPEATED pass; one-shot keys still need PRESSED (#549)
+    if state == mcrfpy.InputState.REPEATED and key not in (
+            mcrfpy.Key.Q, mcrfpy.Key.W, mcrfpy.Key.LEFT, mcrfpy.Key.RIGHT, mcrfpy.Key.UP, mcrfpy.Key.DOWN):
         return
     for i, digit in enumerate([mcrfpy.Key.Num1, mcrfpy.Key.Num2, mcrfpy.Key.Num3,
                                mcrfpy.Key.Num4, mcrfpy.Key.Num5]):

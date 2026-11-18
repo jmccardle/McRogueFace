@@ -49,7 +49,7 @@ mini_player = mcrfpy.Entity(grid_pos=(4, 6), texture=mcrfpy.default_texture, spr
 minimap.entities.append(mini_player)
 
 def on_key(key, action):
-    if action != mcrfpy.InputState.PRESSED: return
+    if action == mcrfpy.InputState.RELEASED: return  # PRESSED and REPEATED: a held key keeps moving (#549)
     x, y = player.grid_x, player.grid_y
     if key == mcrfpy.Key.W and main_grid.at(x, y-1).tilesprite == 48: y -= 1
     elif key == mcrfpy.Key.S and main_grid.at(x, y+1).tilesprite == 48: y += 1

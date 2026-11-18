@@ -77,8 +77,10 @@ class GameScene(mcrfpy.Scene):
         print("Game paused")
 
     def handle_key(self, key, action):
-        if action != mcrfpy.InputState.PRESSED:
+        if action == mcrfpy.InputState.RELEASED:
             return
+        if action == mcrfpy.InputState.REPEATED and key not in (mcrfpy.Key.UP, mcrfpy.Key.W, mcrfpy.Key.DOWN, mcrfpy.Key.S, mcrfpy.Key.LEFT, mcrfpy.Key.A, mcrfpy.Key.RIGHT, mcrfpy.Key.D):
+            return  # held movement keys keep moving; Escape needs a fresh press (#549)
 
         if key == mcrfpy.Key.ESCAPE:
             title.activate()

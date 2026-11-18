@@ -1682,9 +1682,13 @@ class _TargetPicker:
         self._place()
 
     def handle(self, key, state):
-        if state != mcrfpy.InputState.PRESSED:
-            return True
         K = mcrfpy.Key
+        if state == mcrfpy.InputState.RELEASED:
+            return True
+        # PRESSED and REPEATED: held direction keys keep cycling targets (#549); one-shots need PRESSED
+        if state == mcrfpy.InputState.REPEATED and key not in (
+                K.A, K.LEFT, K.W, K.UP, K.D, K.RIGHT, K.S, K.DOWN):
+            return True
         if key in (K.A, K.LEFT, K.W, K.UP):
             self._cycle(-1)
             return True

@@ -336,9 +336,11 @@ class Gauntlet:
             self.manual_load = self.ramp.result["max_load"] or self.trial.base_load
 
     def _trial_key(self, key, state):
-        if state != mcrfpy.InputState.PRESSED:
-            return
+        if state == mcrfpy.InputState.RELEASED:
+            return  # PRESSED and REPEATED pass; one-shot keys still need PRESSED (#549)
         K = mcrfpy.Key
+        if state == mcrfpy.InputState.REPEATED and key not in (K.EQUAL, K.ADD, K.HYPHEN, K.SUBTRACT):
+            return
         if key == K.ESCAPE:
             self.autorun = False
             self.show_menu()

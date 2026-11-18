@@ -34,11 +34,11 @@ class ModifierTracker:
     def update(self, key, action):
         """Call this from your key handler to update modifier state."""
         if key in (mcrfpy.Key.LEFT_SHIFT, mcrfpy.Key.RIGHT_SHIFT):
-            self.shift = (action == mcrfpy.InputState.PRESSED)
+            self.shift = (action != mcrfpy.InputState.RELEASED)  # REPEATED keeps it held (#549)
         elif key in (mcrfpy.Key.LEFT_CONTROL, mcrfpy.Key.RIGHT_CONTROL):
-            self.ctrl = (action == mcrfpy.InputState.PRESSED)
+            self.ctrl = (action != mcrfpy.InputState.RELEASED)  # REPEATED keeps it held (#549)
         elif key in (mcrfpy.Key.LEFT_ALT, mcrfpy.Key.RIGHT_ALT):
-            self.alt = (action == mcrfpy.InputState.PRESSED)
+            self.alt = (action != mcrfpy.InputState.RELEASED)  # REPEATED keeps it held (#549)
 
 
 # =============================================================================
@@ -162,8 +162,12 @@ class FocusManager:
         # Always update modifier state
         self.modifiers.update(key, action)
 
-        # Only process on key press, not release (key repeat sends multiple "start")
-        if action != mcrfpy.InputState.PRESSED:
+        # Skip release; held-key repeats (#549) reach widgets for movement/typing/cursor
+        # keys, but focus-nav, modal-close and activation keys stay one-shot.
+        if action == mcrfpy.InputState.RELEASED:
+            return False
+        if action == mcrfpy.InputState.REPEATED and key in (
+                mcrfpy.Key.ESCAPE, mcrfpy.Key.TAB, mcrfpy.Key.ENTER, mcrfpy.Key.SPACE):
             return False
 
         # Global: Escape closes modals

@@ -799,7 +799,10 @@ def build_animalese():
 
     # --- Key handler ---
     def on_key(key, action):
-        if action != mcrfpy.InputState.PRESSED:
+        if action == mcrfpy.InputState.RELEASED:
+            return  # PRESSED and REPEATED pass; one-shot keys still need PRESSED (#549)
+        if action == mcrfpy.InputState.REPEATED and key not in (
+            mcrfpy.Key.BACKSPACE, mcrfpy.Key.SPACE) and key not in key_chars:
             return
         if key == mcrfpy.Key.ESCAPE:
             sys.exit(0)

@@ -275,7 +275,7 @@ class MovementController:
 controller = MovementController(player, game_grid, move_duration=0.15)
 
 def handle_input(key, action):
-    if action != mcrfpy.InputState.PRESSED:
+    if action == mcrfpy.InputState.RELEASED:  # PRESSED and REPEATED: a held key keeps moving (#549)
         return
 
     if key in (mcrfpy.Key.W, mcrfpy.Key.UP):

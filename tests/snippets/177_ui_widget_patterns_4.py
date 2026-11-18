@@ -72,8 +72,10 @@ menu = VerticalMenu(root, (20, 20), [
 
 # Keyboard navigation via scene.on_key
 def handle_key(key, action):
-    if action != mcrfpy.InputState.PRESSED:
+    if action == mcrfpy.InputState.RELEASED:
         return
+    if action == mcrfpy.InputState.REPEATED and key not in (mcrfpy.Key.UP, mcrfpy.Key.DOWN):
+        return  # held arrows keep navigating; Enter needs a fresh press (#549)
     if key == mcrfpy.Key.UP:
         menu.move_up()
     elif key == mcrfpy.Key.DOWN:

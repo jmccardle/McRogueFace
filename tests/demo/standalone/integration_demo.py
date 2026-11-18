@@ -349,7 +349,10 @@ def try_move_player(dx, dz):
 def on_key(key, state):
     global follow_camera
 
-    if state != mcrfpy.InputState.PRESSED:
+    if state == mcrfpy.InputState.RELEASED:
+        return  # PRESSED and REPEATED pass; one-shot keys still need PRESSED (#549)
+    if state == mcrfpy.InputState.REPEATED and key not in (
+            mcrfpy.Key.UP, mcrfpy.Key.DOWN, mcrfpy.Key.LEFT, mcrfpy.Key.RIGHT):
         return
 
     if player.is_moving:

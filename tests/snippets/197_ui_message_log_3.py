@@ -124,8 +124,10 @@ mcrfpy.Timer("combat_sim", simulate_combat, 2000)
 
 # Keyboard controls
 def on_key(key, state):
-    if state != mcrfpy.InputState.PRESSED:
+    if state == mcrfpy.InputState.RELEASED:
         return
+    if state == mcrfpy.InputState.REPEATED and key not in (mcrfpy.Key.PAGE_UP, mcrfpy.Key.PAGE_DOWN):
+        return  # held PageUp/PageDown keep scrolling; filter keys need a fresh press (#549)
     if key == mcrfpy.Key.PAGE_UP:
         log.scroll_up(3)
     elif key == mcrfpy.Key.PAGE_DOWN:

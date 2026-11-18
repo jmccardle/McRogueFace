@@ -35,7 +35,7 @@ controls.outline_color = mcrfpy.Color(0, 0, 0)
 scene.children.append(controls)
 
 def on_key(key, action):
-    if action != mcrfpy.InputState.PRESSED:
+    if action == mcrfpy.InputState.RELEASED:  # PRESSED and REPEATED: a held key keeps moving (#549)
         return
     if key == mcrfpy.Key.Q:
         grid.camera_rotation -= 15

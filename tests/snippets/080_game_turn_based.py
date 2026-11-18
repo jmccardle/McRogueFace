@@ -47,7 +47,7 @@ def enemy_turn(timer, runtime):
 
 def on_key(key, action):
     global turn
-    if action != mcrfpy.InputState.PRESSED or turn != "player":
+    if action == mcrfpy.InputState.RELEASED or turn != "player":  # PRESSED and REPEATED: a held key keeps moving (#549)
         return
 
     x, y = player.grid_x, player.grid_y

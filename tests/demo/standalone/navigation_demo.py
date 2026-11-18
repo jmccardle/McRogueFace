@@ -298,7 +298,10 @@ def update_camera(timer, runtime):
 
 # Key handler
 def on_key(key, state):
-    if state != mcrfpy.InputState.PRESSED:
+    if state == mcrfpy.InputState.RELEASED:
+        return  # PRESSED and REPEATED pass; one-shot keys still need PRESSED (#549)
+    if state == mcrfpy.InputState.REPEATED and key not in (
+            mcrfpy.Key.W, mcrfpy.Key.A, mcrfpy.Key.S, mcrfpy.Key.D, mcrfpy.Key.I, mcrfpy.Key.J, mcrfpy.Key.K, mcrfpy.Key.L):
         return
 
     global current_path, fov_visible

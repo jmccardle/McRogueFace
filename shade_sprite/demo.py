@@ -143,6 +143,10 @@ def _no_assets_fallback(scene, scene_name):
     return scene
 
 
+_SWITCH_KEYS = (mcrfpy.Key.NUM_1, mcrfpy.Key.NUM_2, mcrfpy.Key.NUM_3, mcrfpy.Key.NUM_4,
+                mcrfpy.Key.NUM_5, mcrfpy.Key.NUM_6, mcrfpy.Key.NUM_7, mcrfpy.Key.NUM_8)
+
+
 def _handle_scene_switch(key):
     """Common scene switching for number keys."""
     scene_map = {
@@ -305,7 +309,10 @@ def _build_scene_viewer():
         dir_label.text = f"Direction: {d.name} ({d.value})"
 
     def on_key(key, action):
-        if action != mcrfpy.InputState.PRESSED:
+        if action == mcrfpy.InputState.RELEASED:
+            return
+        # PRESSED and REPEATED: held cycle/adjust keys keep going (#549); one-shots need PRESSED
+        if action == mcrfpy.InputState.REPEATED and key in _SWITCH_KEYS:
             return
         if _handle_scene_switch(key):
             return
@@ -441,7 +448,10 @@ def _build_scene_hsl():
         _rebuild_shifted()
 
     def on_key(key, action):
-        if action != mcrfpy.InputState.PRESSED:
+        if action == mcrfpy.InputState.RELEASED:
+            return
+        # PRESSED and REPEATED: held cycle/adjust keys keep going (#549); one-shots need PRESSED
+        if action == mcrfpy.InputState.REPEATED and key in _SWITCH_KEYS:
             return
         if _handle_scene_switch(key):
             return
@@ -554,7 +564,10 @@ def _build_scene_gallery():
     ui.append(controls)
 
     def on_key(key, action):
-        if action != mcrfpy.InputState.PRESSED:
+        if action == mcrfpy.InputState.RELEASED:
+            return
+        # PRESSED and REPEATED: held cycle/adjust keys keep going (#549); one-shots need PRESSED
+        if action == mcrfpy.InputState.REPEATED and key in _SWITCH_KEYS:
             return
         if _handle_scene_switch(key):
             return
@@ -877,7 +890,10 @@ def _build_scene_layers():
             s.texture = asm3.build(f"row2_{i}")
 
     def on_key(key, action):
-        if action != mcrfpy.InputState.PRESSED:
+        if action == mcrfpy.InputState.RELEASED:
+            return
+        # PRESSED and REPEATED: held cycle/adjust keys keep going (#549); one-shots need PRESSED
+        if action == mcrfpy.InputState.REPEATED and key in _SWITCH_KEYS:
             return
         if _handle_scene_switch(key):
             return
@@ -1069,7 +1085,10 @@ def _build_scene_equip():
     ui.append(controls)
 
     def on_key(key, action):
-        if action != mcrfpy.InputState.PRESSED:
+        if action == mcrfpy.InputState.RELEASED:
+            return
+        # PRESSED and REPEATED: held cycle/adjust keys keep going (#549); one-shots need PRESSED
+        if action == mcrfpy.InputState.REPEATED and key in _SWITCH_KEYS + (mcrfpy.Key.TAB, mcrfpy.Key.T, mcrfpy.Key.R):
             return
         if _handle_scene_switch(key):
             return
@@ -1282,7 +1301,10 @@ def _build_scene_inventory():
     ui.append(controls)
 
     def on_key(key, action):
-        if action != mcrfpy.InputState.PRESSED:
+        if action == mcrfpy.InputState.RELEASED:
+            return
+        # PRESSED and REPEATED: held cycle/adjust keys keep going (#549); one-shots need PRESSED
+        if action == mcrfpy.InputState.REPEATED and key in _SWITCH_KEYS:
             return
         if _handle_scene_switch(key):
             return
@@ -1536,7 +1558,10 @@ def _build_scene_entity_anim():
     ui.append(controls)
 
     def on_key(key, action):
-        if action != mcrfpy.InputState.PRESSED:
+        if action == mcrfpy.InputState.RELEASED:
+            return
+        # PRESSED and REPEATED: held cycle/adjust keys keep going (#549); one-shots need PRESSED
+        if action == mcrfpy.InputState.REPEATED and key in _SWITCH_KEYS:
             return
         if _handle_scene_switch(key):
             return

@@ -365,9 +365,12 @@ class _PartyMenu:
         return 0
 
     def _handle(self, key, state):
-        if state != mcrfpy.InputState.PRESSED:
-            return True
         K = mcrfpy.Key
+        if state == mcrfpy.InputState.RELEASED:
+            return True
+        # PRESSED and REPEATED: held W/S/Up/Down keeps moving the list cursor (#549); one-shots need PRESSED
+        if state == mcrfpy.InputState.REPEATED and key not in (K.W, K.UP, K.S, K.DOWN):
+            return True
         if self.picker is not None:
             if key == K.ESCAPE:
                 self._close_picker()

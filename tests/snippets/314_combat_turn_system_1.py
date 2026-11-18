@@ -198,8 +198,10 @@ def cleanup_dead_actors():
 
 def handle_player_input(key, action):
     """Handle keyboard input during player's turn."""
-    if action != mcrfpy.InputState.PRESSED:
+    if action == mcrfpy.InputState.RELEASED:
         return
+    if action == mcrfpy.InputState.REPEATED and key not in (mcrfpy.Key.W, mcrfpy.Key.UP, mcrfpy.Key.S, mcrfpy.Key.DOWN, mcrfpy.Key.A, mcrfpy.Key.LEFT, mcrfpy.Key.D, mcrfpy.Key.RIGHT):
+        return  # held movement keys keep moving; Space (wait) needs a fresh press (#549)
 
     if game_state != GameState.PLAYER_TURN:
         return  # Not player's turn

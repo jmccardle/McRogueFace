@@ -145,8 +145,10 @@ menu = Menu(
 menu.add_to_scene(scene.children)
 
 def handle_keys(key, state):
-    if state != mcrfpy.InputState.PRESSED:
+    if state == mcrfpy.InputState.RELEASED:
         return
+    if state == mcrfpy.InputState.REPEATED and key not in (mcrfpy.Key.UP, mcrfpy.Key.W, mcrfpy.Key.DOWN, mcrfpy.Key.S):
+        return  # held arrows keep navigating; Enter/Space need a fresh press (#549)
     menu.handle_key(key)
 
 scene.on_key = handle_keys
