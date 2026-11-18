@@ -34,6 +34,7 @@ PyObject* PyInputState::get_enum_member(int value) {
 PyObject* PyInputState::from_action_type(const std::string& type) {
     if (type == "start") return get_enum_member(0);
     if (type == "end") return get_enum_member(1);
+    if (type == "repeat") return get_enum_member(2);  // #549
     PyErr_Format(PyExc_ValueError, "unknown input action type '%s'", type.c_str());
     return nullptr;
 }
@@ -47,6 +48,7 @@ struct InputStateEntry {
 static const InputStateEntry input_state_table[] = {
     {"PRESSED", 0},
     {"RELEASED", 1},
+    {"REPEATED", 2},   // #549: auto-repeat of a held key (keyboard events only)
 };
 
 static const int NUM_INPUT_STATE_ENTRIES = sizeof(input_state_table) / sizeof(input_state_table[0]);
@@ -57,11 +59,12 @@ PyObject* PyInputState::create_enum_class(PyObject* module) {
     code << "from enum import IntEnum\n\n";
 
     code << "class InputState(IntEnum):\n";
-    code << "    \"\"\"Enum representing input event states (pressed/released).\n";
+    code << "    \"\"\"Enum representing input event states (pressed/released/repeated).\n";
     code << "    \n";
     code << "    Values:\n";
     code << "        PRESSED: Key or button was pressed\n";
     code << "        RELEASED: Key or button was released\n";
+    code << "        REPEATED: Held key auto-repeated (keyboard events only; a fresh press is PRESSED)\n";
     code << "    \"\"\"\n";
 
     // Add enum members

@@ -1017,7 +1017,9 @@ def on_trigger(trigger, data):
     if trigger == mcrfpy.Trigger.DONE: ...
 enemy.step = on_trigger
 
-# Keyboard handler (#184): receives Key and InputState enums
+# Keyboard handler (#184): receives Key and InputState enums. A held key arrives as one
+# PRESSED, then REPEATED for each auto-repeat (#549), then RELEASED: hotkeys test PRESSED,
+# held-key movement accepts PRESSED and REPEATED.
 def on_key(key, action):
     if key == mcrfpy.Key.Num1 and action == mcrfpy.InputState.PRESSED:
         demo_scene.activate()

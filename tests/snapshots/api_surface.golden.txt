@@ -126,6 +126,7 @@ submodule automation
 [InputState]
   PRESSED = 0
   RELEASED = 1
+  REPEATED = 2
 [Key]
   A = 0
   ADD = 67

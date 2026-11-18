@@ -877,7 +877,7 @@ def handle_keys(key, action) -> None:
     """Handle keyboard input."""
     global game_over
 
-    if action != mcrfpy.InputState.PRESSED:
+    if action == mcrfpy.InputState.RELEASED:  # act on PRESSED and REPEATED: a held key keeps moving (#549)
         return
 
     # Handle restart

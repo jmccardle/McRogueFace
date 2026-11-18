@@ -226,10 +226,10 @@ class Game:
 
         Args:
             key: The mcrfpy.Key that changed
-            state: mcrfpy.InputState.PRESSED or RELEASED
+            state: mcrfpy.InputState.PRESSED, REPEATED or RELEASED
         """
         # Only handle key down events
-        if state != mcrfpy.InputState.PRESSED:
+        if state == mcrfpy.InputState.RELEASED:  # act on PRESSED and REPEATED: a held key keeps moving (#549)
             return
 
         # Handle restart when dead
