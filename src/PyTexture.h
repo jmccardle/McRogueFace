@@ -3,6 +3,7 @@
 #include "Python.h"
 
 class PyTexture;
+#include "PyTextureFont.h"  // #547: FontAtlasData
 
 // #430: the struct is tp_alloc'd (zero-filled, not constructed). `data` is
 // placement-new'd by whoever fills it and destroyed in PyTexture::dealloc.
@@ -27,6 +28,9 @@ public:
     // #430: PythonObjectCache key for this texture's one Python wrapper (0 = none yet).
     // Unregistered in ~PyTexture.
     uint64_t serial_number = 0;
+
+    // #547: set only on a texture built by Texture.from_font (null otherwise).
+    std::unique_ptr<FontAtlasData> font_atlas;
 
     int sprite_width, sprite_height; // just use them read only, OK?
     // #235: Display bounds for non-uniform sprite content within cells
@@ -95,6 +99,26 @@ public:
     // Methods (classmethods and instance methods)
     static PyObject* from_bytes(PyObject* cls, PyObject* args, PyObject* kwds);
     static PyObject* composite(PyObject* cls, PyObject* args, PyObject* kwds);
+    // #547 (PyTextureFont.cpp): a static glyph atlas rasterised from a Font.
+    static PyObject* from_font(PyObject* cls, PyObject* args, PyObject* kwds);
+    static PyObject* py_index(PyTextureObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* py_glyph(PyTextureObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* py_is_wide(PyTextureObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* get_missing(PyTextureObject* self, void* closure);
+    static PyObject* get_clipped(PyTextureObject* self, void* closure);
+    static PyObject* get_variant_missing(PyTextureObject* self, void* closure);
+    static PyObject* get_variant_clipped(PyTextureObject* self, void* closure);
+    static PyObject* get_variants(PyTextureObject* self, void* closure);
+    static PyObject* get_white_tile(PyTextureObject* self, void* closure);
+    static PyObject* get_box_tile(PyTextureObject* self, void* closure);
+    static PyObject* get_ascent(PyTextureObject* self, void* closure);
+    static PyObject* get_underline_position(PyTextureObject* self, void* closure);
+    static PyObject* get_underline_thickness(PyTextureObject* self, void* closure);
+    static PyObject* get_strikethrough_position(PyTextureObject* self, void* closure);
+    static PyObject* get_strikethrough_thickness(PyTextureObject* self, void* closure);
+    // Wraps an atlas image + data into a Texture (nullptr and a Python error on failure).
+    static std::shared_ptr<PyTexture> from_font_atlas(const sf::Image& img, std::unique_ptr<FontAtlasData> data,
+                                                      const std::string& name);
     static PyObject* hsl_shift(PyTextureObject* self, PyObject* args, PyObject* kwds);
     static PyMethodDef methods[];
 };
@@ -125,7 +149,10 @@ namespace mcrfpydef {
             "    sprite_count (int, read-only): Total number of sprite cells.\n"
             "    source (str, read-only): File path used to load this texture.\n"
             "    display_width, display_height (int, read-only): Content size within cells.\n"
-            "    display_offset_x, display_offset_y (int, read-only): Content offset within cells.\n"
+            "    display_offset_x, display_offset_y (int, read-only): Content offset within cells.\n\n"
+            "Font atlases (EXPERIMENTAL, not part of the 1.0 freeze; Texture.from_font, index, glyph, is_wide):\n"
+            "    missing, clipped, variant_missing, variant_clipped, variants, white_tile, box_tile, ascent,\n"
+            "    underline_position/_thickness, strikethrough_position/_thickness: None on any other texture.\n"
         ),
         .tp_weaklistoffset = offsetof(PyTextureObject, weakreflist),
         .tp_getset = PyTexture::getsetters,

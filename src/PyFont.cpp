@@ -65,6 +65,17 @@ bool PyFont::metrics(unsigned int characterSize, Metrics& out)
 #endif
 }
 
+void* PyFont::ftFace()
+{
+#if defined(MCRF_HEADLESS)
+    return nullptr;
+#elif defined(MCRF_SDL2)
+    return font.getFTFace();
+#else
+    return metrics_face;
+#endif
+}
+
 bool PyFont::ascent(unsigned int characterSize, float& out)
 {
     Metrics m;

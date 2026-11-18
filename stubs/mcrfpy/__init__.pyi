@@ -3,7 +3,7 @@
 Core game engine interface for creating roguelike games with Python.
 """
 
-from typing import Any, List, Dict, Tuple, Optional, Callable, Union, overload
+from typing import Any, List, Dict, Tuple, Optional, Callable, Union, Iterable, overload
 
 # Type aliases - Color tuples are accepted anywhere a Color is expected
 ColorLike = Union['Color', Tuple[int, int, int], Tuple[int, int, int, int]]
@@ -258,6 +258,49 @@ class Texture:
                   lit_shift: float = 0.0) -> 'Texture':
         """Return a new texture with HSL color shift applied."""
         ...
+
+    # --- Font atlases (EXPERIMENTAL, not part of the 1.0 freeze) -------------------------
+    # Everything below is meaningful only on a texture built by from_font; the properties
+    # are None on any other texture, the methods raise ValueError.
+    @classmethod
+    def from_font(cls, font: 'Font', size: int,
+                  codepoints: Union[str, Iterable[Union[int, str, Tuple[Union[int, str], Union[int, str]]]]] = ...,
+                  cell: Optional[Tuple[int, int]] = None,
+                  bold: Optional['Font'] = None,
+                  italic: Optional['Font'] = None) -> 'Texture':
+        """EXPERIMENTAL. Rasterise a font once into a static white-on-transparent tile atlas.
+
+        codepoints defaults to [(0x20, 0x7E), (0x2500, 0x257F)]; ranges are inclusive. A bare (a, b) tuple
+        raises TypeError: write [(a, b)] for a range or [a, b] for two codepoints.
+        Tile 0 is the box tile (used for missing codepoints), tile 1 a solid white tile.
+        """
+        ...
+
+    def index(self, codepoint: Union[str, int], bold: bool = False, italic: bool = False) -> int:
+        """EXPERIMENTAL. Tile of a codepoint. A bold/italic face the texture lacks (or that lacks the codepoint)
+        falls back to the regular tile; 0 (the box) only when no usable face has it. A wide glyph's right half is index + 1."""
+        ...
+
+    def glyph(self, tile: int) -> Optional[Tuple[int, bool, bool]]:
+        """EXPERIMENTAL. (codepoint, bold, italic) of a tile; None for box, white, wide right half."""
+        ...
+
+    def is_wide(self, codepoint: Union[str, int]) -> bool:
+        """EXPERIMENTAL. Whether the codepoint is East Asian Wide/Fullwidth (two tiles). Codepoint-only."""
+        ...
+
+    missing: Optional[List[int]]            # Read-only
+    clipped: Optional[List[int]]            # Read-only
+    variant_missing: Optional[List[Tuple[int, bool, bool]]]   # Read-only
+    variant_clipped: Optional[List[Tuple[int, bool, bool]]]   # Read-only
+    variants: Optional[Tuple[str, ...]]     # Read-only: 'regular' [, 'bold'] [, 'italic']
+    white_tile: Optional[int]               # Read-only
+    box_tile: Optional[int]                 # Read-only (always 0)
+    ascent: Optional[int]                   # Read-only: px, cell top to baseline
+    underline_position: Optional[int]       # Read-only: px, cell top to stripe top
+    underline_thickness: Optional[int]      # Read-only
+    strikethrough_position: Optional[int]   # Read-only
+    strikethrough_thickness: Optional[int]  # Read-only
 
 class Font:
     """SFML Font Object for text rendering."""

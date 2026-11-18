@@ -901,19 +901,35 @@ submodule automation
   meth realign :: realign() -> None
   meth resize :: resize(width, height) or (size) -> None
 [Texture]
+  prop ascent: int (ro)
+  prop box_tile: int (ro)
+  prop clipped: Any (ro)
   prop display_height: int (ro)
   prop display_offset_x: int (ro)
   prop display_offset_y: int (ro)
   prop display_width: int (ro)
+  prop missing: Any (ro)
   prop sheet_height: int (ro)
   prop sheet_width: int (ro)
   prop source: str (ro)
   prop sprite_count: int (ro)
   prop sprite_height: int (ro)
   prop sprite_width: int (ro)
+  prop strikethrough_position: int (ro)
+  prop strikethrough_thickness: int (ro)
+  prop underline_position: int (ro)
+  prop underline_thickness: int (ro)
+  prop variant_clipped: Any (ro)
+  prop variant_missing: Any (ro)
+  prop variants: Any (ro)
+  prop white_tile: int (ro)
   meth composite :: composite(layers: list[Texture], sprite_width: int, sprite_height: int, name: str = '<composite>') -> Texture
   meth from_bytes :: from_bytes(data: bytes, width: int, height: int, sprite_width: int, sprite_height: int, name: str = '<generated>') -> Texture
+  meth from_font :: from_font(font: Font, size: int, codepoints=[(0x20, 0x7E), (0x2500, 0x257F)], cell: tuple[int, int] = None, bold: Font = None, italic: Font = None) -> Texture
+  meth glyph :: glyph(tile: int) -> tuple[int, bool, bool] | None
   meth hsl_shift :: hsl_shift(hue_shift: float, sat_shift: float = 0.0, lit_shift: float = 0.0) -> Texture
+  meth index :: index(codepoint: str | int, bold: bool = False, italic: bool = False) -> int
+  meth is_wide :: is_wide(codepoint: str | int) -> bool
 [TextureWarning]
   prop args: Any (rw)
   meth add_note :: Add a note to the exception

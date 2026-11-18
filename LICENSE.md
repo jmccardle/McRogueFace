@@ -114,6 +114,17 @@ Redistributed under Apache License 2.0.
 
 link: https://www.fontspace.com/jetbrains-mono-font-f44398
 
+### Test fonts (`tests/assets/fonts/`)
+
+Used only by the test suite, not shipped in game builds.
+
+- `DejaVuSansMono-Bold.ttf`, `DejaVuSansMono-Oblique.ttf`: DejaVu Sans Mono, Bitstream Vera license
+  (free to use, copy and redistribute; DejaVu changes are public domain). Text in `DejaVu-LICENSE.txt`.
+- `DroidSansFallback-subset.ttf`: a seven-glyph subset (space, A-C and four CJK characters) of Droid Sans
+  Fallback, Copyright 2006-2010 Google Corp., Apache License 2.0. Made with
+  `pyftsubset --unicodes=U+0020,U+0041-0043,U+4E2D,U+6587,U+65E5,U+672C --name-IDs='*' --notdef-outline`.
+  Notice in `DroidSansFallback-LICENSE.txt`.
+
 ## McRogueFace Engine
 
 Source code written by me is located in the `src` and `platform` directories.  
