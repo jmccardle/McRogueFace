@@ -30,11 +30,16 @@ env:
 
 jobs:
   # Both web builds (the shipped game build and the docs-site playground), driven in
-  # headless Chromium by tests/wasm/ -- the per-push check for the SDL2/Emscripten
-  # backend, which the native jobs never compile. No native engine build: the web
+  # headless Chromium by tests/wasm/ -- the check for the SDL2/Emscripten backend,
+  # which the native jobs never compile. No native engine build: the web
   # build cross-compiles its own CPython (tools/build_deps_wasm.sh).
+  # Runs on master and on pull requests only (John, 2026-11-18): about 7 min of build
+  # CPU a run, on runners several branches share. A feature branch that touches the
+  # web build can be checked locally (tools/build_deps_wasm.sh; make wasm-game
+  # playground test-wasm) or through a PR.
   web:
     runs-on: ffwf-k8s
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
