@@ -208,10 +208,12 @@ import mcrfpy, os, sys, threading, time
 def say(s): os.write(1, (s + "\n").encode())
 mcrfpy.current_scene = mcrfpy.Scene("d556")
 claimed = threading.Event()
+stop = threading.Event()   # set by the worker once it has seen the close: the daemon only
+                           # ends then, so nothing lets the lock close except the daemon rule
 def driver():
     mcrfpy.step(0.01)
     claimed.set()
-    while True:
+    while not stop.is_set():
         mcrfpy.step(0.01)
         time.sleep(0.001)
 def worker():
@@ -221,6 +223,7 @@ def worker():
                 pass
         except RuntimeError as e:
             say("WORKER raised: %s" % e)
+            stop.set()
             return
 threading.Thread(target=driver, daemon=True).start()
 threading.Thread(target=worker).start()           # non-daemon
