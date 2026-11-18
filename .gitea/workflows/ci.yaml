@@ -76,6 +76,11 @@ jobs:
           path: ~/emsdk
           key: emsdk-${{ steps.web-key.outputs.emsdk }}
 
+      # The cached outputs live inside the submodule directories, so the submodules are
+      # cloned first: `git submodule update` refuses a non-empty directory.
+      - name: Submodules
+        run: tools/build_deps_wasm.sh --submodules-only
+
       # Restore, build, save right after the build: a later failure keeps the deps.
       - name: Restore the Emscripten dependency builds
         id: wasm-cache

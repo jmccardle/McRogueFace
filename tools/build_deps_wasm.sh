@@ -9,6 +9,8 @@
 #   modules/cpython/cross-build/wasm32-emscripten/ via tools/build_python_wasm.sh
 #
 # Each step is skipped when its output exists; --clean rebuilds libtcod.
+# --submodules-only initializes the submodules and stops: a CI job runs it before
+# restoring cached build outputs, which live inside those submodule directories.
 
 set -euo pipefail
 
@@ -16,11 +18,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 JOBS="$(nproc 2>/dev/null || echo 4)"
 CLEAN=0
-[ "${1:-}" = "--clean" ] && CLEAN=1
+SUBMODULES_ONLY=0
+case "${1:-}" in
+    "") ;;
+    --clean) CLEAN=1 ;;
+    --submodules-only) SUBMODULES_ONLY=1 ;;
+    *) echo "usage: $0 [--clean | --submodules-only]" >&2; exit 2 ;;
+esac
 
 log() { echo "== build_deps_wasm: $*"; }
 
-if ! command -v emcmake >/dev/null 2>&1; then
+if [ "$SUBMODULES_ONLY" -eq 0 ] && ! command -v emcmake >/dev/null 2>&1; then
     echo "ERROR: emcmake not found -- source emsdk_env.sh first" >&2
     exit 1
 fi
@@ -32,6 +40,7 @@ cd "$PROJECT_ROOT"
 git submodule update --init --depth 1 modules/SFML modules/libtcod-headless modules/cpython \
     modules/RapidXML modules/json
 git -C modules/libtcod-headless submodule update --init --depth 1 src/vendor/utf8proc
+[ "$SUBMODULES_ONLY" -eq 1 ] && exit 0
 
 # --- deps/ include links ----------------------------------------------------
 # CMakeLists.txt finds the wasm CPython build and the libtcod headers through
