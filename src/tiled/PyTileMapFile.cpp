@@ -205,10 +205,8 @@ PyObject* PyTileMapFile::apply_to_tile_layer(PyTileMapFileObject* self, PyObject
                                       &tlayer_obj, &layer_name, &tileset_index))
         return NULL;
 
-    // Validate TileLayer
-    // Check type by name since PyTileLayerType is static-per-TU
-    const char* type_name = Py_TYPE(tlayer_obj)->tp_name;
-    if (!type_name || strcmp(type_name, "mcrfpy.TileLayer") != 0) {
+    // Validate TileLayer by TYPE OBJECT (#559), not by tp_name
+    if (!PyObject_TypeCheck(tlayer_obj, &mcrfpydef::PyTileLayerType)) {
         PyErr_SetString(PyExc_TypeError, "First argument must be a TileLayer");
         return NULL;
     }

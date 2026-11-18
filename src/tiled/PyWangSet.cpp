@@ -180,14 +180,17 @@ PyObject* PyWangSet::resolve(PyWangSetObject* self, PyObject* args) {
     if (!PyArg_ParseTuple(args, "O", &dmap_obj))
         return NULL;
 
-    // Check type by name since static types differ per translation unit
-    const char* dmap_type_name = Py_TYPE(dmap_obj)->tp_name;
-    if (!dmap_type_name || strcmp(dmap_type_name, "mcrfpy.DiscreteMap") != 0) {
+    // By TYPE OBJECT (#559): a subclass is accepted, an object merely NAMED "mcrfpy.DiscreteMap" is not
+    if (!PyObject_TypeCheck(dmap_obj, &mcrfpydef::PyDiscreteMapType)) {
         PyErr_SetString(PyExc_TypeError, "Expected a DiscreteMap object");
         return NULL;
     }
 
     auto* dmap = (PyDiscreteMapObject*)dmap_obj;
+    if (!dmap->values) {
+        PyErr_SetString(PyExc_RuntimeError, "DiscreteMap not initialized");
+        return NULL;
+    }
     const auto& ws = getWangSet(self);
 
     std::vector<int> result = resolveWangTerrain(dmap->values, dmap->w, dmap->h, ws);
@@ -209,16 +212,12 @@ PyObject* PyWangSet::apply(PyWangSetObject* self, PyObject* args, PyObject* kwds
                                       &dmap_obj, &tlayer_obj))
         return NULL;
 
-    // Validate DiscreteMap (check by name since static types differ per TU)
-    const char* dmap_tn = Py_TYPE(dmap_obj)->tp_name;
-    if (!dmap_tn || strcmp(dmap_tn, "mcrfpy.DiscreteMap") != 0) {
+    // Validate by TYPE OBJECT (#559), not by tp_name
+    if (!PyObject_TypeCheck(dmap_obj, &mcrfpydef::PyDiscreteMapType)) {
         PyErr_SetString(PyExc_TypeError, "First argument must be a DiscreteMap");
         return NULL;
     }
-
-    // Validate TileLayer
-    const char* tl_tn = Py_TYPE(tlayer_obj)->tp_name;
-    if (!tl_tn || strcmp(tl_tn, "mcrfpy.TileLayer") != 0) {
+    if (!PyObject_TypeCheck(tlayer_obj, &mcrfpydef::PyTileLayerType)) {
         PyErr_SetString(PyExc_TypeError, "Second argument must be a TileLayer");
         return NULL;
     }
