@@ -819,6 +819,11 @@ no LSan report under `make asan-test`).
 **Frames do not nest (#551).** `step()`/`advance()` from inside any callback raise
 `RuntimeError` (`GameEngine::inFrame()`, checked once in `frameAdvanceAllowed`).
 
+**Shutdown closes the frame lock (#556).** CPython joins non-daemon threads before the
+`atexit` handlers run, so `FrameLock::shutdown()` is registered with
+`threading._register_atexit` (runs before the join): waiters and every later `mcrfpy.lock()`
+raise `RuntimeError("engine is shutting down")`; the lock is never granted after that.
+
 `tools/lint_bindings.py` (tree-sitter, `make lint-bindings`) enforces all of this:
 identity-type construction outside a converter (via `tp_alloc`, `Foo::pynew`, or
 `PyObject_New`), direct `PythonObjectCache::` use, a new reference passed inline to a

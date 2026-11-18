@@ -778,8 +778,29 @@ static PyMethodDef mcrfpy_atexit_def = {
 // registered while mcrfpy is first imported, so it runs after any handler a game
 // registers (which may still use the engine), and before finalization starts
 // clearing anything (Py_IsInitialized() is still true there).
+// #556: closes the frame lock. Registered with threading._register_atexit, which runs at
+// the start of threading._shutdown(), BEFORE it joins non-daemon threads -- an atexit
+// handler runs after the join, too late for a thread blocked in mcrfpy.lock().
+static PyObject* mcrfpy_close_frame_lock(PyObject*, PyObject*)
+{
+    if (McRFPy_API::game) McRFPy_API::game->getFrameLock().shutdown();
+    Py_RETURN_NONE;
+}
+
+static PyMethodDef mcrfpy_close_frame_lock_def = {
+    "_close_frame_lock", mcrfpy_close_frame_lock, METH_NOARGS,
+    "Stop granting mcrfpy.lock(): the engine is shutting down (#556)."};
+
 static int register_atexit_release()
 {
+    {
+        mcrf::PyRef threading_mod(PyImport_ImportModule("threading"));
+        if (!threading_mod) return -1;
+        mcrf::PyRef fn(PyCFunction_New(&mcrfpy_close_frame_lock_def, nullptr));
+        if (!fn) return -1;
+        mcrf::PyRef r(PyObject_CallMethod(threading_mod.get(), "_register_atexit", "O", fn.get()));
+        if (!r) return -1;
+    }
     mcrf::PyRef atexit_mod(PyImport_ImportModule("atexit"));
     if (!atexit_mod) return -1;
     mcrf::PyRef fn(PyCFunction_New(&mcrfpy_atexit_def, nullptr));
@@ -792,6 +813,8 @@ void McRFPy_API::release_python_references()
 {
     if (python_references_released) return;
     python_references_released = true;
+
+    if (game) game->getFrameLock().shutdown();  // #556: also when atexit alone reaches us
 
     // Owners of game objects first, so what they release can still reach the statics.
     if (game) game->releasePythonReferences();

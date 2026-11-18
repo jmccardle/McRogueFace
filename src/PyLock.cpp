@@ -17,7 +17,7 @@ static PyMethodDef PyLockContext_methods[] = {
          MCRF_SIG("()", "_LockContext"),
          MCRF_DESC("Acquire the frame lock, blocking until a safe window opens. No-op on the thread that drives the simulation clock."),
          MCRF_RETURNS("self, for use in a `with` statement")
-         MCRF_RAISES("RuntimeError", "If the game engine is not initialized")
+         MCRF_RAISES("RuntimeError", "If the game engine is not initialized, or is shutting down (also raised in a thread that was waiting when shutdown began)")
      )},
     {"__exit__", (PyCFunction)PyLockContext_exit, METH_VARARGS,
      MCRF_METHOD(LockContext, __exit__,
@@ -78,7 +78,10 @@ static PyObject* PyLockContext_enter(PyLockContextObject* self, PyObject* args) 
     }
 
     // Acquire the frame lock - this will block (with GIL released) until safe window
-    Resources::game->getFrameLock().acquire();
+    if (!Resources::game->getFrameLock().acquire()) {
+        PyErr_SetString(PyExc_RuntimeError, "engine is shutting down");  // #556
+        return NULL;
+    }
     self->acquired = true;
 
     // Return self for the `with` statement
@@ -101,6 +104,11 @@ static PyObject* PyLockContext_exit(PyLockContextObject* self, PyObject* args) {
 PyObject* PyLock::lock(PyObject* self, PyObject* args) {
     if (!Resources::game) {
         PyErr_SetString(PyExc_RuntimeError, "Game engine not initialized");
+        return NULL;
+    }
+
+    if (Resources::game->getFrameLock().isShutdown()) {  // #556
+        PyErr_SetString(PyExc_RuntimeError, "engine is shutting down");
         return NULL;
     }
 

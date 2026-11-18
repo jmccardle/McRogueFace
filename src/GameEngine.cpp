@@ -30,7 +30,8 @@ bool GameEngine::shaderIntermediateInitialized = false;
 
 // #219 - FrameLock implementation for thread-safe UI updates
 
-void FrameLock::acquire() {
+bool FrameLock::acquire() {
+    bool granted = true;
 
     // #412 - THE GIL IS RELEASED BEFORE `mtx` IS TAKEN, AND RE-ACQUIRED ONLY AFTER IT
     // IS DROPPED. Do not reorder these; it is a lock-ordering constraint, not a
@@ -63,6 +64,8 @@ void FrameLock::acquire() {
         if (depth() > 0) {
             // Nested lock(): this thread is already a holder.
             active++;
+        } else if (closed.load()) {
+            granted = false;  // #556
         } else {
             // #410/#535 - EVERY non-nested arrival waits for the next openWindow(), even
             // if a window is open right now. A window serves exactly the threads that
@@ -73,18 +76,31 @@ void FrameLock::acquire() {
             // without bound once the main thread was starved.
             const uint64_t my_epoch = epoch;
             waiting++;
-            cv.wait(lock, [this, my_epoch]{ return epoch != my_epoch; });
-            // Under `mtx`: closeWindow() sees the handoff from eligible to active as
-            // a single step.
+            cv.wait(lock, [this, my_epoch]{ return epoch != my_epoch || closed.load(); });
             waiting--;
-            eligible--;
-            active++;
-            admissions_total++;
+            if (epoch == my_epoch) {
+                // Woken by shutdown(), not by a window (#556): refused.
+                granted = false;
+            } else {
+                // Under `mtx`: closeWindow() sees the handoff from eligible to active as
+                // a single step.
+                eligible--;
+                active++;
+                admissions_total++;
+            }
         }
     }
     Py_END_ALLOW_THREADS
 
+    if (!granted) return false;
     depth()++;  // B7: this thread is now a holder; see heldByCurrentThread()
+    return true;
+}
+
+void FrameLock::shutdown() {
+    std::lock_guard<std::mutex> lock(mtx);
+    closed.store(true);
+    cv.notify_all();
 }
 
 void FrameLock::release() {

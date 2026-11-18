@@ -177,6 +177,8 @@ private:
     // load-independent way to observe the barrier (counts and ordering, not time).
     std::atomic<uint64_t> windows_opened{0};
     std::atomic<uint64_t> admissions_total{0};
+    // #556: set once, never cleared. After it, acquire() admits no new holder.
+    std::atomic<bool> closed{false};
 
 public:
     /// Threads currently blocked in acquire() (0 when none).
@@ -190,8 +192,22 @@ public:
      * @brief Acquire the lock, blocking until safe window opens
      *
      * Called by mcrfpy.lock().__enter__. Releases GIL while waiting.
+     * @return false, without taking the lock, once shutdown() has been called (#556): a
+     *         thread parked here is woken and refused, and so is every later caller.
      */
-    void acquire();
+    bool acquire();
+
+    /**
+     * @brief Stop granting the lock for good: the engine is shutting down (#556)
+     *
+     * CPython joins non-daemon threads at exit, after the frame loop has stopped, so the
+     * window a waiter is parked for never opens again. Wakes every waiter, which fails its
+     * acquire(); later acquires fail at once. It never grants: the main thread is no longer
+     * parked, so a grant would run a mutation against a world nobody synchronises with.
+     * Called before the thread join on every exit path.
+     */
+    void shutdown();
+    bool isShutdown() const { return closed.load(); }
 
     /**
      * @brief Release the lock
