@@ -401,6 +401,7 @@ PyObject* PyDiscreteMap::pynew(PyTypeObject* type, PyObject* args, PyObject* kwd
         self->h = 0;
         self->enum_type = nullptr;
         self->weakreflist = nullptr;
+        self->exports = 0;
     }
     return (PyObject*)self;
 }
@@ -454,6 +455,15 @@ int PyDiscreteMap::init(PyDiscreteMapObject* self, PyObject* args, PyObject* kwd
     // Validate fill value
     if (fill_value < 0 || fill_value > 255) {
         PyErr_SetString(PyExc_ValueError, "fill value must be in range 0-255");
+        return -1;
+    }
+
+    // #560: a live buffer export (memoryview, numpy view, mask()) points into the storage about to be
+    // freed. Like bytearray, refuse rather than leave it dangling. Checked after every conversion
+    // above, since those run user code that could take an export.
+    if (self->exports > 0) {
+        PyErr_SetString(PyExc_BufferError,
+            "Existing exports of data: DiscreteMap cannot be re-initialized while a buffer view is alive");
         return -1;
     }
 
@@ -1397,9 +1407,13 @@ PyObject* PyDiscreteMap::mask(PyDiscreteMapObject* self, PyObject* Py_UNUSED(arg
         return nullptr;
     }
 
-    // Create memoryview of the internal buffer
-    Py_ssize_t len = static_cast<Py_ssize_t>(self->w) * static_cast<Py_ssize_t>(self->h);
-    return PyMemoryView_FromMemory(reinterpret_cast<char*>(self->values), len, PyBUF_WRITE);
+    // #560: a view over the exporter itself (counted export, keeps the map alive and blocks
+    // re-init), flattened to 1-D bytes. A raw PyMemoryView_FromMemory view had no owner at all.
+    PyObject* view = PyMemoryView_FromObject((PyObject*)self);
+    if (!view) return nullptr;
+    PyObject* flat = PyObject_CallMethod(view, "cast", "s", "B");
+    Py_DECREF(view);
+    return flat;
 }
 
 // ============================================================================
@@ -1407,7 +1421,7 @@ PyObject* PyDiscreteMap::mask(PyDiscreteMapObject* self, PyObject* Py_UNUSED(arg
 //   np.asarray(dmap)  ->  shape (h, w), dtype uint8, C-contiguous, writable.
 // The exporter (this object) owns the buffer via its shared_ptr<DiscreteMap>;
 // INCREF keeps it alive for the view's lifetime (balanced by the default
-// PyBuffer_Release DECREF -- no bf_releasebuffer needed). shape/strides live on
+// PyBuffer_Release DECREF). #560: bf_releasebuffer counts live exports so init() can refuse. shape/strides live on
 // the object (dimensions are immutable after construction, so concurrent views
 // safely share them).
 // ============================================================================
@@ -1437,12 +1451,18 @@ int PyDiscreteMap::getbuffer(PyObject* exporter, Py_buffer* view, int flags)
     view->strides = (flags & PyBUF_STRIDES) ? self->buf_strides : nullptr;
     view->suboffsets = nullptr;
     view->internal = nullptr;
+    self->exports++;
     return 0;
+}
+
+void PyDiscreteMap::releasebuffer(PyObject* exporter, Py_buffer* view)
+{
+    reinterpret_cast<PyDiscreteMapObject*>(exporter)->exports--;
 }
 
 PyBufferProcs PyDiscreteMap::as_buffer = {
     .bf_getbuffer = PyDiscreteMap::getbuffer,
-    .bf_releasebuffer = nullptr,
+    .bf_releasebuffer = PyDiscreteMap::releasebuffer,
 };
 
 // ============================================================================

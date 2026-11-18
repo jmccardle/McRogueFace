@@ -25,6 +25,7 @@ typedef struct {
     Py_ssize_t buf_shape[2];            // #334 - buffer-protocol (h, w) view shape
     Py_ssize_t buf_strides[2];          // #334 - row-major strides {w, 1}
     PyObject* weakreflist;              // #430 - PythonObjectCache holds weakrefs
+    Py_ssize_t exports;                 // #560 - live buffer exports; storage may not be freed while > 0
 } PyDiscreteMapObject;
 
 class PyDiscreteMap
@@ -89,6 +90,7 @@ public:
 
     // Buffer protocol (#334) - zero-copy numpy view: np.asarray(dmap) -> (h, w) uint8
     static int getbuffer(PyObject* exporter, Py_buffer* view, int flags);
+    static void releasebuffer(PyObject* exporter, Py_buffer* view);
     static PyBufferProcs as_buffer;
 
     // Serialization
