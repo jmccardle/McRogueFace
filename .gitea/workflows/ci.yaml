@@ -77,8 +77,8 @@ jobs:
       # stubs/mcrfpy.pyi): `mcrf_project init` copies the stub into a new game's typings/.
       - name: Generate API docs and stubs
         run: |
-          ./build/mcrogueface --headless --exec tools/generate_dynamic_docs.py
-          ./build/mcrogueface --headless --exec tools/generate_stubs_v2.py
+          xvfb-run -a -s "-noreset" ./build/mcrogueface --headless --exec tools/generate_dynamic_docs.py
+          xvfb-run -a -s "-noreset" ./build/mcrogueface --headless --exec tools/generate_stubs_v2.py
 
       - name: Run tests (Release)
         run: cd tests && python3 run_tests.py -v -j 8
@@ -135,7 +135,7 @@ jobs:
       # stubs/mcrfpy.pyi is generated and untracked; `mcrf_project init` copies it into a new
       # game, and integration/mcrf_project_test.py checks that it did.
       - name: Generate API stubs
-        run: LD_LIBRARY_PATH=$PWD/__lib_debug  ./build-debug/mcrogueface --headless --exec tools/generate_stubs_v2.py
+        run: LD_LIBRARY_PATH=$PWD/__lib_debug  xvfb-run -a -s "-noreset" ./build-debug/mcrogueface --headless --exec tools/generate_stubs_v2.py
 
       - name: Test (debug Python)
         run: make debug-test TEST_JOBS=8
@@ -185,7 +185,7 @@ jobs:
       # stubs/mcrfpy.pyi is generated and untracked; `mcrf_project init` copies it into a new
       # game, and integration/mcrf_project_test.py checks that it did.
       - name: Generate API stubs
-        run: LD_LIBRARY_PATH=$PWD/__lib_debug PYTHONMALLOC=malloc ASAN_OPTIONS=detect_leaks=0 ./build-asan/mcrogueface --headless --exec tools/generate_stubs_v2.py
+        run: LD_LIBRARY_PATH=$PWD/__lib_debug PYTHONMALLOC=malloc ASAN_OPTIONS=detect_leaks=0 xvfb-run -a -s "-noreset" ./build-asan/mcrogueface --headless --exec tools/generate_stubs_v2.py
 
       - name: Test (ASan + UBSan)
         run: make asan-test TEST_JOBS=8
@@ -235,7 +235,7 @@ jobs:
       # stubs/mcrfpy.pyi is generated and untracked; `mcrf_project init` copies it into a new
       # game, and integration/mcrf_project_test.py checks that it did.
       - name: Generate API stubs
-        run: LD_LIBRARY_PATH=$PWD/__lib_debug  ./build-debug/mcrogueface --headless --exec tools/generate_stubs_v2.py
+        run: LD_LIBRARY_PATH=$PWD/__lib_debug  xvfb-run -a -s "-noreset" ./build-debug/mcrogueface --headless --exec tools/generate_stubs_v2.py
 
       - name: Test (Valgrind memcheck)
         run: make valgrind-test TEST_JOBS=8
