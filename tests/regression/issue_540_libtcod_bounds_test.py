@@ -57,7 +57,7 @@ expect_value_error("split_once position INT_MIN vertical", lambda: b.split_once(
 b = mcrfpy.BSP(pos=(-5, -5), size=(10, 10))
 expect_value_error("split_once position INT_MAX with negative origin", lambda: b.split_once(False, IMAX), "position")
 b = mcrfpy.BSP(pos=(0, 0), size=(10, 10))
-ok("split_once position INT_MAX (left size INT_MAX fits)", lambda: b.split_once(False, IMAX))
+expect_value_error("split_once position INT_MAX (outside the extent, #540)", lambda: b.split_once(False, IMAX), "position")
 b = mcrfpy.BSP(pos=(0, 0), size=(10, 10))
 ok("split_once position 5", lambda: b.split_once(True, 5))
 
@@ -106,10 +106,8 @@ ok("dig_bezier ordinary", lambda: hm.dig_bezier(((0, 0), (5, 1), (9, 9), (15, 15
 # ---- a re-split replaces the children (the root-only guards must cover the whole tree) ----
 # libtcod's split_once APPENDS sons to a node that has some, and split_recursive recurses into the
 # oldest son, whose geometry from an earlier split_once lies outside the root-only hull check.
-b = mcrfpy.BSP(pos=(0, 0), size=(10, 2))
-b.split_once(False, IMAX)                       # children at x = 0 and x = INT_MAX
-ok("split_recursive after split_once (previously 6 UBSan reports)",
-   lambda: b.split_recursive(depth=8, min_size=(10**6, 1), seed=1))
+# (split_once now rejects a position outside the extent, so an INT_MAX child can no longer be
+# built through it; the replace-not-append behaviour is still checked below.)
 b = mcrfpy.BSP(pos=(0, 0), size=(20, 20))
 b.split_once(False, 10)
 b.split_once(True, 5)                           # replaces, does not append
