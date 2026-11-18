@@ -46,7 +46,7 @@ import snippet_run  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SNIPPET_DIR = os.path.join(ROOT, "tests", "snippets")
-BUILD_DIR = os.environ.get("MCRF_BUILD_DIR", os.path.join(ROOT, "build"))
+BUILD_DIR = os.path.abspath(os.environ.get("MCRF_BUILD_DIR", os.path.join(ROOT, "build")))
 MCROGUEFACE = os.path.join(BUILD_DIR, "mcrogueface")
 SEED = os.path.join(SNIPPET_DIR, "_seed.py")
 SCREENSHOT = os.path.join(SNIPPET_DIR, "_screenshot.py")

@@ -55,7 +55,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SNIPPET_DIR = os.path.join(ROOT, "tests", "snippets")
 HARNESS = os.path.join(SNIPPET_DIR, "_harness.py")
 MANIFEST = os.path.join(ROOT, "api", "manifest.json")
-BUILD_DIR = os.environ.get("MCRF_BUILD_DIR", os.path.join(ROOT, "build"))
+# absolute: a relative MCRF_BUILD_DIR (make asan-test passes ../build-asan) means relative to the
+# caller's directory, and the engine is later run from another one
+BUILD_DIR = os.path.abspath(os.environ.get("MCRF_BUILD_DIR", os.path.join(ROOT, "build")))
 MCROGUEFACE = os.path.join(BUILD_DIR, "mcrogueface")
 
 # Each run gets its own scratch working directory: the engine writes files into its cwd
