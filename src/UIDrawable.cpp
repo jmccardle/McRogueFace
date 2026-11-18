@@ -110,7 +110,7 @@ UIDrawable::UIDrawable(const UIDrawable& other)
 UIDrawable& UIDrawable::operator=(const UIDrawable& other) {
     if (this != &other) {
         // Copy basic members
-        z_index = other.z_index;
+        { const int old_z = z_index; z_index = other.z_index; noteZChanged(old_z); }
         z_index_explicit = other.z_index_explicit;
         name = other.name;
         position = other.position;
@@ -192,7 +192,7 @@ UIDrawable& UIDrawable::operator=(UIDrawable&& other) noexcept {
         }
 
         // Move basic members
-        z_index = other.z_index;
+        { const int old_z = z_index; z_index = other.z_index; noteZChanged(old_z); }
         z_index_explicit = other.z_index_explicit;
         name = std::move(other.name);
         position = other.position;
@@ -406,8 +406,9 @@ int UIDrawable::set_int(PyObject* self, PyObject* value, void* closure) {
 void UIDrawable::initZIndex(int z, PyObject* args, PyObject* kwds, const char* const* kwlist) {
     // A constructor's z_index counts as chosen only when the caller passed it (#552): a default of 0
     // is "none", which a collection append replaces with the next free slot.
+    const int old_z = z_index;
     z_index = z;
-    z_epoch++;
+    noteZChanged(old_z);
     bool given = kwds && PyDict_GetItemString(kwds, "z_index") != nullptr;
     for (Py_ssize_t i = 0; !given && kwlist[i]; i++) {
         if (strcmp(kwlist[i], "z_index") == 0) given = i < PyTuple_GET_SIZE(args);
@@ -420,6 +421,20 @@ void UIDrawable::notifyZIndexChanged() {
     // This works for elements in the scene's ui_elements collection
     McRFPy_API::markSceneNeedsSort();
     markParentChildrenNeedSort();
+}
+
+ChildZ* UIDrawable::ownerZ() const {
+    if (auto scene = parent_scene.lock()) return &scene->ui_elements_z;
+    auto p = parent.lock();
+    if (!p) return nullptr;
+    if (p->derived_type() == PyObjectsEnum::UIFRAME) return &std::static_pointer_cast<UIFrame>(p)->children_z;
+    if (p->derived_type() == PyObjectsEnum::UIGRIDVIEW) return &std::static_pointer_cast<UIGridView>(p)->children_z;
+    return nullptr;
+}
+
+void UIDrawable::noteZChanged(int old_z) {
+    if (z_index == old_z) return;
+    if (ChildZ* oz = ownerZ()) oz->changed(old_z, z_index);
 }
 
 void UIDrawable::markParentChildrenNeedSort() {
@@ -552,8 +567,9 @@ void UIDrawable::assignOpacity(float o) {
 void UIDrawable::assignZIndex(int z) {
     z_index_explicit = true;   // #552, even when z equals the current value
     if (z == z_index) return;
+    const int old_z = z_index;
     z_index = z;
-    z_epoch++;
+    noteZChanged(old_z);
     notifyZIndexChanged();
     markDirty();
 }
@@ -926,7 +942,7 @@ int UIDrawable::set_grid_size(PyObject* self, PyObject* value, void* closure) {
 
 // #122 - Parent-child hierarchy implementation
 void UIDrawable::setParent(std::shared_ptr<UIDrawable> new_parent) {
-    z_epoch++;
+    if (ChildZ* oz = ownerZ()) oz->removed(z_index);   // leaves its current owner (#552)
     parent = new_parent;
     parent_scene.reset();  // #183: Clear scene parent when setting drawable parent
 
@@ -952,7 +968,7 @@ bool UIDrawable::canAdopt(const std::shared_ptr<UIDrawable>& new_parent, const U
 }
 
 void UIDrawable::setParentScene(const std::weak_ptr<Scene>& scene) {
-    z_epoch++;
+    if (ChildZ* oz = ownerZ()) oz->removed(z_index);   // #552
     parent.reset();        // #183: Clear drawable parent when setting scene parent
     parent_scene = scene;
 
@@ -1052,7 +1068,7 @@ std::shared_ptr<UIDrawable> UIDrawable::getParent() const {
 // updatePyIdentityPin() is the LAST statement on both paths so that even in that case
 // no member of a freed `this` is touched afterwards.
 void UIDrawable::removeFromParent() {
-    if (!parent.expired() || !parent_scene.expired()) z_epoch++;   // a member leaves a collection
+    if (ChildZ* oz = ownerZ()) oz->removed(z_index);   // a member leaves a collection (#552)
     // #183: Handle scene parent removal
     // #464: the scene itself, so a scene that lost its name to another still finds us.
     if (auto scene = parent_scene.lock()) {
