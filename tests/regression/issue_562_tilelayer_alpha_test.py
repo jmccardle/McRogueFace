@@ -13,14 +13,14 @@ Ground truth is a Sprite / Frame (drawn straight to the target, never through a 
 over the same background, within +-2, and the closed-form value.
 """
 import os
-import struct
 import sys
 import tempfile
 import warnings
-import zlib
 
-import mcrfpy
-from mcrfpy import automation
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _png  # noqa: E402
+import mcrfpy  # noqa: E402
+from mcrfpy import automation  # noqa: E402
 
 TMPDIR = tempfile.mkdtemp(prefix="mcrf562_")
 failures = []
@@ -33,67 +33,11 @@ def check(cond, msg):
         failures.append(msg)
 
 
-def read_png(path):
-    with open(path, "rb") as f:
-        data = f.read()
-    assert data[:8] == b"\x89PNG\r\n\x1a\n", "not a PNG"
-    pos = 8
-    idat = b""
-    width = height = color = None
-    while pos < len(data):
-        (length,) = struct.unpack(">I", data[pos:pos + 4])
-        ctype = data[pos + 4:pos + 8]
-        chunk = data[pos + 8:pos + 8 + length]
-        pos += 12 + length
-        if ctype == b"IHDR":
-            width, height, depth, color, _, _, interlace = struct.unpack(">IIBBBBB", chunk)
-            assert depth == 8 and color in (2, 6) and interlace == 0
-        elif ctype == b"IDAT":
-            idat += chunk
-        elif ctype == b"IEND":
-            break
-    raw = zlib.decompress(idat)
-    channels = 3 if color == 2 else 4
-    stride = width * channels
-    out = bytearray(height * stride)
-    prev = bytearray(stride)
-    p = 0
-    for y in range(height):
-        filt = raw[p]
-        p += 1
-        line = bytearray(raw[p:p + stride])
-        p += stride
-        if filt == 1:
-            for i in range(channels, stride):
-                line[i] = (line[i] + line[i - channels]) & 0xFF
-        elif filt == 2:
-            for i in range(stride):
-                line[i] = (line[i] + prev[i]) & 0xFF
-        elif filt == 3:
-            for i in range(stride):
-                a = line[i - channels] if i >= channels else 0
-                line[i] = (line[i] + ((a + prev[i]) >> 1)) & 0xFF
-        elif filt == 4:
-            for i in range(stride):
-                a = line[i - channels] if i >= channels else 0
-                b = prev[i]
-                c = prev[i - channels] if i >= channels else 0
-                pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
-                pr = a if (pa <= pb and pa <= pc) else (b if pb <= pc else c)
-                line[i] = (line[i] + pr) & 0xFF
-        elif filt != 0:
-            raise AssertionError("bad PNG filter %d" % filt)
-        out[y * stride:(y + 1) * stride] = line
-        prev = line
-    return width, height, channels, bytes(out)
-
-
-
 def shot(name):
     path = os.path.join(TMPDIR, name + ".png")
     mcrfpy.step(0)  # the screenshot shows the last complete frame; draw this one (#529)
     automation.screenshot(path)
-    return read_png(path)
+    return _png.read_png(path)
 
 
 def px(img, x, y):
@@ -118,7 +62,7 @@ tex_b = mcrfpy.Texture.from_bytes(bytes(data), 64, 16, 16, 16, name="<issue562b>
 
 scene = mcrfpy.Scene("s562")
 scene.activate()
-bg = mcrfpy.Frame(pos=(0, 0), size=(400, 300), fill_color=mcrfpy.Color(*BLUE))
+bg = mcrfpy.Frame(pos=(0, 0), size=(500, 420), fill_color=mcrfpy.Color(*BLUE))
 scene.children.append(bg)
 
 
@@ -199,7 +143,117 @@ frame_row("plain solid frame, opacity 0.5", 160, SOLID, (127, 127, 255), opacity
 frame_row("cached solid frame, opacity 0.5", 190, SOLID, (127, 127, 255),
           cache_subtree=True, opacity=0.5)
 
+# --- Frame shader branch: the pre-#562 straight-alpha contract is unchanged ------------
+ALPHA_HALF = mcrfpy.Shader("""
+    uniform sampler2D texture;
+    void main() {
+        vec4 c = texture2D(texture, gl_TexCoord[0].xy);
+        c.a *= 0.5;
+        gl_FragColor = c;
+    }
+""")
+IGNORE_COLOR = mcrfpy.Shader("""
+    uniform sampler2D texture;
+    void main() { gl_FragColor = texture2D(texture, gl_TexCoord[0].xy); }
+""")
+TEX_TIMES_COLOR = mcrfpy.Shader("""
+    uniform sampler2D texture;
+    void main() { gl_FragColor = texture2D(texture, gl_TexCoord[0].xy) * gl_Color; }
+""")
+SHADER_X = 360
+shader_rows = []
+
+
+def shader_row(label, y, sh, expected, **kw):
+    f = mcrfpy.Frame(pos=(SHADER_X, y), size=(30, 16), fill_color=SOLID)
+    for k, v in kw.items():
+        setattr(f, k, v)
+    f.shader = sh
+    bg.children.append(f)
+    shader_rows.append((label, y, expected))
+
+
+# Expected values are what 8288c73 (before #562) produced for these opaque frames, measured on
+# that build. The shader branch is intentionally unchanged by #562 (the shader contract is a
+# separate question), so these include its existing double application of Frame opacity: the
+# box is painted at opacity into the texture and the sprite is blitted at opacity again.
+shader_row("opaque frame + alpha-only shader", 10, ALPHA_HALF, (128, 128, 255))
+shader_row("opaque frame + shader ignoring gl_Color, opacity 0.5", 40, IGNORE_COLOR, (63, 63, 191), opacity=0.5)
+shader_row("opaque frame + tex*gl_Color shader, opacity 0.5", 70, TEX_TIMES_COLOR, (31, 31, 223), opacity=0.5)
+
+# --- GridView texture: translucent / transparent fill, cached frame, camera rotation ----
+# white@128 tile over a black@128 fill over blue: fill (0,0,127) then tile -> (128,128,191)
+GRID_X = 10
+grid_rows = []   # (label, x, y, expected)
+
+
+def grid_case(label, x, y, fill, tile=True, **kw):
+    g = mcrfpy.Grid(grid_size=(2, 1), texture=tex, pos=(x, y), size=(32, 16))
+    g.cell_size = (16, 16)
+    g.center = (16, 8)
+    g.fill_color = fill
+    g.layer("tilesprite").fill(0 if tile else -1)
+    for k, v in kw.items():
+        setattr(g, k, v)
+    scene.children.append(g)
+    return g
+
+
+BLACK128 = mcrfpy.Color(0, 0, 0, 128)
+CLEAR = mcrfpy.Color(0, 0, 0, 0)
+grid_case("translucent fill + white@128 tile", 10, 270, BLACK128)
+grid_rows.append(("translucent fill + white@128 tile", 18, 278, (128, 128, 191)))
+grid_case("transparent fill + white@128 tile", 60, 270, CLEAR)
+grid_rows.append(("transparent fill + white@128 tile", 68, 278, (128, 128, 255)))
+cf = mcrfpy.Frame(pos=(110, 270), size=(32, 16), fill_color=CLEAR)
+cf.cache_subtree = True
+bg.children.append(cf)
+g_in = mcrfpy.Grid(grid_size=(2, 1), texture=tex, pos=(0, 0), size=(32, 16))
+g_in.cell_size = (16, 16)
+g_in.center = (16, 8)
+g_in.fill_color = CLEAR
+g_in.layer("tilesprite").fill(0)
+cf.children.append(g_in)
+grid_rows.append(("transparent fill grid in cache_subtree frame", 118, 278, (128, 128, 255)))
+cf2 = mcrfpy.Frame(pos=(160, 270), size=(32, 16), fill_color=CLEAR)
+cf2.cache_subtree = True
+bg.children.append(cf2)
+g_in2 = mcrfpy.Grid(grid_size=(2, 1), texture=tex, pos=(0, 0), size=(32, 16))
+g_in2.cell_size = (16, 16)
+g_in2.center = (16, 8)
+g_in2.fill_color = BLACK128
+g_in2.layer("tilesprite").fill(0)
+cf2.children.append(g_in2)
+grid_rows.append(("translucent fill grid in cache_subtree frame", 168, 278, (128, 128, 191)))
+grid_case("camera_rotation 90, translucent fill + tile", 210, 270, BLACK128, camera_rotation=90)
+grid_rows.append(("camera_rotation 90, translucent fill + tile", 218, 278, (128, 128, 191)))
+grid_case("camera_rotation 90, translucent fill, no tiles", 260, 270, BLACK128, tile=False, camera_rotation=90)
+grid_rows.append(("camera_rotation 90, translucent fill, no tiles", 268, 278, (0, 0, 127)))
+grid_case("translucent fill, no tiles", 310, 270, BLACK128, tile=False)
+grid_rows.append(("translucent fill, no tiles", 318, 278, (0, 0, 127)))
+
+ge = grid_case("translucent entity over translucent fill", 360, 270, BLACK128, tile=False)
+mcrfpy.Entity((0, 0), grid=ge, sprite_index=0)
+grid_rows.append(("translucent entity over translucent fill", 368, 278, (128, 128, 191)))
+ger = grid_case("translucent entity, camera_rotation 90", 410, 270, BLACK128, tile=False, camera_rotation=90)
+mcrfpy.Entity((0, 0), grid=ger, sprite_index=0)
+grid_rows.append(("translucent entity, camera_rotation 90", 418, 278, (128, 128, 191)))
+
+# --- a translucent Caption inside a transparent cache_subtree frame == drawn directly ----
+CAP_TEXT = dict(text="HHH", font_size=14, fill_color=mcrfpy.Color(255, 255, 255, 128), outline=0)
+bg.children.append(mcrfpy.Caption(pos=(10, 330), **CAP_TEXT))
+cap_frame = mcrfpy.Frame(pos=(10, 360), size=(60, 24), fill_color=CLEAR)
+cap_frame.cache_subtree = True
+cap_frame.children.append(mcrfpy.Caption(pos=(0, 0), **CAP_TEXT))
+bg.children.append(cap_frame)
+# the cached frame's opacity is changed after its first render (1 -> 0.5)
+op_frame = mcrfpy.Frame(pos=(100, 330), size=(30, 16), fill_color=SOLID)
+op_frame.cache_subtree = True
+bg.children.append(op_frame)
+
 img = shot("all")
+op_frame.opacity = 0.5
+img_after = shot("opacity")
 
 
 def cell(x0, y0, i):
@@ -233,6 +287,29 @@ print("4. Frame cache_subtree / clip_children / opacity")
 for label, y, want in frame_rows:
     got = px(img, FRAME_X + 30, y + 12)   # clear of clip_children's 4x4 child
     check(near(got, want), "%s = %s (want %s)" % (label, got, want))
+
+print("5. Frame shader branch keeps the straight-alpha contract")
+for label, y, want in shader_rows:
+    got = px(img, SHADER_X + 24, y + 4)
+    check(near(got, want), "%s = %s (want %s)" % (label, got, want))
+
+print("6. GridView texture")
+for label, x, y, want in grid_rows:
+    got = px(img, x, y)
+    check(near(got, want), "%s = %s (want %s)" % (label, got, want))
+
+print("7. Caption in a transparent cache_subtree frame; opacity changed after first render")
+worst = 0
+for dy in range(24):
+    for dx in range(60):
+        a, b = px(img, 10 + dx, 330 + dy), px(img, 10 + dx, 360 + dy)
+        worst = max(worst, max(abs(p - q) for p, q in zip(a, b)))
+check(worst <= 3, "cached translucent Caption matches the direct Caption (worst channel diff %d)" % worst)
+ink = max(px(img, 10 + dx, 330 + dy)[0] for dx in range(60) for dy in range(24))
+check(ink > 60, "the Caption is visible (red channel peak %d over blue)" % ink)
+check(near(px(img, 100 + 24, 330 + 4), (255, 255, 255)), "opacity 1 first render is solid")
+got = px(img_after, 100 + 24, 330 + 4)
+check(near(got, (127, 127, 255)), "cached frame opacity 1 -> 0.5 = %s (want 127,127,255)" % (got,))
 
 if failures:
     print("FAIL: %d check(s)" % len(failures))
