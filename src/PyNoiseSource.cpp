@@ -1,4 +1,5 @@
 #include "PyNoiseSource.h"
+#include "PyPositionHelper.h"
 #include "PyHeightMap.h"
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
@@ -401,14 +402,10 @@ PyObject* PyNoiseSource::sample(PyNoiseSourceObject* self, PyObject* args, PyObj
     }
 
     // Parse size
+    // the integer position helper (Vector / tuple / list / 2-sequence; floats floor; out of int range
+    // is OverflowError instead of wrapping)
     int width, height;
-    if (!PyTuple_Check(size_obj) || PyTuple_Size(size_obj) != 2) {
-        PyErr_SetString(PyExc_TypeError, "size must be a tuple of (width, height)");
-        return nullptr;
-    }
-    width = (int)PyLong_AsLong(PyTuple_GetItem(size_obj, 0));
-    height = (int)PyLong_AsLong(PyTuple_GetItem(size_obj, 1));
-    if (PyErr_Occurred()) {
+    if (!PyPosition_FromObjectInt(size_obj, &width, &height, "size")) {
         return nullptr;
     }
     if (width <= 0 || height <= 0) {
@@ -474,6 +471,14 @@ PyObject* PyNoiseSource::sample(PyNoiseSourceObject* self, PyObject* args, PyObj
         return nullptr;
     }
 
+    // #558: the conversions above (the "i" octaves, the size) run user code that can re-run
+    // __init__ with other dimensions (a 2-element coords array read as 4D is a stack over-read) or
+    // release the noise: check the state AGAIN, here, before anything uses it.
+    if (!self->noise || self->dimensions != 2) {
+        PyErr_SetString(PyExc_RuntimeError, "NoiseSource changed during sample(): it must be a 2D NoiseSource");
+        return nullptr;
+    }
+
     // Create HeightMap
     PyObject* size_tuple = Py_BuildValue("(ii)", width, height);
     if (!size_tuple) {
@@ -490,6 +495,12 @@ PyObject* PyNoiseSource::sample(PyNoiseSourceObject* self, PyObject* args, PyObj
     Py_DECREF(hmap_args);
 
     if (!hmap) {
+        return nullptr;
+    }
+
+    if (!self->noise || self->dimensions != 2) {  // creating the result can run a GC finalizer
+        Py_DECREF(hmap);
+        PyErr_SetString(PyExc_RuntimeError, "NoiseSource changed during sample(): it must be a 2D NoiseSource");
         return nullptr;
     }
 

@@ -109,7 +109,9 @@ int PyMouse::set_visible(PyObject* self, PyObject* value, void* closure)
     }
 
     PyMouseObject* mouse = (PyMouseObject*)self;
-    bool visible = PyObject_IsTrue(value);
+    const int visible_truth = PyObject_IsTrue(value);
+    if (visible_truth < 0) return -1;
+    bool visible = visible_truth != 0;
     mouse->cursor_visible = visible;
 
     // Apply to window if available
@@ -137,7 +139,9 @@ int PyMouse::set_grabbed(PyObject* self, PyObject* value, void* closure)
     }
 
     PyMouseObject* mouse = (PyMouseObject*)self;
-    bool grabbed = PyObject_IsTrue(value);
+    const int grabbed_truth = PyObject_IsTrue(value);
+    if (grabbed_truth < 0) return -1;
+    bool grabbed = grabbed_truth != 0;
     mouse->cursor_grabbed = grabbed;
 
     // Apply to window if available

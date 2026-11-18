@@ -632,8 +632,12 @@ int UIDrawable::set_float_member(PyObject* self, PyObject* value, void* closure)
     switch (member) {
         case 0: drawable->assignPosition({val, p.y}); break;        // x
         case 1: drawable->assignPosition({p.x, val}); break;        // y
-        case 2: drawable->assignSize({val, b.height}); break;       // w
-        case 3: drawable->assignSize({b.width, val}); break;        // h
+        case 2:
+            if (!drawable->checkSize({val, b.height})) return -1;   // a Grid's camera invariant (#558)
+            drawable->assignSize({val, b.height}); break;           // w
+        case 3:
+            if (!drawable->checkSize({b.width, val})) return -1;
+            drawable->assignSize({b.width, val}); break;            // h
         default:
             PyErr_SetString(PyExc_AttributeError, "Invalid float member");
             return -1;
@@ -676,6 +680,7 @@ int UIDrawable::set_size_vec(PyObject* self, PyObject* value, void* closure) {
     if (!drawable) return -1;
     sf::Vector2f size;
     if (!mcrf::to_vector2f(value, size, "size")) return -1;
+    if (!drawable->checkSize(size)) return -1;  // a Grid's camera invariant (#558)
     drawable->assignSize(size);
     return 0;
 }
@@ -741,7 +746,9 @@ int UIDrawable::set_rotate_with_camera(PyObject* self, PyObject* value, void* cl
         return -1;
     }
 
-    drawable->rotate_with_camera = PyObject_IsTrue(value);
+    const int truth_ = PyObject_IsTrue(value);
+    if (truth_ < 0) return -1;
+    drawable->rotate_with_camera = truth_ != 0;
     drawable->markDirty();
     return 0;
 }

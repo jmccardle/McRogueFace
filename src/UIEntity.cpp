@@ -627,14 +627,14 @@ PyObject* UIEntity::get_pixel_pos(PyUIEntityObject* self, void* closure) {
 }
 
 int UIEntity::set_pixel_pos(PyUIEntityObject* self, PyObject* value, void* closure) {
+    // #558: convert FIRST (user code can detach the entity or change its grid), then read the cell size
+    sf::Vector2f pixel_vec = PyObject_to_sfVector2f(value, "pos");
+    if (PyErr_Occurred()) {
+        return -1;
+    }
     sf::Vector2f cell;
     if (!self->data->cellPixelSize(cell)) {
         PyErr_SetString(PyExc_RuntimeError, "entity is not attached to a Grid");
-        return -1;
-    }
-
-    sf::Vector2f pixel_vec = PyObject_to_sfVector2f(value, "pos");
-    if (PyErr_Occurred()) {
         return -1;
     }
     self->data->assignDrawPos({pixel_vec.x / cell.x, pixel_vec.y / cell.y});  // #423
@@ -657,14 +657,14 @@ PyObject* UIEntity::get_pixel_member(PyUIEntityObject* self, void* closure) {
 }
 
 int UIEntity::set_pixel_member(PyUIEntityObject* self, PyObject* value, void* closure) {
+    // #558: convert FIRST (user code can detach the entity or change its grid), then read the cell size
+    float val;
+    if (!mcrf::to_float(value, val, reinterpret_cast<intptr_t>(closure) == 0 ? "draw_pos x" : "draw_pos y")) return -1;
     sf::Vector2f cell;
     if (!self->data->cellPixelSize(cell)) {
         PyErr_SetString(PyExc_RuntimeError, "entity is not attached to a Grid");
         return -1;
     }
-
-    float val;
-    if (!mcrf::to_float(value, val, reinterpret_cast<intptr_t>(closure) == 0 ? "draw_pos x" : "draw_pos y")) return -1;
 
     sf::Vector2f tiles = self->data->position;
     if (reinterpret_cast<intptr_t>(closure) == 0) // x
@@ -790,6 +790,9 @@ int UIEntity::set_tile_size(PyUIEntityObject* self, PyObject* value, void* closu
         PyErr_SetString(PyExc_ValueError, "tile_size components must be >= 1");
         return -1;
     }
+    // a sprite_grid is tile_width x tile_height cells: a different tile size makes it the wrong
+    // shape (and get_sprite_grid indexes it with the current size), so it is cleared (#558)
+    if (self->data->tile_width != tw || self->data->tile_height != th) self->data->sprite_grid.clear();
     self->data->tile_width = tw;
     self->data->tile_height = th;
     if (self->data->getGrid()) self->data->getGrid()->markDirty();
@@ -801,12 +804,15 @@ PyObject* UIEntity::get_tile_width(PyUIEntityObject* self, void* closure) {
 }
 
 int UIEntity::set_tile_width(PyUIEntityObject* self, PyObject* value, void* closure) {
-    int val = PyLong_AsLong(value);
-    if (val == -1 && PyErr_Occurred()) return -1;
+    int val;
+    // the integer helper: __index__ objects, floats floor, out of int range is OverflowError (the old
+    // PyLong_AsLong wrapped 2**32 + 1 to 1)
+    if (!PyPosition_IntFromObject(value, &val, "tile_width")) return -1;
     if (val < 1) {
         PyErr_SetString(PyExc_ValueError, "tile_width must be >= 1");
         return -1;
     }
+    if (self->data->tile_width != val) self->data->sprite_grid.clear();  // wrong shape now (#558)
     self->data->tile_width = val;
     if (self->data->getGrid()) self->data->getGrid()->markDirty();
     return 0;
@@ -817,12 +823,15 @@ PyObject* UIEntity::get_tile_height(PyUIEntityObject* self, void* closure) {
 }
 
 int UIEntity::set_tile_height(PyUIEntityObject* self, PyObject* value, void* closure) {
-    int val = PyLong_AsLong(value);
-    if (val == -1 && PyErr_Occurred()) return -1;
+    int val;
+    // the integer helper: __index__ objects, floats floor, out of int range is OverflowError (the old
+    // PyLong_AsLong wrapped 2**32 + 1 to 1)
+    if (!PyPosition_IntFromObject(value, &val, "tile_height")) return -1;
     if (val < 1) {
         PyErr_SetString(PyExc_ValueError, "tile_height must be >= 1");
         return -1;
     }
+    if (self->data->tile_height != val) self->data->sprite_grid.clear();  // wrong shape now (#558)
     self->data->tile_height = val;
     if (self->data->getGrid()) self->data->getGrid()->markDirty();
     return 0;
@@ -922,6 +931,12 @@ int UIEntity::set_sprite_grid(PyUIEntityObject* self, PyObject* value, void* clo
         }
     }
 
+    // #558: the conversions above (__index__) are user code that can change tile_width / tile_height
+    // (or re-run __init__): the grid was shaped for the old size, so it must still fit the CURRENT one
+    if (self->data->tile_width != tw || self->data->tile_height != th) {
+        PyErr_SetString(PyExc_ValueError, "tile_size changed while sprite_grid was being converted");
+        return -1;
+    }
     self->data->sprite_grid = std::move(new_grid);
     if (self->data->getGrid()) self->data->getGrid()->markDirty();
     return 0;
@@ -1107,7 +1122,7 @@ PyObject* UIEntity::visible_entities(PyUIEntityObject* self, PyObject* args, PyO
     TCOD_fov_algorithm_t algorithm = grid->fov_algorithm;
     bool fov_was_none = false;
     if (fov_arg && fov_arg != Py_None) {
-        if (PyFOV::from_arg(fov_arg, &algorithm, &fov_was_none) < 0) {
+        if (!PyFOV::from_arg(fov_arg, &algorithm, &fov_was_none)) {  // 0 = failure (it was tested as < 0: a bad fov= left an exception set)
             return NULL;  // Error already set
         }
     }
@@ -1410,55 +1425,45 @@ PyObject* UIEntity::py_set_behavior(PyUIEntityObject* self, PyObject* args, PyOb
         return NULL;
     }
 
-    auto& behavior = self->data->behavior;
-    behavior.reset();
-    behavior.type = static_cast<BehaviorType>(type_val);
+    // #558: convert EVERY argument into locals first. A conversion (a waypoint's __index__, an
+    // iterator's __next__) runs user code that can re-run e.__init__() (replacing self->data) or
+    // set behaviour itself; a reference to self->data->behavior taken before it dangles. Only after
+    // the last conversion is the entity's behaviour touched.
+    std::vector<sf::Vector2i> waypoints;
+    std::vector<sf::Vector2i> current_path;
+    std::unique_ptr<PathProvider> provider;
 
-    // Parse waypoints
-    if (waypoints_obj && waypoints_obj != Py_None) {
-        PyObject* iter = PyObject_GetIter(waypoints_obj);
+    auto parse_cells = [](PyObject* iterable, const char* not_iterable, const char* what,
+                          std::vector<sf::Vector2i>& out) -> bool {
+        PyObject* iter = PyObject_GetIter(iterable);
         if (!iter) {
-            PyErr_SetString(PyExc_TypeError, "waypoints must be iterable");
-            return NULL;
+            if (PyErr_ExceptionMatches(PyExc_TypeError)) {
+                PyErr_Clear();
+                PyErr_SetString(PyExc_TypeError, not_iterable);
+            }
+            return false;
         }
         PyObject* item;
         while ((item = PyIter_Next(iter)) != NULL) {
             // A cell: the integer position helper (floor, range-checked; held references)
-            int wx, wy;
-            const bool parsed = PyPosition_FromObjectInt(item, &wx, &wy, "waypoint");
+            int cx, cy;
+            const bool parsed = PyPosition_FromObjectInt(item, &cx, &cy, what);
             Py_DECREF(item);
-            if (!parsed) { Py_DECREF(iter); return NULL; }
-            behavior.waypoints.push_back({wx, wy});
+            if (!parsed) { Py_DECREF(iter); return false; }
+            out.push_back({cx, cy});
         }
         Py_DECREF(iter);
-        if (PyErr_Occurred()) return NULL;
-    }
+        return !PyErr_Occurred();
+    };
 
-    // Parse path
+    if (waypoints_obj && waypoints_obj != Py_None) {
+        if (!parse_cells(waypoints_obj, "waypoints must be iterable", "waypoint", waypoints)) return NULL;
+    }
     if (path_obj && path_obj != Py_None) {
-        PyObject* iter = PyObject_GetIter(path_obj);
-        if (!iter) {
-            PyErr_SetString(PyExc_TypeError, "path must be iterable");
-            return NULL;
-        }
-        PyObject* item;
-        while ((item = PyIter_Next(iter)) != NULL) {
-            int px, py_val;
-            const bool parsed = PyPosition_FromObjectInt(item, &px, &py_val, "path step");
-            Py_DECREF(item);
-            if (!parsed) { Py_DECREF(iter); return NULL; }
-            behavior.current_path.push_back({px, py_val});
-        }
-        Py_DECREF(iter);
-        if (PyErr_Occurred()) return NULL;
+        if (!parse_cells(path_obj, "path must be iterable", "path step", current_path)) return NULL;
     }
 
-    // Set sleep turns
-    if (turns > 0) {
-        behavior.sleep_turns_remaining = turns;
-    }
-
-    // Parse pathfinder (#315): DijkstraMap, AStarPath, or (x, y) target tuple.
+    // Parse pathfinder (#315): DijkstraMap, AStarPath, or a cell (anything waypoints accept).
     if (pathfinder_obj && pathfinder_obj != Py_None) {
         if (PyObject_TypeCheck(pathfinder_obj, &mcrfpydef::PyDijkstraMapType)) {
             auto* dmap = (PyDijkstraMapObject*)pathfinder_obj;
@@ -1466,24 +1471,32 @@ PyObject* UIEntity::py_set_behavior(PyUIEntityObject* self, PyObject* args, PyOb
                 PyErr_SetString(PyExc_RuntimeError, "pathfinder: DijkstraMap is invalid");
                 return NULL;
             }
-            behavior.path_provider = std::make_unique<DijkstraProvider>(dmap->data);
+            provider = std::make_unique<DijkstraProvider>(dmap->data);
         } else if (PyObject_TypeCheck(pathfinder_obj, &mcrfpydef::PyAStarPathType)) {
             auto* apath = (PyAStarPathObject*)pathfinder_obj;
             // Copy remaining steps - the provider owns its own iteration state.
             std::vector<sf::Vector2i> steps(
                 apath->path.begin() + apath->current_index,
                 apath->path.end());
-            behavior.path_provider = std::make_unique<AStarProvider>(std::move(steps));
-        } else if (PyTuple_Check(pathfinder_obj) && PyTuple_Size(pathfinder_obj) == 2) {
-            int tx, ty;
-            if (!PyPosition_FromObjectInt(pathfinder_obj, &tx, &ty, "pathfinder")) return NULL;
-            behavior.path_provider = std::make_unique<TargetProvider>(sf::Vector2i(tx, ty));
+            provider = std::make_unique<AStarProvider>(std::move(steps));
         } else {
-            PyErr_SetString(PyExc_TypeError,
-                "pathfinder must be a DijkstraMap, AStarPath, or (x, y) tuple");
-            return NULL;
+            int tx, ty;
+            if (!PyPosition_FromObjectInt(pathfinder_obj, &tx, &ty,
+                                          "pathfinder (a DijkstraMap, an AStarPath or an (x, y) cell)")) return NULL;
+            provider = std::make_unique<TargetProvider>(sf::Vector2i(tx, ty));
         }
     }
+
+    // No user code runs from here on: apply to the entity as it is NOW.
+    auto& behavior = self->data->behavior;
+    behavior.reset();
+    behavior.type = static_cast<BehaviorType>(type_val);
+    for (const auto& w : waypoints) behavior.waypoints.push_back({w.x, w.y});
+    for (const auto& c : current_path) behavior.current_path.push_back({c.x, c.y});
+    if (turns > 0) {
+        behavior.sleep_turns_remaining = turns;
+    }
+    if (provider) behavior.path_provider = std::move(provider);
 
     Py_RETURN_NONE;
 }

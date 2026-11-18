@@ -859,7 +859,9 @@ PyObject* Entity3D::get_visible(PyEntity3DObject* self, void* closure)
 
 int Entity3D::set_visible(PyEntity3DObject* self, PyObject* value, void* closure)
 {
-    self->data->visible_ = PyObject_IsTrue(value);
+    const int truth_ = PyObject_IsTrue(value);
+    if (truth_ < 0) return -1;
+    self->data->visible_ = truth_ != 0;
     return 0;
 }
 
@@ -1000,7 +1002,9 @@ PyObject* Entity3D::get_anim_loop(PyEntity3DObject* self, void* closure)
 
 int Entity3D::set_anim_loop(PyEntity3DObject* self, PyObject* value, void* closure)
 {
-    self->data->setAnimLoop(PyObject_IsTrue(value));
+    const int truth_ = PyObject_IsTrue(value);
+    if (truth_ < 0) return -1;
+    self->data->setAnimLoop(truth_ != 0);
     return 0;
 }
 
@@ -1011,7 +1015,9 @@ PyObject* Entity3D::get_anim_paused(PyEntity3DObject* self, void* closure)
 
 int Entity3D::set_anim_paused(PyEntity3DObject* self, PyObject* value, void* closure)
 {
-    self->data->setAnimPaused(PyObject_IsTrue(value));
+    const int truth_ = PyObject_IsTrue(value);
+    if (truth_ < 0) return -1;
+    self->data->setAnimPaused(truth_ != 0);
     return 0;
 }
 
@@ -1053,7 +1059,9 @@ PyObject* Entity3D::get_auto_animate(PyEntity3DObject* self, void* closure)
 
 int Entity3D::set_auto_animate(PyEntity3DObject* self, PyObject* value, void* closure)
 {
-    self->data->setAutoAnimate(PyObject_IsTrue(value));
+    const int truth_ = PyObject_IsTrue(value);
+    if (truth_ < 0) return -1;
+    self->data->setAutoAnimate(truth_ != 0);
     return 0;
 }
 

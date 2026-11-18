@@ -77,26 +77,38 @@ static bool parseOptionalSize(PyObject* size_obj, int* out_w, int* out_h, const 
 // Parse region parameters for binary operations (two heightmaps)
 // Returns true on success, sets Python error and returns false on failure
 static bool parseHMRegion(
-    TCOD_heightmap_t* dest,
-    TCOD_heightmap_t* src,      // Can be nullptr for scalar operations
+    PyHeightMapObject* dest_obj,
+    PyHeightMapObject* src_obj,  // Can be nullptr for scalar operations
     PyObject* pos,              // (x, y) or None - destination position
     PyObject* source_pos,       // (x, y) or None - source position
     PyObject* size,             // (w, h) or None
     HMRegion& out
 ) {
-    // Store full dimensions
-    out.dest_w = dest->w;
-    out.dest_h = dest->h;
-    out.src_w = src ? src->w : dest->w;
-    out.src_h = src ? src->h : dest->h;
-
-    // Parse positions, default to (0, 0)
+    // #558, phase 1: convert pos / source_pos / size (this runs user code: __index__, __float__)
+    // BEFORE reading anything about either map. A conversion can re-initialise either HeightMap
+    // (new size, freed buffer), so no pointer or dimension may be read until it has finished.
     if (!parseOptionalPos(pos, &out.dest_x, &out.dest_y, "pos")) {
         return false;
     }
     if (!parseOptionalPos(source_pos, &out.src_x, &out.src_y, "source_pos")) {
         return false;
     }
+    int requested_w = -1, requested_h = -1;
+    if (!parseOptionalSize(size, &requested_w, &requested_h, "size")) {
+        return false;
+    }
+
+    // Phase 2: no Python from here on. Read the maps as they are NOW.
+    if (!dest_obj->heightmap || (src_obj && !src_obj->heightmap)) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return false;
+    }
+    TCOD_heightmap_t* dest = dest_obj->heightmap;
+    TCOD_heightmap_t* src = src_obj ? src_obj->heightmap : nullptr;
+    out.dest_w = dest->w;
+    out.dest_h = dest->h;
+    out.src_w = src ? src->w : dest->w;
+    out.src_h = src ? src->h : dest->h;
 
     // Validate positions are within bounds
     if (out.dest_x < 0 || out.dest_y < 0) {
@@ -125,12 +137,6 @@ static bool parseHMRegion(
     int dest_remaining_h = out.dest_h - out.dest_y;
     int src_remaining_w = src ? (out.src_w - out.src_x) : dest_remaining_w;
     int src_remaining_h = src ? (out.src_h - out.src_y) : dest_remaining_h;
-
-    // Parse or infer size
-    int requested_w = -1, requested_h = -1;
-    if (!parseOptionalSize(size, &requested_w, &requested_h, "size")) {
-        return false;
-    }
 
     if (requested_w > 0 && requested_h > 0) {
         // Explicit size - must fit in both
@@ -167,7 +173,7 @@ static bool parseHMRegion(
 
 // Parse region parameters for scalar operations (just destination region)
 static bool parseHMRegionScalar(
-    TCOD_heightmap_t* dest,
+    PyHeightMapObject* dest,
     PyObject* pos,
     PyObject* size,
     HMRegion& out
@@ -592,16 +598,10 @@ int PyHeightMap::init(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
         return -1;
     }
 
-    // Parse size tuple
-    if (!PyTuple_Check(size_obj) || PyTuple_Size(size_obj) != 2) {
-        PyErr_SetString(PyExc_TypeError, "size must be a tuple of (width, height)");
-        return -1;
-    }
-
-    int width = (int)PyLong_AsLong(PyTuple_GetItem(size_obj, 0));
-    int height = (int)PyLong_AsLong(PyTuple_GetItem(size_obj, 1));
-
-    if (PyErr_Occurred()) {
+    // Parse size: the integer position helper (a Vector, tuple, list or 2-sequence; floats floor;
+    // out of int range is OverflowError: the old (int)PyLong_AsLong wrapped 2**32 + 3 to 3)
+    int width, height;
+    if (!PyPosition_FromObjectInt(size_obj, &width, &height, "size")) {
         return -1;
     }
 
@@ -692,7 +692,7 @@ PyObject* PyHeightMap::fill(PyHeightMapObject* self, PyObject* args, PyObject* k
 
     // Parse region parameters
     HMRegion region;
-    if (!parseHMRegionScalar(self->heightmap, pos, size, region)) {
+    if (!parseHMRegionScalar(self, pos, size, region)) {
         return nullptr;
     }
 
@@ -742,7 +742,7 @@ PyObject* PyHeightMap::add_constant(PyHeightMapObject* self, PyObject* args, PyO
 
     // Parse region parameters
     HMRegion region;
-    if (!parseHMRegionScalar(self->heightmap, pos, size, region)) {
+    if (!parseHMRegionScalar(self, pos, size, region)) {
         return nullptr;
     }
 
@@ -777,7 +777,7 @@ PyObject* PyHeightMap::scale(PyHeightMapObject* self, PyObject* args, PyObject* 
 
     // Parse region parameters
     HMRegion region;
-    if (!parseHMRegionScalar(self->heightmap, pos, size, region)) {
+    if (!parseHMRegionScalar(self, pos, size, region)) {
         return nullptr;
     }
 
@@ -818,7 +818,7 @@ PyObject* PyHeightMap::clamp(PyHeightMapObject* self, PyObject* args, PyObject* 
 
     // Parse region parameters
     HMRegion region;
-    if (!parseHMRegionScalar(self->heightmap, pos, size, region)) {
+    if (!parseHMRegionScalar(self, pos, size, region)) {
         return nullptr;
     }
 
@@ -861,7 +861,7 @@ PyObject* PyHeightMap::normalize(PyHeightMapObject* self, PyObject* args, PyObje
 
     // Parse region parameters
     HMRegion region;
-    if (!parseHMRegionScalar(self->heightmap, pos, size, region)) {
+    if (!parseHMRegionScalar(self, pos, size, region)) {
         return nullptr;
     }
 
@@ -1037,19 +1037,19 @@ PyObject* PyHeightMap::count_in_range(PyHeightMapObject* self, PyObject* args)
         PyObject* min_obj = PyTuple_GetItem(range_obj, 0);
         PyObject* max_obj = PyTuple_GetItem(range_obj, 1);
         if (PyFloat_Check(min_obj)) min_val = (float)PyFloat_AsDouble(min_obj);
-        else if (PyLong_Check(min_obj)) min_val = (float)PyLong_AsLong(min_obj);
+        else if (PyLong_Check(min_obj)) min_val = (float)PyLong_AsDouble(min_obj);
         else { PyErr_SetString(PyExc_TypeError, "range values must be numeric"); return nullptr; }
         if (PyFloat_Check(max_obj)) max_val = (float)PyFloat_AsDouble(max_obj);
-        else if (PyLong_Check(max_obj)) max_val = (float)PyLong_AsLong(max_obj);
+        else if (PyLong_Check(max_obj)) max_val = (float)PyLong_AsDouble(max_obj);
         else { PyErr_SetString(PyExc_TypeError, "range values must be numeric"); return nullptr; }
     } else if (PyList_Check(range_obj) && PyList_Size(range_obj) == 2) {
         PyObject* min_obj = PyList_GetItem(range_obj, 0);
         PyObject* max_obj = PyList_GetItem(range_obj, 1);
         if (PyFloat_Check(min_obj)) min_val = (float)PyFloat_AsDouble(min_obj);
-        else if (PyLong_Check(min_obj)) min_val = (float)PyLong_AsLong(min_obj);
+        else if (PyLong_Check(min_obj)) min_val = (float)PyLong_AsDouble(min_obj);
         else { PyErr_SetString(PyExc_TypeError, "range values must be numeric"); return nullptr; }
         if (PyFloat_Check(max_obj)) max_val = (float)PyFloat_AsDouble(max_obj);
-        else if (PyLong_Check(max_obj)) max_val = (float)PyLong_AsLong(max_obj);
+        else if (PyLong_Check(max_obj)) max_val = (float)PyLong_AsDouble(max_obj);
         else { PyErr_SetString(PyExc_TypeError, "range values must be numeric"); return nullptr; }
     } else {
         PyErr_SetString(PyExc_TypeError, "range must be a tuple or list of (min, max)");
@@ -1146,19 +1146,19 @@ static bool ParseRange(PyObject* range_obj, float* min_val, float* max_val)
         PyObject* min_obj = PyTuple_GetItem(range_obj, 0);
         PyObject* max_obj = PyTuple_GetItem(range_obj, 1);
         if (PyFloat_Check(min_obj)) *min_val = (float)PyFloat_AsDouble(min_obj);
-        else if (PyLong_Check(min_obj)) *min_val = (float)PyLong_AsLong(min_obj);
+        else if (PyLong_Check(min_obj)) *min_val = (float)PyLong_AsDouble(min_obj);
         else { PyErr_SetString(PyExc_TypeError, "range values must be numeric"); return false; }
         if (PyFloat_Check(max_obj)) *max_val = (float)PyFloat_AsDouble(max_obj);
-        else if (PyLong_Check(max_obj)) *max_val = (float)PyLong_AsLong(max_obj);
+        else if (PyLong_Check(max_obj)) *max_val = (float)PyLong_AsDouble(max_obj);
         else { PyErr_SetString(PyExc_TypeError, "range values must be numeric"); return false; }
     } else if (PyList_Check(range_obj) && PyList_Size(range_obj) == 2) {
         PyObject* min_obj = PyList_GetItem(range_obj, 0);
         PyObject* max_obj = PyList_GetItem(range_obj, 1);
         if (PyFloat_Check(min_obj)) *min_val = (float)PyFloat_AsDouble(min_obj);
-        else if (PyLong_Check(min_obj)) *min_val = (float)PyLong_AsLong(min_obj);
+        else if (PyLong_Check(min_obj)) *min_val = (float)PyLong_AsDouble(min_obj);
         else { PyErr_SetString(PyExc_TypeError, "range values must be numeric"); return false; }
         if (PyFloat_Check(max_obj)) *max_val = (float)PyFloat_AsDouble(max_obj);
-        else if (PyLong_Check(max_obj)) *max_val = (float)PyLong_AsLong(max_obj);
+        else if (PyLong_Check(max_obj)) *max_val = (float)PyLong_AsDouble(max_obj);
         else { PyErr_SetString(PyExc_TypeError, "range values must be numeric"); return false; }
     } else {
         PyErr_SetString(PyExc_TypeError, "range must be a tuple or list of (min, max)");
@@ -1206,6 +1206,22 @@ static PyHeightMapObject* CreateNewHeightMap(int width, int height)
     return new_hmap;
 }
 
+// A result map with `self`'s dimensions. Creating it allocates (a GC pass can run a finalizer that
+// re-initialises `self`), so the dimensions are re-checked afterwards: the caller's loops use
+// self->heightmap->w / h and result must match them (#558).
+static PyHeightMapObject* CreateNewHeightMapLike(PyHeightMapObject* self)
+{
+    const int w = self->heightmap->w, h = self->heightmap->h;
+    PyHeightMapObject* result = CreateNewHeightMap(w, h);
+    if (!result) return nullptr;
+    if (!self->heightmap || self->heightmap->w != w || self->heightmap->h != h) {
+        Py_DECREF(result);
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap changed size during the operation");
+        return nullptr;
+    }
+    return result;
+}
+
 // Method: threshold(range) -> HeightMap
 PyObject* PyHeightMap::threshold(PyHeightMapObject* self, PyObject* args)
 {
@@ -1225,7 +1241,7 @@ PyObject* PyHeightMap::threshold(PyHeightMapObject* self, PyObject* args)
     }
 
     // Create new HeightMap with same dimensions
-    PyHeightMapObject* result = CreateNewHeightMap(self->heightmap->w, self->heightmap->h);
+    PyHeightMapObject* result = CreateNewHeightMapLike(self);
     if (!result) {
         return nullptr;
     }
@@ -1267,7 +1283,7 @@ PyObject* PyHeightMap::threshold_binary(PyHeightMapObject* self, PyObject* args,
     }
 
     // Create new HeightMap with same dimensions
-    PyHeightMapObject* result = CreateNewHeightMap(self->heightmap->w, self->heightmap->h);
+    PyHeightMapObject* result = CreateNewHeightMapLike(self);
     if (!result) {
         return nullptr;
     }
@@ -1295,7 +1311,7 @@ PyObject* PyHeightMap::inverse(PyHeightMapObject* self, PyObject* Py_UNUSED(args
     }
 
     // Create new HeightMap with same dimensions
-    PyHeightMapObject* result = CreateNewHeightMap(self->heightmap->w, self->heightmap->h);
+    PyHeightMapObject* result = CreateNewHeightMapLike(self);
     if (!result) {
         return nullptr;
     }
@@ -1769,6 +1785,13 @@ PyObject* PyHeightMap::sparse_kernel_from(PyHeightMapObject* self, PyObject* arg
         return nullptr;
     }
 
+    // #558: convert the weights FIRST (keys / values run user code that can re-initialise either map),
+    // then validate both maps and apply, with no Python in between.
+    std::vector<int> dx, dy;
+    std::vector<float> weight;
+    Py_ssize_t kernel_size = ParseWeightsDict(weights_dict, dx, dy, weight);
+    if (kernel_size < 0) return nullptr;
+
     if (!self->heightmap) {
         PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
         return nullptr;
@@ -1784,12 +1807,6 @@ PyObject* PyHeightMap::sparse_kernel_from(PyHeightMapObject* self, PyObject* arg
         PyErr_SetString(PyExc_ValueError, "source and destination HeightMaps must have same dimensions");
         return nullptr;
     }
-
-    // Parse weights
-    std::vector<int> dx, dy;
-    std::vector<float> weight;
-    Py_ssize_t kernel_size = ParseWeightsDict(weights_dict, dx, dy, weight);
-    if (kernel_size < 0) return nullptr;
 
     // Apply the kernel transform
     // NOTE: mask parameter added in libtcod feature/heightmap-convolution, pass nullptr for now
@@ -1818,16 +1835,26 @@ PyObject* PyHeightMap::sparse_kernel(PyHeightMapObject* self, PyObject* args, Py
         return nullptr;
     }
 
-    // Create new HeightMap for result
-    PyHeightMapObject* result = CreateNewHeightMap(self->heightmap->w, self->heightmap->h);
-    if (!result) return nullptr;
-
-    // Parse weights
+    // #558: convert the weights FIRST (user code can re-initialise this map), then size the result
+    // from the map as it is now.
     std::vector<int> dx, dy;
     std::vector<float> weight;
     Py_ssize_t kernel_size = ParseWeightsDict(weights_dict, dx, dy, weight);
-    if (kernel_size < 0) {
+    if (kernel_size < 0) return nullptr;
+
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    // Create new HeightMap for result (CreateNewHeightMap runs no user code beyond allocation; the
+    // dimensions are re-checked below in case a GC finalizer re-initialised this map)
+    const int src_w = self->heightmap->w, src_h = self->heightmap->h;
+    PyHeightMapObject* result = CreateNewHeightMap(src_w, src_h);
+    if (!result) return nullptr;
+    if (!self->heightmap || self->heightmap->w != src_w || self->heightmap->h != src_h) {
         Py_DECREF(result);
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap changed size during the operation");
         return nullptr;
     }
 
@@ -2005,13 +2032,14 @@ PyObject* PyHeightMap::add(PyHeightMapObject* self, PyObject* args, PyObject* kw
 
     PyHeightMapObject* other = validateOtherHeightMapType(other_obj, "add");
     if (!other) return nullptr;
-    SNAPSHOT_IF_ALIASED(srcv, self, other);
 
     // Parse region parameters
     HMRegion region;
-    if (!parseHMRegion(self->heightmap, other->heightmap, pos, source_pos, size, region)) {
+    if (!parseHMRegion(self, other, pos, source_pos, size, region)) {
         return nullptr;
     }
+    // #558: snapshot AFTER the conversions (they can re-initialise either map)
+    SNAPSHOT_IF_ALIASED(srcv, self, other);
 
     // Add values in region
     for (int y = 0; y < region.height; y++) {
@@ -2046,13 +2074,14 @@ PyObject* PyHeightMap::subtract(PyHeightMapObject* self, PyObject* args, PyObjec
 
     PyHeightMapObject* other = validateOtherHeightMapType(other_obj, "subtract");
     if (!other) return nullptr;
-    SNAPSHOT_IF_ALIASED(srcv, self, other);
 
     // Parse region parameters
     HMRegion region;
-    if (!parseHMRegion(self->heightmap, other->heightmap, pos, source_pos, size, region)) {
+    if (!parseHMRegion(self, other, pos, source_pos, size, region)) {
         return nullptr;
     }
+    // #558: snapshot AFTER the conversions (they can re-initialise either map)
+    SNAPSHOT_IF_ALIASED(srcv, self, other);
 
     // Subtract values in region
     for (int y = 0; y < region.height; y++) {
@@ -2087,13 +2116,14 @@ PyObject* PyHeightMap::multiply(PyHeightMapObject* self, PyObject* args, PyObjec
 
     PyHeightMapObject* other = validateOtherHeightMapType(other_obj, "multiply");
     if (!other) return nullptr;
-    SNAPSHOT_IF_ALIASED(srcv, self, other);
 
     // Parse region parameters
     HMRegion region;
-    if (!parseHMRegion(self->heightmap, other->heightmap, pos, source_pos, size, region)) {
+    if (!parseHMRegion(self, other, pos, source_pos, size, region)) {
         return nullptr;
     }
+    // #558: snapshot AFTER the conversions (they can re-initialise either map)
+    SNAPSHOT_IF_ALIASED(srcv, self, other);
 
     // Multiply values in region
     for (int y = 0; y < region.height; y++) {
@@ -2129,13 +2159,14 @@ PyObject* PyHeightMap::lerp(PyHeightMapObject* self, PyObject* args, PyObject* k
 
     PyHeightMapObject* other = validateOtherHeightMapType(other_obj, "lerp");
     if (!other) return nullptr;
-    SNAPSHOT_IF_ALIASED(srcv, self, other);
 
     // Parse region parameters
     HMRegion region;
-    if (!parseHMRegion(self->heightmap, other->heightmap, pos, source_pos, size, region)) {
+    if (!parseHMRegion(self, other, pos, source_pos, size, region)) {
         return nullptr;
     }
+    // #558: snapshot AFTER the conversions (they can re-initialise either map)
+    SNAPSHOT_IF_ALIASED(srcv, self, other);
 
     // Lerp values in region: self = self * (1-t) + other * t
     float one_minus_t = 1.0f - t;
@@ -2172,13 +2203,14 @@ PyObject* PyHeightMap::copy_from(PyHeightMapObject* self, PyObject* args, PyObje
 
     PyHeightMapObject* other = validateOtherHeightMapType(other_obj, "copy_from");
     if (!other) return nullptr;
-    SNAPSHOT_IF_ALIASED(srcv, self, other);
 
     // Parse region parameters
     HMRegion region;
-    if (!parseHMRegion(self->heightmap, other->heightmap, pos, source_pos, size, region)) {
+    if (!parseHMRegion(self, other, pos, source_pos, size, region)) {
         return nullptr;
     }
+    // #558: snapshot AFTER the conversions (they can re-initialise either map)
+    SNAPSHOT_IF_ALIASED(srcv, self, other);
 
     // Copy values in region
     for (int y = 0; y < region.height; y++) {
@@ -2213,13 +2245,14 @@ PyObject* PyHeightMap::hmap_max(PyHeightMapObject* self, PyObject* args, PyObjec
 
     PyHeightMapObject* other = validateOtherHeightMapType(other_obj, "max");
     if (!other) return nullptr;
-    SNAPSHOT_IF_ALIASED(srcv, self, other);
 
     // Parse region parameters
     HMRegion region;
-    if (!parseHMRegion(self->heightmap, other->heightmap, pos, source_pos, size, region)) {
+    if (!parseHMRegion(self, other, pos, source_pos, size, region)) {
         return nullptr;
     }
+    // #558: snapshot AFTER the conversions (they can re-initialise either map)
+    SNAPSHOT_IF_ALIASED(srcv, self, other);
 
     // Max values in region
     for (int y = 0; y < region.height; y++) {
@@ -2255,13 +2288,14 @@ PyObject* PyHeightMap::hmap_min(PyHeightMapObject* self, PyObject* args, PyObjec
 
     PyHeightMapObject* other = validateOtherHeightMapType(other_obj, "min");
     if (!other) return nullptr;
-    SNAPSHOT_IF_ALIASED(srcv, self, other);
 
     // Parse region parameters
     HMRegion region;
-    if (!parseHMRegion(self->heightmap, other->heightmap, pos, source_pos, size, region)) {
+    if (!parseHMRegion(self, other, pos, source_pos, size, region)) {
         return nullptr;
     }
+    // #558: snapshot AFTER the conversions (they can re-initialise either map)
+    SNAPSHOT_IF_ALIASED(srcv, self, other);
 
     // Min values in region
     for (int y = 0; y < region.height; y++) {

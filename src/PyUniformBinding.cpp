@@ -150,32 +150,25 @@ int PyPropertyBindingType::init(PyPropertyBindingObject* self, PyObject* args, P
         return -1;
     }
 
-    // Get the shared_ptr from the target drawable by checking the type name
-    // We can't use PyObject_IsInstance with static type objects from other translation units
-    // So we check the type name string instead
+    // Get the shared_ptr from the target drawable by its TYPE OBJECT (#559): PyObject_TypeCheck against
+    // the static type accepts a Python subclass of Frame, and rejects an object that merely CALLS itself
+    // "mcrfpy.Frame" (the old tp_name strcmp cast any such object to the C struct and crashed).
     std::shared_ptr<UIDrawable> target_ptr;
-    const char* type_name = Py_TYPE(target_obj)->tp_name;
 
-    if (strcmp(type_name, "mcrfpy.Frame") == 0) {
+    if (PyObject_TypeCheck(target_obj, &mcrfpydef::PyUIFrameType)) {
         target_ptr = ((PyUIFrameObject*)target_obj)->data;
-    } else if (strcmp(type_name, "mcrfpy.Caption") == 0) {
+    } else if (PyObject_TypeCheck(target_obj, &mcrfpydef::PyUICaptionType)) {
         target_ptr = ((PyUICaptionObject*)target_obj)->data;
-    } else if (strcmp(type_name, "mcrfpy.Sprite") == 0) {
+    } else if (PyObject_TypeCheck(target_obj, &mcrfpydef::PyUISpriteType)) {
         target_ptr = ((PyUISpriteObject*)target_obj)->data;
-    } else if (strcmp(type_name, "mcrfpy.Grid") == 0 ||
-               strcmp(type_name, "mcrfpy.GridView") == 0) {
-        // #361: mcrfpy.Grid IS the GridView. This arm used to cast the object to
-        // PyUIGridObject (the _GridData wrapper) and read its shared_ptr<UIGrid>
-        // out of a PyUIGridViewObject -- type confusion that only "worked" because
-        // both wrappers had identical layout and both C++ classes happened to put
-        // UIDrawable at offset 0. Now that GridData is not a drawable the compiler
-        // rejects it, which is how it surfaced.
+    } else if (PyObject_TypeCheck(target_obj, &mcrfpydef::PyUIGridViewType)) {
+        // #361: mcrfpy.Grid IS the GridView
         target_ptr = ((PyUIGridViewObject*)target_obj)->data;
-    } else if (strcmp(type_name, "mcrfpy.Line") == 0) {
+    } else if (PyObject_TypeCheck(target_obj, &mcrfpydef::PyUILineType)) {
         target_ptr = ((PyUILineObject*)target_obj)->data;
-    } else if (strcmp(type_name, "mcrfpy.Circle") == 0) {
+    } else if (PyObject_TypeCheck(target_obj, &mcrfpydef::PyUICircleType)) {
         target_ptr = ((PyUICircleObject*)target_obj)->data;
-    } else if (strcmp(type_name, "mcrfpy.Arc") == 0) {
+    } else if (PyObject_TypeCheck(target_obj, &mcrfpydef::PyUIArcType)) {
         target_ptr = ((PyUIArcObject*)target_obj)->data;
     }
 

@@ -1494,7 +1494,9 @@ static PyObject* Viewport3D_get_enable_vertex_snap(PyViewport3DObject* self, voi
 }
 
 static int Viewport3D_set_enable_vertex_snap(PyViewport3DObject* self, PyObject* value, void* closure) {
-    self->data->setVertexSnapEnabled(PyObject_IsTrue(value));
+    const int truth_ = PyObject_IsTrue(value);
+    if (truth_ < 0) return -1;
+    self->data->setVertexSnapEnabled(truth_ != 0);
     return 0;
 }
 
@@ -1503,7 +1505,9 @@ static PyObject* Viewport3D_get_enable_affine(PyViewport3DObject* self, void* cl
 }
 
 static int Viewport3D_set_enable_affine(PyViewport3DObject* self, PyObject* value, void* closure) {
-    self->data->setAffineMappingEnabled(PyObject_IsTrue(value));
+    const int truth_ = PyObject_IsTrue(value);
+    if (truth_ < 0) return -1;
+    self->data->setAffineMappingEnabled(truth_ != 0);
     return 0;
 }
 
@@ -1512,7 +1516,9 @@ static PyObject* Viewport3D_get_enable_dither(PyViewport3DObject* self, void* cl
 }
 
 static int Viewport3D_set_enable_dither(PyViewport3DObject* self, PyObject* value, void* closure) {
-    self->data->setDitheringEnabled(PyObject_IsTrue(value));
+    const int truth_ = PyObject_IsTrue(value);
+    if (truth_ < 0) return -1;
+    self->data->setDitheringEnabled(truth_ != 0);
     return 0;
 }
 
@@ -1521,7 +1527,9 @@ static PyObject* Viewport3D_get_enable_fog(PyViewport3DObject* self, void* closu
 }
 
 static int Viewport3D_set_enable_fog(PyViewport3DObject* self, PyObject* value, void* closure) {
-    self->data->setFogEnabled(PyObject_IsTrue(value));
+    const int truth_ = PyObject_IsTrue(value);
+    if (truth_ < 0) return -1;
+    self->data->setFogEnabled(truth_ != 0);
     return 0;
 }
 
@@ -2440,20 +2448,13 @@ static PyObject* Viewport3D_add_voxel_layer(PyViewport3DObject* self, PyObject* 
         return NULL;
     }
 
-    // Check if it's a VoxelGrid object
-    PyTypeObject* voxelGridType = (PyTypeObject*)PyObject_GetAttrString(
-        McRFPy_API::mcrf_module, "VoxelGrid");
-    if (!voxelGridType) {
-        PyErr_SetString(PyExc_RuntimeError, "VoxelGrid type not found");
-        return NULL;
-    }
-
-    if (!PyObject_TypeCheck(voxel_grid_obj, (PyTypeObject*)voxelGridType)) {
-        Py_DECREF(voxelGridType);
+    // Check by the static TYPE OBJECT (#559): the old lookup fetched `mcrfpy.VoxelGrid` from the module
+    // on every call, so rebinding that attribute (mcrfpy.VoxelGrid = mcrfpy.Frame) made any Frame
+    // pass as a VoxelGrid and be cast as one.
+    if (!PyObject_TypeCheck(voxel_grid_obj, &mcrfpydef::PyVoxelGridType)) {
         PyErr_SetString(PyExc_TypeError, "voxel_grid must be a VoxelGrid object");
         return NULL;
     }
-    Py_DECREF(voxelGridType);
 
     PyVoxelGridObject* vg = (PyVoxelGridObject*)voxel_grid_obj;
     if (!vg->data) {
@@ -2472,20 +2473,13 @@ static PyObject* Viewport3D_remove_voxel_layer(PyViewport3DObject* self, PyObjec
         return NULL;
     }
 
-    // Check if it's a VoxelGrid object
-    PyTypeObject* voxelGridType = (PyTypeObject*)PyObject_GetAttrString(
-        McRFPy_API::mcrf_module, "VoxelGrid");
-    if (!voxelGridType) {
-        PyErr_SetString(PyExc_RuntimeError, "VoxelGrid type not found");
-        return NULL;
-    }
-
-    if (!PyObject_TypeCheck(voxel_grid_obj, (PyTypeObject*)voxelGridType)) {
-        Py_DECREF(voxelGridType);
+    // Check by the static TYPE OBJECT (#559): the old lookup fetched `mcrfpy.VoxelGrid` from the module
+    // on every call, so rebinding that attribute (mcrfpy.VoxelGrid = mcrfpy.Frame) made any Frame
+    // pass as a VoxelGrid and be cast as one.
+    if (!PyObject_TypeCheck(voxel_grid_obj, &mcrfpydef::PyVoxelGridType)) {
         PyErr_SetString(PyExc_TypeError, "voxel_grid must be a VoxelGrid object");
         return NULL;
     }
-    Py_DECREF(voxelGridType);
 
     PyVoxelGridObject* vg = (PyVoxelGridObject*)voxel_grid_obj;
     if (!vg->data) {
@@ -2515,20 +2509,13 @@ static PyObject* Viewport3D_project_voxel_to_nav(PyViewport3DObject* self, PyObj
         return NULL;
     }
 
-    // Check if it's a VoxelGrid object
-    PyTypeObject* voxelGridType = (PyTypeObject*)PyObject_GetAttrString(
-        McRFPy_API::mcrf_module, "VoxelGrid");
-    if (!voxelGridType) {
-        PyErr_SetString(PyExc_RuntimeError, "VoxelGrid type not found");
-        return NULL;
-    }
-
-    if (!PyObject_TypeCheck(voxel_grid_obj, (PyTypeObject*)voxelGridType)) {
-        Py_DECREF(voxelGridType);
+    // Check by the static TYPE OBJECT (#559): the old lookup fetched `mcrfpy.VoxelGrid` from the module
+    // on every call, so rebinding that attribute (mcrfpy.VoxelGrid = mcrfpy.Frame) made any Frame
+    // pass as a VoxelGrid and be cast as one.
+    if (!PyObject_TypeCheck(voxel_grid_obj, &mcrfpydef::PyVoxelGridType)) {
         PyErr_SetString(PyExc_TypeError, "voxel_grid must be a VoxelGrid object");
         return NULL;
     }
-    Py_DECREF(voxelGridType);
 
     PyVoxelGridObject* vg = (PyVoxelGridObject*)voxel_grid_obj;
     if (!vg->data) {
@@ -2569,20 +2556,13 @@ static PyObject* Viewport3D_clear_voxel_nav_region(PyViewport3DObject* self, PyO
         return NULL;
     }
 
-    // Check if it's a VoxelGrid object
-    PyTypeObject* voxelGridType = (PyTypeObject*)PyObject_GetAttrString(
-        McRFPy_API::mcrf_module, "VoxelGrid");
-    if (!voxelGridType) {
-        PyErr_SetString(PyExc_RuntimeError, "VoxelGrid type not found");
-        return NULL;
-    }
-
-    if (!PyObject_TypeCheck(voxel_grid_obj, (PyTypeObject*)voxelGridType)) {
-        Py_DECREF(voxelGridType);
+    // Check by the static TYPE OBJECT (#559): the old lookup fetched `mcrfpy.VoxelGrid` from the module
+    // on every call, so rebinding that attribute (mcrfpy.VoxelGrid = mcrfpy.Frame) made any Frame
+    // pass as a VoxelGrid and be cast as one.
+    if (!PyObject_TypeCheck(voxel_grid_obj, &mcrfpydef::PyVoxelGridType)) {
         PyErr_SetString(PyExc_TypeError, "voxel_grid must be a VoxelGrid object");
         return NULL;
     }
-    Py_DECREF(voxelGridType);
 
     PyVoxelGridObject* vg = (PyVoxelGridObject*)voxel_grid_obj;
     if (!vg->data) {

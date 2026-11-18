@@ -122,6 +122,18 @@ void UIGridView::onPositionChanged()
     box.setPosition(position);
 }
 
+// float / double -> int for the camera arithmetic in render() and localToGridWorld(). The camera
+// invariant (see cameraOk below) keeps every such value inside int range for any state reachable from
+// Python except mid-flight values of an animation whose easing overshoots; this saturates (and maps
+// nan to 0) so that case, and any value the invariant did not foresee, is defined behaviour instead of
+// an undefined float -> int cast. It is a memory-safety backstop, never a substitute for the check.
+static inline int satInt(double v)
+{
+    if (!(v == v)) return 0;
+    constexpr double lim = static_cast<double>(INT_MAX / 2);
+    return static_cast<int>(v > lim ? lim : (v < -lim ? -lim : v));
+}
+
 sf::Vector2f UIGridView::getEffectiveCellSize() const
 {
     const sf::Vector2i cell_px = cellSize();
@@ -186,8 +198,8 @@ sf::Vector2f UIGridView::localToGridWorld(sf::Vector2f local) const
     const float tx =  dx * cos_r + dy * sin_r + aabb_w / 2.0f;
     const float ty = -dx * sin_r + dy * cos_r + aabb_h / 2.0f;
 
-    int left_spritepixels = center_x - (aabb_w / 2.0 / zoom);
-    int top_spritepixels  = center_y - (aabb_h / 2.0 / zoom);
+    int left_spritepixels = satInt(center_x - (aabb_w / 2.0 / zoom));
+    int top_spritepixels  = satInt(center_y - (aabb_h / 2.0 / zoom));
     return sf::Vector2f(tx / zoom + left_spritepixels,
                         ty / zoom + top_spritepixels);
 }
@@ -203,8 +215,8 @@ std::optional<sf::Vector2i> UIGridView::cellAtLocal(sf::Vector2f local) const
     int cw = cell_px.x;
     int ch = cell_px.y;
     sf::Vector2f gw = localToGridWorld(local);
-    int cx = static_cast<int>(std::floor(gw.x / cw));
-    int cy = static_cast<int>(std::floor(gw.y / ch));
+    int cx = satInt(std::floor(gw.x / cw));
+    int cy = satInt(std::floor(gw.y / ch));
     if (cx < 0 || cx >= grid_data->grid_w || cy < 0 || cy >= grid_data->grid_h)
         return std::nullopt;
     return sf::Vector2i(cx, cy);
@@ -340,11 +352,11 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
     float height_sq = render_h / (cell_height * zoom);
     float left_edge = center_x_sq - (width_sq / 2.0);
     float top_edge = center_y_sq - (height_sq / 2.0);
-    int left_spritepixels = center_x - (render_w / 2.0 / zoom);
-    int top_spritepixels = center_y - (render_h / 2.0 / zoom);
-    int x_limit = left_edge + width_sq + 2;
+    int left_spritepixels = satInt(center_x - (render_w / 2.0 / zoom));
+    int top_spritepixels = satInt(center_y - (render_h / 2.0 / zoom));
+    int x_limit = satInt(static_cast<double>(left_edge) + width_sq + 2);
     if (x_limit > grid_data->grid_w) x_limit = grid_data->grid_w;
-    int y_limit = top_edge + height_sq + 2;
+    int y_limit = satInt(static_cast<double>(top_edge) + height_sq + 2);
     if (y_limit > grid_data->grid_h) y_limit = grid_data->grid_h;
 
     // #341: re-instrument the grid render counters. These were declared and reset
@@ -356,8 +368,8 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
     ScopedAccumTimer gridTimer(metrics.gridRenderTime);
 
     // Cells actually inside the viewport window, per layer drawn.
-    const int x_start = std::max(0, static_cast<int>(left_edge));
-    const int y_start = std::max(0, static_cast<int>(top_edge));
+    const int x_start = std::max(0, satInt(left_edge));
+    const int y_start = std::max(0, satInt(top_edge));
     const int visible_cells = std::max(0, x_limit - x_start) * std::max(0, y_limit - y_start);
 
     // Render layers below entities (z_index <= 0)
@@ -366,7 +378,7 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
     for (auto& layer : grid_data->layers) {
         if (layer->z_index > 0) break;  // #257: z_index=0 is ground level (below entities)
         layer->render(*activeTexture, left_spritepixels, top_spritepixels,
-                     left_edge, top_edge, x_limit, y_limit, zoom, cell_width, cell_height);
+                     satInt(left_edge), satInt(top_edge), x_limit, y_limit, zoom, cell_width, cell_height);
         ++layers_drawn;
     }
 
@@ -401,7 +413,7 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
     for (auto& layer : grid_data->layers) {
         if (layer->z_index <= 0) continue;  // #257: skip ground-level and below
         layer->render(*activeTexture, left_spritepixels, top_spritepixels,
-                     left_edge, top_edge, x_limit, y_limit, zoom, cell_width, cell_height);
+                     satInt(left_edge), satInt(top_edge), x_limit, y_limit, zoom, cell_width, cell_height);
         ++layers_drawn;
     }
 
@@ -445,8 +457,8 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
             const uint8_t* pm = entity->perspective_map->data();
             const int pm_w = entity->perspective_map->width();
             const int pm_h = entity->perspective_map->height();
-            for (int x = std::max(0, (int)(left_edge - 1)); x < x_limit; x++) {
-                for (int y = std::max(0, (int)(top_edge - 1)); y < y_limit; y++) {
+            for (int x = std::max(0, satInt(static_cast<double>(left_edge) - 1)); x < x_limit; x++) {
+                for (int y = std::max(0, satInt(static_cast<double>(top_edge) - 1)); y < y_limit; y++) {
                     if (x < 0 || x >= grid_data->grid_w || y < 0 || y >= grid_data->grid_h) continue;
                     if (x >= pm_w || y >= pm_h) continue;
                     auto pixel_pos = sf::Vector2f(
@@ -465,8 +477,8 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
                 }
             }
         } else {
-            for (int x = std::max(0, (int)(left_edge - 1)); x < x_limit; x++) {
-                for (int y = std::max(0, (int)(top_edge - 1)); y < y_limit; y++) {
+            for (int x = std::max(0, satInt(static_cast<double>(left_edge) - 1)); x < x_limit; x++) {
+                for (int y = std::max(0, satInt(static_cast<double>(top_edge) - 1)); y < y_limit; y++) {
                     if (x < 0 || x >= grid_data->grid_w || y < 0 || y >= grid_data->grid_h) continue;
                     auto pixel_pos = sf::Vector2f(
                         (x*cell_width - left_spritepixels) * zoom,
@@ -490,7 +502,7 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
         rotatedSprite.setOrigin(tex_center_x, tex_center_y);
         rotatedSprite.setRotation(camera_rotation);
         rotatedSprite.setPosition(grid_w_px / 2.0f, grid_h_px / 2.0f);
-        rotatedSprite.setTextureRect(sf::IntRect(0, 0, (int)aabb_w, (int)aabb_h));
+        rotatedSprite.setTextureRect(sf::IntRect(0, 0, satInt(aabb_w), satInt(aabb_h)));
         renderTexture.draw(rotatedSprite);
         renderTexture.display();
         output.setPosition(box.getPosition() + offset);
@@ -603,32 +615,117 @@ UIDrawable* UIGridView::click_at(sf::Vector2f point)
 
 // Property system. The shared names (x, y, pos, w, h, size, rotation, origin,
 // opacity, z_index) are handled by UIDrawable (#426, lost in the #355 type split).
-// A zoom must be positive AFTER narrowing to float (1e-46 is 0.0f), and the arithmetic derived from
-// it must stay finite: the default camera centres on w / (2 * zoom) and h / (2 * zoom) (applyDefaultCamera)
-// and the view spans w / zoom by h / zoom tiles, all in float. So zoom >= max(|w|, |h|) / FLT_MAX is
-// the real lower bound for a view of this size (no magic minimum); a smaller positive zoom would make
-// center (inf, inf). Raises ValueError and returns false when it does not hold.
-static bool checkZoom(float zoom, float w, float h)
+// ============================================================================
+// The camera invariant (#558). ONE rule, checked wherever zoom, the view size, the camera centre or the
+// cell size changes; a change that would violate it raises ValueError.
+//
+// render() and localToGridWorld() cast to int (the arithmetic is float / double, the casts are not):
+//     left_spritepixels = (int)(center_x - span / (2 * zoom))          [render() and localToGridWorld()]
+//     x_limit           = (int)(center_x / cell + span / (cell * zoom) + 2),   (int)left_edge, ...
+// where `span` is the rasterised extent (the box, or its rotated AABB: at most |w| + |h|) and the cell
+// size is >= 1. Every one of those fits an int when
+//     |center_x|, |center_y| <= L      and      span / zoom <= L              (L = INT_MAX / 4)
+// because then |center| + span / (2 zoom) <= 1.5 L and |center| / cell + span / (cell zoom) + 2 <=
+// 2 L + 2, both below INT_MAX. The default camera centre, size / (2 zoom), is covered by span / zoom <= L.
+// So the minimum zoom for a view is   max(|w| + |h|, 1) / L   (a view is at least one pixel in the
+// arithmetic: a (0, 0) view does not make a tiny zoom acceptable) and the largest camera centre is L.
+// ============================================================================
+static constexpr double kCameraLimit = static_cast<double>(INT_MAX) / 4.0;
+
+static bool cameraOk(double zoom, double w, double h, double cx, double cy)
 {
-    if (!(zoom > 0.0f)) {
-        mcrf::raise_got(PyExc_ValueError, "zoom must be greater than 0", (double)zoom);
+    if (!std::isfinite(zoom) || !(zoom > 0.0)) {
+        mcrf::raise_got(PyExc_ValueError, "zoom must be greater than 0", zoom);
         return false;
     }
-    const double extent = std::max(std::fabs((double)w), std::fabs((double)h));
-    if (!(extent / (double)zoom <= (double)FLT_MAX)) {
-        mcrf::raise_got(PyExc_ValueError,
-            "zoom is too small for this view: the camera centre (size / (2 * zoom)) would not be finite", (double)zoom);
+    const double span = std::max(std::fabs(w) + std::fabs(h), 1.0);
+    if (!(span / zoom <= kCameraLimit)) {
+        char buf[300];
+        snprintf(buf, sizeof buf,
+                 "zoom %g is too small for a view of size (%g, %g): size / zoom must stay below %d data pixels "
+                 "(the minimum zoom for this size is %g)",
+                 zoom, w, h, (int)kCameraLimit, span / kCameraLimit);
+        PyErr_SetString(PyExc_ValueError, buf);
+        return false;
+    }
+    if (!(std::fabs(cx) <= kCameraLimit) || !(std::fabs(cy) <= kCameraLimit)) {
+        char buf[200];
+        snprintf(buf, sizeof buf, "camera center (%g, %g) must stay within +/-%d data pixels",
+                 cx, cy, (int)kCameraLimit);
+        PyErr_SetString(PyExc_ValueError, buf);
         return false;
     }
     return true;
 }
 
+// The camera centre a (zoom, size) pair would have: the default camera derives it from both.
+static void effectiveCenter(const UIGridView& v, double zoom, double w, double h, double& cx, double& cy)
+{
+    if (v.camera_is_default) {
+        cx = w / (2.0 * zoom);
+        cy = h / (2.0 * zoom);
+    } else {
+        cx = v.center_x;
+        cy = v.center_y;
+    }
+}
+
+bool UIGridView::checkCellSize(sf::Vector2i old, sf::Vector2i now) const
+{
+    // What onCellSizeChanged() would do: a view sized to the map follows it, a default camera
+    // re-centres on the new size, any other camera scales its centre by now / old.
+    double w = box.getSize().x, h = box.getSize().y;
+    if (size_follows_map && grid_data) {
+        w = grid_data->grid_w * static_cast<double>(now.x);
+        h = grid_data->grid_h * static_cast<double>(now.y);
+    }
+    double cx, cy;
+    if (camera_is_default) {
+        effectiveCenter(*this, zoom, w, h, cx, cy);
+    } else {
+        cx = center_x / old.x * now.x;
+        cy = center_y / old.y * now.y;
+    }
+    return cameraOk(zoom, w, h, cx, cy);
+}
+
+bool UIGridView::checkSize(sf::Vector2f s) const
+{
+    double cx, cy;
+    effectiveCenter(*this, zoom, s.x, s.y, cx, cy);
+    return cameraOk(zoom, s.x, s.y, cx, cy);
+}
+
 bool UIGridView::checkFloatTarget(const std::string& name, float final_value) const
 {
-    // zoom <= 0 (or a zoom whose derived centre is not finite) is rejected as a target. (A delta
-    // animation's end is only known when it starts; an easing that overshoots can still pass
-    // through values <= 0 on the way, which setProperty tolerates.)
-    if (name == "zoom") return checkZoom(final_value, box.getSize().x, box.getSize().y);
+    // The value an animation ENDS at must satisfy the invariant (a delta animation's end is added
+    // before this is called). An easing that overshoots (back, elastic) can still pass through values
+    // that violate it MID-FLIGHT: setProperty cannot raise, so render()/localToGridWorld() cast through
+    // a saturating helper to stay defined; whether such an easing should be rejected, clamped or stopped
+    // is an open decision (reported, #558).
+    const double w = box.getSize().x, h = box.getSize().y;
+    double cx, cy;
+    if (name == "zoom") {
+        effectiveCenter(*this, final_value, w, h, cx, cy);
+        return cameraOk(final_value, w, h, cx, cy);
+    }
+    if (name == "w") {
+        effectiveCenter(*this, zoom, final_value, h, cx, cy);
+        return cameraOk(zoom, final_value, h, cx, cy);
+    }
+    if (name == "h") {
+        effectiveCenter(*this, zoom, w, final_value, cx, cy);
+        return cameraOk(zoom, w, final_value, cx, cy);
+    }
+    if (name == "center_x") return cameraOk(zoom, w, h, final_value, camera_is_default ? w / (2.0 * zoom) : center_y);
+    if (name == "center_y") return cameraOk(zoom, w, h, camera_is_default ? h / (2.0 * zoom) : center_x, final_value);
+    return true;
+}
+
+bool UIGridView::checkVec2Target(const std::string& name, const sf::Vector2f& final_value) const
+{
+    if (name == "size") return checkSize(final_value);
+    if (name == "center") return cameraOk(zoom, box.getSize().x, box.getSize().y, final_value.x, final_value.y);
     return true;
 }
 
@@ -807,7 +904,10 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
         }
     }
 
-    auto& grid_data = self->data->grid_data;
+    // #558: a COPY (shared ownership), not a reference to the member: the colour / position / size
+    // conversions below run user code that can set view.grid_data = None. The view is bound to THIS
+    // map again just before it is registered.
+    const std::shared_ptr<GridData> grid_data = self->data->grid_data;
 
     // --------------------------------------------------------------------
     // The camera: this view's own rendering state.
@@ -820,6 +920,7 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
         y = p.y;
     }
 
+    bool size_follows_map = false;
     if (size_obj && size_obj != Py_None) {
         sf::Vector2f s;
         if (!mcrf::to_vector2f(size_obj, s, "size")) return -1;
@@ -829,7 +930,7 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
         // Default: show the whole map at 1:1, following the cell size (#453).
         w = grid_data->grid_w * static_cast<float>(grid_data->cell_width());
         h = grid_data->grid_h * static_cast<float>(grid_data->cell_height());
-        self->data->size_follows_map = true;
+        size_follows_map = true;
     }
 
     // center_x / center_y: nan is the "not given" sentinel (#169); infinity is ValueError and a
@@ -845,9 +946,16 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
         !mcrf::require_finite(vert_margin, "vert_margin")) {
         return -1;
     }
-    // zoom: positive and derived-finite AFTER narrowing to float (a double 1e-46 is 0.0f)
-    if (!checkZoom(static_cast<float>(zoom), static_cast<float>(w), static_cast<float>(h))) return -1;
+    // #558: the camera invariant on the would-be values BEFORE anything is written, so a failed
+    // __init__ leaves the object as it was (zoom positive AFTER narrowing to float, the span / zoom
+    // bound, the centre bound). A double 1e-46 zoom is 0.0f.
+    const bool camera_default = std::isnan(center_x) && std::isnan(center_y);
+    if (std::isnan(center_x)) center_x = w / (2.0f * zoom);  // #169 - tile (0,0) at the widget's top-left
+    if (std::isnan(center_y)) center_y = h / (2.0f * zoom);
+    if (!cameraOk(static_cast<float>(zoom), static_cast<float>(w), static_cast<float>(h),
+                  static_cast<float>(center_x), static_cast<float>(center_y))) return -1;
 
+    self->data->size_follows_map = size_follows_map;
     self->data->zoom = static_cast<float>(zoom);
     self->data->position = sf::Vector2f(x, y);
     self->data->box.setPosition(self->data->position);
@@ -857,10 +965,7 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
     self->data->z_index = z_index;
     if (name) self->data->UIDrawable::name = std::string(name);
 
-    // #169 - default camera puts tile (0,0) at the widget's top-left.
-    self->data->camera_is_default = std::isnan(center_x) && std::isnan(center_y);
-    if (std::isnan(center_x)) center_x = w / (2.0f * zoom);
-    if (std::isnan(center_y)) center_y = h / (2.0f * zoom);
+    self->data->camera_is_default = camera_default;
     self->data->center_x = center_x;
     self->data->center_y = center_y;
 
@@ -883,6 +988,7 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
     // #359 - Register with the map so data-layer mutations invalidate THIS view's
     // cache and push dirt up ITS ancestor chain. Registration order matters: the
     // creating view is views.front().
+    self->data->grid_data = grid_data;  // (see above)
     grid_data->registerView(self->data);
 
     // Never reset weakreflist here: tp_new zero-fills it, and a re-run __init__ would
@@ -1034,19 +1140,23 @@ int UIGridView::set_grid(PyUIGridViewObject* self, PyObject* value, void* closur
     // wrapper holds the GridData itself, not a UIGrid it was a base subobject of.)
     if (PyObject_TypeCheck(value, &mcrfpydef::PyGridDataType)) {
         PyGridDataObject* pygrid = (PyGridDataObject*)value;
-        self->data->grid_data = pygrid->data;
-        self->data->grid_data->registerView(self->data);
+        // a local copy: dropping the old map in the assignment can run a finalizer (user code)
+        // that clears grid_data again; register on what was assigned, not on the member (#558)
+        const std::shared_ptr<GridData> assigned = pygrid->data;
+        self->data->grid_data = assigned;
+        if (assigned) assigned->registerView(self->data);
         return 0;
     }
     // A Grid/GridView: share the map it is looking at.
     if (PyObject_TypeCheck(value, &mcrfpydef::PyUIGridViewType)) {
         PyUIGridViewObject* pyview = (PyUIGridViewObject*)value;
         if (pyview->data->grid_data) {
-            self->data->grid_data = pyview->data->grid_data;
+            const std::shared_ptr<GridData> assigned = pyview->data->grid_data;
+            self->data->grid_data = assigned;
             // #359: register self alongside the original owner (and any other
             // secondary views) -- does not disturb primaryView() identity,
             // which stays views.front() (the original creator).
-            self->data->grid_data->registerView(self->data);
+            assigned->registerView(self->data);
             return 0;
         }
         self->data->grid_data = nullptr;
@@ -1065,6 +1175,7 @@ int UIGridView::set_center(PyUIGridViewObject* self, PyObject* value, void* clos
 {
     sf::Vector2f vec = PyObject_to_sfVector2f(value, "center");
     if (PyErr_Occurred()) return -1;
+    if (!self->data->checkVec2Target("center", vec)) return -1;  // the camera invariant (#558)
     self->data->center_x = vec.x;
     self->data->center_y = vec.y;
     self->data->camera_is_default = false;
@@ -1080,7 +1191,11 @@ int UIGridView::set_zoom(PyUIGridViewObject* self, PyObject* value, void* closur
 {
     float val = 0.0f;
     if (!mcrf::to_float(value, val, "zoom")) return -1;
-    if (!checkZoom(val, self->data->box.getSize().x, self->data->box.getSize().y)) return -1;
+    {
+        double cx, cy;
+        effectiveCenter(*self->data, val, self->data->box.getSize().x, self->data->box.getSize().y, cx, cy);
+        if (!cameraOk(val, self->data->box.getSize().x, self->data->box.getSize().y, cx, cy)) return -1;
+    }
     self->data->zoom = static_cast<float>(val);
     if (self->data->camera_is_default) self->data->applyDefaultCamera();  // #530
     self->data->markDirty();
@@ -1101,6 +1216,7 @@ int UIGridView::set_size(PyUIGridViewObject* self, PyObject* value, void* closur
 {
     sf::Vector2f size;
     if (!mcrf::to_vector2f(value, size, "size")) return -1;
+    if (!self->data->checkSize(size)) return -1;  // the camera invariant (#558)
     self->data->assignSize(size);  // #426: shared with animation
     return 0;
 }
@@ -1118,6 +1234,13 @@ PyObject* UIGridView::py_center_camera(PyUIGridViewObject* self, PyObject* args)
     // Held references, Vector by type, nan/inf ValueError, errors name the argument (#540).
     float tile_x, tile_y;
     if (!PyPositionHelper::FromObject(pos_arg, &tile_x, &tile_y, "center_camera() position")) return nullptr;
+    {
+        // the centre it would set is tile * cell size (data pixels): the camera invariant (#558)
+        const sf::Vector2i cell_px = self->data->cellSize();
+        const sf::Vector2f target(static_cast<float>(tile_x * (double)cell_px.x),
+                                  static_cast<float>(tile_y * (double)cell_px.y));
+        if (!self->data->checkVec2Target("center", target)) return nullptr;
+    }
     self->data->center_camera(tile_x, tile_y);
     Py_RETURN_NONE;
 }
@@ -1231,10 +1354,14 @@ int UIGridView::set_float_member_gv(PyUIGridViewObject* self, PyObject* value, v
     static const char* const gv_names[] = {"?", "?", "?", "?", "center_x", "center_y", "zoom", "camera_rotation"};
     if (!mcrf::to_float(value, val, (member_offset >= 4 && member_offset <= 7) ? gv_names[member_offset] : "value")) return -1;
     switch (member_offset) {
-        case 4: self->data->center_x = val; self->data->camera_is_default = false; break;
-        case 5: self->data->center_y = val; self->data->camera_is_default = false; break;
+        case 4:
+            if (!self->data->checkFloatTarget("center_x", val)) return -1;  // the camera invariant (#558)
+            self->data->center_x = val; self->data->camera_is_default = false; break;
+        case 5:
+            if (!self->data->checkFloatTarget("center_y", val)) return -1;
+            self->data->center_y = val; self->data->camera_is_default = false; break;
         case 6:
-            if (!checkZoom(val, self->data->box.getSize().x, self->data->box.getSize().y)) return -1;
+            if (!self->data->checkFloatTarget("zoom", val)) return -1;
             self->data->zoom = val;
             break;
         case 7: self->data->camera_rotation = val; break;
@@ -1578,14 +1705,16 @@ PyObject* UIGridView::get_hovered_cell(PyUIGridViewObject* self, void* closure) 
 // =========================================================================
 PyObject* UIGridView::subscript(PyUIGridViewObject* self, PyObject* key)
 {
+    // #558: convert the key FIRST (its __index__ is user code that can set view.grid_data = None),
+    // then check the state and take a COPY of the map's shared_ptr, not a reference to the member.
+    int x, y;
+    if (!PyPosition_FromObjectInt(key, &x, &y, "Grid index")) return NULL;  // floors, range-checked (#540)
     if (!self->data || !self->data->grid_data) {
         PyErr_SetString(PyExc_RuntimeError, "Grid has no underlying data");
         return NULL;
     }
-    int x, y;
-    if (!PyPosition_FromObjectInt(key, &x, &y, "Grid index")) return NULL;  // floors, range-checked (#540)
 
-    auto& grid_data = self->data->grid_data;
+    const std::shared_ptr<GridData> grid_data = self->data->grid_data;
     if (x < 0 || x >= grid_data->grid_w) {
         PyErr_Format(PyExc_IndexError, "x index %d is out of range [0, %d)",
             x, grid_data->grid_w);

@@ -76,12 +76,16 @@ int VoxelPoint::set_bool_member(PyVoxelPointObject* self, PyObject* value, void*
         return -1;
     }
 
-    if (!PyBool_Check(value) && !PyLong_Check(value)) {
+    // Exact bool / int only: an int SUBCLASS's __bool__ is user code that could resize the grid and
+    // free the VoxelPoint this wrapper points at (a raw pointer into the nav grid, #558)
+    if (!PyBool_Check(value) && !PyLong_CheckExact(value)) {
         PyErr_SetString(PyExc_TypeError, "Value must be a boolean");
         return -1;
     }
 
-    bool newValue = PyObject_IsTrue(value);
+    const int newValue_truth = PyObject_IsTrue(value);
+    if (newValue_truth < 0) return -1;
+    bool newValue = newValue_truth != 0;
     intptr_t member = reinterpret_cast<intptr_t>(closure);
 
     switch (member) {

@@ -148,7 +148,9 @@ int PyShader::set_dynamic(PyShaderObject* self, PyObject* value, void* closure)
         PyErr_SetString(PyExc_TypeError, "dynamic must be a boolean");
         return -1;
     }
-    self->dynamic = PyObject_IsTrue(value);
+    const int truth_ = PyObject_IsTrue(value);
+    if (truth_ < 0) return -1;
+    self->dynamic = truth_ != 0;
     return 0;
 }
 
@@ -176,54 +178,44 @@ PyObject* PyShader::set_uniform(PyShaderObject* self, PyObject* args, PyObject* 
         return NULL;
     }
 
-    if (!self->shader) {
-        PyErr_SetString(PyExc_RuntimeError, "Shader is not valid");
-        return NULL;
-    }
-
-    // Determine the type and set uniform
+    // #558: convert the value into locals FIRST (PyFloat_AsDouble runs __float__ on an int subclass
+    // or a tuple item -- user code that can re-run __init__ and release the shader), THEN check the
+    // shader and set the uniform.
+    float v[4] = {0, 0, 0, 0};
+    int count = 0;
     if (PyFloat_Check(value) || PyLong_Check(value)) {
-        // Single float
-        float f = (float)PyFloat_AsDouble(value);
+        v[0] = (float)PyFloat_AsDouble(value);
         if (PyErr_Occurred()) return NULL;
-        self->shader->setUniform(name, f);
+        count = 1;
     }
     else if (PyTuple_Check(value)) {
         Py_ssize_t size = PyTuple_Size(value);
-        if (size == 2) {
-            // vec2
-            float x = (float)PyFloat_AsDouble(PyTuple_GetItem(value, 0));
-            float y = (float)PyFloat_AsDouble(PyTuple_GetItem(value, 1));
-            if (PyErr_Occurred()) return NULL;
-            self->shader->setUniform(name, sf::Glsl::Vec2(x, y));
-        }
-        else if (size == 3) {
-            // vec3
-            float x = (float)PyFloat_AsDouble(PyTuple_GetItem(value, 0));
-            float y = (float)PyFloat_AsDouble(PyTuple_GetItem(value, 1));
-            float z = (float)PyFloat_AsDouble(PyTuple_GetItem(value, 2));
-            if (PyErr_Occurred()) return NULL;
-            self->shader->setUniform(name, sf::Glsl::Vec3(x, y, z));
-        }
-        else if (size == 4) {
-            // vec4
-            float x = (float)PyFloat_AsDouble(PyTuple_GetItem(value, 0));
-            float y = (float)PyFloat_AsDouble(PyTuple_GetItem(value, 1));
-            float z = (float)PyFloat_AsDouble(PyTuple_GetItem(value, 2));
-            float w = (float)PyFloat_AsDouble(PyTuple_GetItem(value, 3));
-            if (PyErr_Occurred()) return NULL;
-            self->shader->setUniform(name, sf::Glsl::Vec4(x, y, z, w));
-        }
-        else {
+        if (size < 2 || size > 4) {
             PyErr_Format(PyExc_ValueError,
                 "Tuple must have 2, 3, or 4 elements for vec2/vec3/vec4, got %zd", size);
             return NULL;
         }
+        for (Py_ssize_t i = 0; i < size; i++) {
+            v[i] = (float)PyFloat_AsDouble(PyTuple_GetItem(value, i));
+        }
+        if (PyErr_Occurred()) return NULL;
+        count = (int)size;
     }
     else {
         PyErr_SetString(PyExc_TypeError,
             "Uniform value must be a float or tuple of 2-4 floats");
         return NULL;
+    }
+
+    if (!self->shader) {
+        PyErr_SetString(PyExc_RuntimeError, "Shader is not valid");
+        return NULL;
+    }
+    switch (count) {
+        case 1: self->shader->setUniform(name, v[0]); break;
+        case 2: self->shader->setUniform(name, sf::Glsl::Vec2(v[0], v[1])); break;
+        case 3: self->shader->setUniform(name, sf::Glsl::Vec3(v[0], v[1], v[2])); break;
+        default: self->shader->setUniform(name, sf::Glsl::Vec4(v[0], v[1], v[2], v[3])); break;
     }
 
     Py_RETURN_NONE;

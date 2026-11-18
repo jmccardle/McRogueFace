@@ -280,10 +280,10 @@ expect("g.zoom = 1e-38 (centre would be inf)", lambda: setattr(zg, "zoom", 1e-38
 expect("g.zoom = 1e-46", lambda: setattr(zg, "zoom", 1e-46), ValueError, "zoom")
 expect("g.animate('zoom', 1e-38)", lambda: zg.animate("zoom", 1e-38, 1.0), ValueError, "zoom")
 expect("Grid(zoom=1e-38, size=(40, 40))", lambda: mcrfpy.Grid(grid_size=(4, 4), texture=tex, size=(40, 40), zoom=1e-38), ValueError, "zoom")
-ok("g.zoom = 1e-36", lambda: setattr(zg, "zoom", 1e-36))
+ok("g.zoom = 2e-7 (the minimum for a 40x40 view is 80 / (INT_MAX / 4) ~ 1.5e-7, #558)", lambda: setattr(zg, "zoom", 2e-7))
 c = zg.center
 if not all(abs(x) < 3.4e38 for x in (c.x, c.y)):
-    fails.append(f"center after zoom = 1e-36 is not finite: {c}")
+    fails.append(f"center after zoom = 2e-7 is not finite: {c}")
 ok("g.center = g.center", lambda: setattr(zg, "center", zg.center))
 expect("Grid(center_x=1e39)", lambda: mcrfpy.Grid(grid_size=(4, 4), texture=tex, center_x=1e39), OverflowError)
 expect("Grid(center_y=-1e39)", lambda: mcrfpy.Grid(grid_size=(4, 4), texture=tex, center_y=-1e39), OverflowError)

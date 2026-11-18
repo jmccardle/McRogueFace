@@ -70,6 +70,7 @@ static PyObject* UIDrawable_resize(T* self, PyObject* args, PyObject* kwds)
         return NULL;
     }
 
+    if (!self->data->checkSize({w, h})) return NULL;  // a Grid's camera invariant (#558)
     self->data->resize(w, h);
     Py_RETURN_NONE;
 }
@@ -204,7 +205,9 @@ static int UIDrawable_set_visible(T* self, PyObject* value, void* closure)
         PyErr_SetString(PyExc_TypeError, "visible must be a boolean");
         return -1;
     }
-    self->data->visible = PyObject_IsTrue(value);
+    const int truth_ = PyObject_IsTrue(value);
+    if (truth_ < 0) return -1;
+    self->data->visible = truth_ != 0;
     return 0;
 }
 

@@ -196,20 +196,35 @@ int PyVector::init(PyVectorObject* self, PyObject* args, PyObject* kwds)
     using namespace mcrfpydef;
     static const char* keywords[] = { "x", "y", nullptr };
     PyObject* leader = NULL;
+    PyObject* y_obj = NULL;
     float x=0, y=0;
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|Of", const_cast<char**>(keywords), &leader, &y))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OO", const_cast<char**>(keywords), &leader, &y_obj))
     {
-        //PyErr_SetString(PyExc_TypeError, "mcrfpy.Vector requires a 2-tuple or two numeric values");
         return -1;
     }
-    if (leader == NULL || leader == Py_None)
+    // Vector() is (0, 0). Anything else names BOTH components (x, y) or a 2-tuple: a lone number
+    // or None is not a vector (it used to be (5, 0) / (0, 0), silently).
+    if (leader == NULL)
     {
+        if (y_obj) {
+            PyErr_SetString(PyExc_TypeError, "mcrfpy.Vector: y was given without x");
+            return -1;
+        }
         self->data = sf::Vector2f();
         return 0;
-    } 
+    }
+    if (leader == Py_None)
+    {
+        PyErr_SetString(PyExc_TypeError, "mcrfpy.Vector(None) is not a vector: use Vector() for (0, 0), Vector(x, y) or Vector((x, y))");
+        return -1;
+    }
 
     if (PyTuple_Check(leader))
     {
+        if (y_obj) {
+            PyErr_SetString(PyExc_TypeError, "mcrfpy.Vector((x, y)) takes no second argument");
+            return -1;
+        }
         if (PyTuple_Size(leader) != 2)
         {
             PyErr_SetString(PyExc_TypeError, "Invalid tuple length: mcrfpy.Vector requires a 2-tuple");
@@ -221,13 +236,18 @@ int PyVector::init(PyVectorObject* self, PyObject* args, PyObject* kwds)
         self->data = sf::Vector2f(x, y);
         return 0;
     }
-    // else - 
+    // else - two numbers
     else if (!PyFloat_Check(leader) && !PyLong_Check(leader) && !PyIndex_Check(leader) && !PyNumber_Check(leader))
     {
         PyErr_SetString(PyExc_TypeError, "mcrfpy.Vector requires a 2-tuple or two numeric values");
         return -1;
     }
-    if (!vector_component(leader, &x)) return -1;
+    if (!y_obj)
+    {
+        PyErr_SetString(PyExc_TypeError, "mcrfpy.Vector(x) is not a vector: give both components, Vector(x, y), or a 2-tuple");
+        return -1;
+    }
+    if (!vector_component(leader, &x) || !vector_component(y_obj, &y)) return -1;
     self->data = sf::Vector2f(x, y);
     return 0;
 }

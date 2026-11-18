@@ -1,4 +1,5 @@
 #pragma once
+#include "PyPositionHelper.h"
 #include "Python.h"
 #include <algorithm>
 #include <cstdint>
@@ -98,7 +99,10 @@ struct Uint8Policy {
 
 namespace MapOpsInternal {
 
-// Parse optional position tuple, returning (0, 0) if None/not provided
+// Parse optional position, returning (0, 0) if None/not provided. The integer position helper:
+// a Vector, tuple, list or 2-sequence; floats floor; out of int range is OverflowError (the old
+// (int)PyLong_AsLong wrapped 2**32 to 0 and left an error pending); user code in a conversion is
+// fine here because the caller reads the maps AFTER this returns (#558).
 inline bool parseOptionalPos(PyObject* pos_obj, int* out_x, int* out_y, const char* param_name) {
     *out_x = 0;
     *out_y = 0;
@@ -106,31 +110,10 @@ inline bool parseOptionalPos(PyObject* pos_obj, int* out_x, int* out_y, const ch
     if (!pos_obj || pos_obj == Py_None) {
         return true;  // Default to (0, 0)
     }
-
-    // Try to parse as tuple/list of 2 ints
-    if (PyTuple_Check(pos_obj) && PyTuple_Size(pos_obj) == 2) {
-        PyObject* x_obj = PyTuple_GetItem(pos_obj, 0);
-        PyObject* y_obj = PyTuple_GetItem(pos_obj, 1);
-        if (PyLong_Check(x_obj) && PyLong_Check(y_obj)) {
-            *out_x = (int)PyLong_AsLong(x_obj);
-            *out_y = (int)PyLong_AsLong(y_obj);
-            return true;
-        }
-    } else if (PyList_Check(pos_obj) && PyList_Size(pos_obj) == 2) {
-        PyObject* x_obj = PyList_GetItem(pos_obj, 0);
-        PyObject* y_obj = PyList_GetItem(pos_obj, 1);
-        if (PyLong_Check(x_obj) && PyLong_Check(y_obj)) {
-            *out_x = (int)PyLong_AsLong(x_obj);
-            *out_y = (int)PyLong_AsLong(y_obj);
-            return true;
-        }
-    }
-
-    PyErr_Format(PyExc_TypeError, "%s must be a (x, y) tuple or list", param_name);
-    return false;
+    return PyPosition_FromObjectInt(pos_obj, out_x, out_y, param_name);
 }
 
-// Parse optional size tuple
+// Parse optional size ((-1, -1) when not given); a given size must be positive
 inline bool parseOptionalSize(PyObject* size_obj, int* out_w, int* out_h, const char* param_name) {
     *out_w = -1;  // -1 means "not specified"
     *out_h = -1;
@@ -139,34 +122,17 @@ inline bool parseOptionalSize(PyObject* size_obj, int* out_w, int* out_h, const 
         return true;
     }
 
-    if (PyTuple_Check(size_obj) && PyTuple_Size(size_obj) == 2) {
-        PyObject* w_obj = PyTuple_GetItem(size_obj, 0);
-        PyObject* h_obj = PyTuple_GetItem(size_obj, 1);
-        if (PyLong_Check(w_obj) && PyLong_Check(h_obj)) {
-            *out_w = (int)PyLong_AsLong(w_obj);
-            *out_h = (int)PyLong_AsLong(h_obj);
-            if (*out_w <= 0 || *out_h <= 0) {
-                PyErr_Format(PyExc_ValueError, "%s dimensions must be positive", param_name);
-                return false;
-            }
-            return true;
-        }
-    } else if (PyList_Check(size_obj) && PyList_Size(size_obj) == 2) {
-        PyObject* w_obj = PyList_GetItem(size_obj, 0);
-        PyObject* h_obj = PyList_GetItem(size_obj, 1);
-        if (PyLong_Check(w_obj) && PyLong_Check(h_obj)) {
-            *out_w = (int)PyLong_AsLong(w_obj);
-            *out_h = (int)PyLong_AsLong(h_obj);
-            if (*out_w <= 0 || *out_h <= 0) {
-                PyErr_Format(PyExc_ValueError, "%s dimensions must be positive", param_name);
-                return false;
-            }
-            return true;
-        }
+    int w, h;
+    if (!PyPosition_FromObjectInt(size_obj, &w, &h, param_name)) {
+        return false;
     }
-
-    PyErr_Format(PyExc_TypeError, "%s must be a (width, height) tuple or list", param_name);
-    return false;
+    if (w <= 0 || h <= 0) {
+        PyErr_Format(PyExc_ValueError, "%s dimensions must be positive", param_name);
+        return false;
+    }
+    *out_w = w;
+    *out_h = h;
+    return true;
 }
 
 } // namespace MapOpsInternal
@@ -175,10 +141,13 @@ inline bool parseOptionalSize(PyObject* size_obj, int* out_w, int* out_h, const 
 // parseMapRegion - Parse region parameters for binary operations
 // ============================================================================
 
-// For binary operations (two maps)
+// For binary operations (two maps). `dest` / `src` are the map OBJECTS (anything with w, h, values):
+// #558 -- the pos / source_pos / size conversions run user code (__index__, __float__) that can
+// re-initialise either map, so the dimensions are read only AFTER they finish, never passed in.
+template <typename D, typename S>
 inline bool parseMapRegion(
-    int dest_w, int dest_h,
-    int src_w, int src_h,
+    const D* dest_map,
+    const S* src_map,
     PyObject* pos,              // (x, y) or None - destination position
     PyObject* source_pos,       // (x, y) or None - source position
     PyObject* size,             // (w, h) or None
@@ -186,19 +155,27 @@ inline bool parseMapRegion(
 ) {
     using namespace MapOpsInternal;
 
-    // Store full dimensions
-    out.dest_w = dest_w;
-    out.dest_h = dest_h;
-    out.src_w = src_w;
-    out.src_h = src_h;
-
-    // Parse positions, default to (0, 0)
+    // Phase 1: Python-capable conversions only
     if (!parseOptionalPos(pos, &out.dest_x, &out.dest_y, "pos")) {
         return false;
     }
     if (!parseOptionalPos(source_pos, &out.src_x, &out.src_y, "source_pos")) {
         return false;
     }
+    int requested_w = -1, requested_h = -1;
+    if (!parseOptionalSize(size, &requested_w, &requested_h, "size")) {
+        return false;
+    }
+
+    // Phase 2: no Python from here on; read the maps as they are NOW
+    if (!dest_map->values || !src_map->values) {
+        PyErr_SetString(PyExc_RuntimeError, "DiscreteMap not initialized");
+        return false;
+    }
+    out.dest_w = dest_map->w;
+    out.dest_h = dest_map->h;
+    out.src_w = src_map->w;
+    out.src_h = src_map->h;
 
     // Validate positions are within bounds
     if (out.dest_x < 0 || out.dest_y < 0) {
@@ -228,12 +205,7 @@ inline bool parseMapRegion(
     int src_remaining_w = out.src_w - out.src_x;
     int src_remaining_h = out.src_h - out.src_y;
 
-    // Parse or infer size
-    int requested_w = -1, requested_h = -1;
-    if (!parseOptionalSize(size, &requested_w, &requested_h, "size")) {
-        return false;
-    }
-
+    // Infer size, or use the requested one
     if (requested_w > 0 && requested_h > 0) {
         // Explicit size - must fit in both
         if (requested_w > dest_remaining_w || requested_h > dest_remaining_h) {
@@ -268,13 +240,14 @@ inline bool parseMapRegion(
 }
 
 // For scalar operations (single map, just destination region)
+template <typename D>
 inline bool parseMapRegionScalar(
-    int dest_w, int dest_h,
+    const D* dest_map,
     PyObject* pos,
     PyObject* size,
     MapRegion& out
 ) {
-    return parseMapRegion(dest_w, dest_h, dest_w, dest_h, pos, nullptr, size, out);
+    return parseMapRegion(dest_map, dest_map, pos, nullptr, size, out);
 }
 
 // ============================================================================

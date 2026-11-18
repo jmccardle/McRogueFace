@@ -159,7 +159,9 @@ int PyWindow::set_fullscreen(PyWindowObject* self, PyObject* value, void* closur
         return -1;
     }
     
-    bool fullscreen = PyObject_IsTrue(value);
+    const int fullscreen_truth = PyObject_IsTrue(value);
+    if (fullscreen_truth < 0) return -1;
+    bool fullscreen = fullscreen_truth != 0;
     auto& window = game->getWindow();
     
     if (fullscreen) {
@@ -207,7 +209,9 @@ int PyWindow::set_vsync(PyWindowObject* self, PyObject* value, void* closure)
         return -1;
     }
     
-    bool vsync = PyObject_IsTrue(value);
+    const int vsync_truth = PyObject_IsTrue(value);
+    if (vsync_truth < 0) return -1;
+    bool vsync = vsync_truth != 0;
     game->setVSync(vsync);
     
     return 0;
@@ -282,7 +286,9 @@ int PyWindow::set_visible(PyWindowObject* self, PyObject* value, void* closure)
         return -1;
     }
     
-    bool visible = PyObject_IsTrue(value);
+    const int visible_truth = PyObject_IsTrue(value);
+    if (visible_truth < 0) return -1;
+    bool visible = visible_truth != 0;
     auto& window = game->getWindow();
     window.setVisible(visible);
     

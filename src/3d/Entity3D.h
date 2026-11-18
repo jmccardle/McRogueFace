@@ -190,6 +190,7 @@ public:
     bool getProperty(const std::string&, sf::Color&) const { return false; }
     bool getProperty(const std::string&, std::string&) const { return false; }
     bool checkFloatTarget(const std::string&, float) const { return true; }
+    bool checkVec2Target(const std::string&, const sf::Vector2f&) const { return true; }
     bool hasProperty(const std::string& name) const;
 
     // =========================================================================

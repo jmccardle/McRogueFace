@@ -73,11 +73,15 @@ namespace mcrfpydef {
         .tp_hash = PyVector::hash,
         .tp_flags = Py_TPFLAGS_DEFAULT,
         .tp_doc = PyDoc_STR(
-            "Vector(x: float = 0, y: float = 0)\n\n"
+            "Vector(), Vector(x: float, y: float), or Vector((x, y))\n\n"
             "2D vector for positions, sizes, and directions.\n\n"
             "Args:\n"
             "    x: X component.\n"
             "    y: Y component.\n\n"
+            "Vector() is (0, 0). One number or None is not a vector (TypeError). A component is an\n"
+            "int, float, or anything with __index__ or __float__ (numpy scalars, Fraction, Decimal).\n"
+            "Vector is a math type: Vector(nan, 1) and Vector(inf, 0) are accepted; a nan or\n"
+            "infinite component is rejected where it is STORED (a position, size, ... property).\n\n"
             "Supports arithmetic (+, -, *, /), abs(), len() == 2,\n"
             "indexing ([0] for x, [1] for y), hashing, and equality.\n\n"
             "Properties:\n"

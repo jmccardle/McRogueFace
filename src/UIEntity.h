@@ -188,6 +188,8 @@ public:
     bool getProperty(const std::string& name, std::string& value) const { return false; }
     bool hasProperty(const std::string& name) const;
     bool checkFloatTarget(const std::string& name, float final_value) const { return true; }
+    bool checkVec2Target(const std::string& name, const sf::Vector2f& final_value) const { return true; }
+    bool checkSize(sf::Vector2f) const { return true; }
 
     // Animation shorthand helper - creates and starts an animation on this entity
     // Returns a PyAnimation object. Used by the .animate() method.

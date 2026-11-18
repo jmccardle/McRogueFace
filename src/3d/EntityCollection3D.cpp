@@ -186,12 +186,14 @@ PyObject* EntityCollection3D::clear(PyEntityCollection3DObject* self, PyObject* 
         return NULL;
     }
 
-    // Clear viewport references
-    for (auto& entity : *self->data) {
+    // Detach the whole list first, then release each entity from the private copy:
+    // setViewport(nullptr) drops the identity pin, which can run an entity subclass's __del__ (user
+    // code) that mutates this collection; iterating the live list across that is a use-after-free.
+    std::list<std::shared_ptr<mcrf::Entity3D>> detached;
+    detached.swap(*self->data);
+    for (auto& entity : detached) {
         entity->setViewport(nullptr);
     }
-
-    self->data->clear();
     Py_RETURN_NONE;
 }
 

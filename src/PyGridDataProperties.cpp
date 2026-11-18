@@ -43,6 +43,8 @@ PyObject* PyGridData::get_texture(PyGridDataObject* self, void* closure) {
     return PyTexture::pyobject_for(self->data->getTexture());
 }
 
+static bool check_views_accept_cell_size(const std::shared_ptr<GridData>& grid, sf::Vector2i now);
+
 int PyGridData::assign_texture(const std::shared_ptr<GridData>& grid, PyObject* value)
 {
     if (!value) {
@@ -50,6 +52,8 @@ int PyGridData::assign_texture(const std::shared_ptr<GridData>& grid, PyObject* 
         return -1;
     }
     if (value == Py_None) {
+        // an unset cell size falls back to 1x1 without a texture: same camera check as cell_size=
+        if (!grid->cell_size && !check_views_accept_cell_size(grid, sf::Vector2i(1, 1))) return -1;
         grid->setTexture(nullptr);   // the cell size keeps its value (#453)
         return 0;
     }
@@ -59,7 +63,11 @@ int PyGridData::assign_texture(const std::shared_ptr<GridData>& grid, PyObject* 
         PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture or None");
         return -1;
     }
-    grid->setTexture(((PyTextureObject*)value)->data);
+    const auto& tex = ((PyTextureObject*)value)->data;
+    // An unset cell size follows the texture's sprite size: the same camera check as cell_size= (#558)
+    if (!grid->cell_size &&
+        !check_views_accept_cell_size(grid, sf::Vector2i(tex->sprite_width, tex->sprite_height))) return -1;
+    grid->setTexture(tex);
     return 0;
 }
 
@@ -85,6 +93,20 @@ static bool cell_extent(double v, const char* what, int& out)
     return true;
 }
 
+// Every view over this map must be able to take the new cell size without breaking its camera
+// invariant (UIGridView::checkCellSize): the setters raise instead of applying it (#558).
+static bool check_views_accept_cell_size(const std::shared_ptr<GridData>& grid, sf::Vector2i now)
+{
+    const sf::Vector2i old = grid->cellSize();
+    if (now == old) return true;
+    for (auto& weak_view : grid->views) {
+        if (auto view = weak_view.lock()) {
+            if (!view->checkCellSize(old, now)) return false;
+        }
+    }
+    return true;
+}
+
 PyObject* PyGridData::get_cell_size(PyGridDataObject* self, void* closure) {
     sf::Vector2i c = self->data->cellSize();
     return PyVector(sf::Vector2f((float)c.x, (float)c.y)).pyObject();
@@ -96,6 +118,10 @@ int PyGridData::set_cell_size(PyGridDataObject* self, PyObject* value, void* clo
         return -1;
     }
     if (value == Py_None) {
+        // None falls back to the texture's sprite size (or 1x1): the cell size the views would then see
+        sf::Vector2i fallback(1, 1);
+        if (self->data->ptex) fallback = sf::Vector2i(self->data->ptex->sprite_width, self->data->ptex->sprite_height);
+        if (!check_views_accept_cell_size(self->data, fallback)) return -1;  // camera invariant (#558)
         self->data->setCellSize(std::nullopt);
         return 0;
     }
@@ -103,6 +129,7 @@ int PyGridData::set_cell_size(PyGridDataObject* self, PyObject* value, void* clo
     if (!mcrf::to_vector2f(value, v, "cell_size")) return -1;
     int w = 0, h = 0;
     if (!cell_extent(v.x, "cell_size.x", w) || !cell_extent(v.y, "cell_size.y", h)) return -1;
+    if (!check_views_accept_cell_size(self->data, sf::Vector2i(w, h))) return -1;  // camera invariant (#558)
     self->data->setCellSize(sf::Vector2i(w, h));
     return 0;
 }
@@ -123,6 +150,7 @@ int PyGridData::set_cell_member(PyGridDataObject* self, PyObject* value, void* c
     if (!cell_extent(d, closure ? "cell_height" : "cell_width", v)) return -1;
     sf::Vector2i c = self->data->cellSize();   // the other dimension keeps what it reads
     if (closure) c.y = v; else c.x = v;
+    if (!check_views_accept_cell_size(self->data, c)) return -1;  // camera invariant (#558)
     self->data->setCellSize(c);
     return 0;
 }
@@ -207,12 +235,17 @@ PyObject* PyGridData::get_entities(PyGridDataObject* self, void* closure)
 PyObject* PyGridData::get_layers(PyGridDataObject* self, void* closure) {
     self->data->sortLayers();
 
-    PyObject* tuple = PyTuple_New(self->data->layers.size());
+    // #558: wrapping a layer allocates (a GC pass can run a finalizer that adds or removes layers):
+    // iterate a private copy of the shared_ptrs, sized once, never the live vector.
+    const std::vector<std::shared_ptr<GridLayer>> layers = self->data->layers;
+    const std::shared_ptr<GridData> grid = self->data;
+
+    PyObject* tuple = PyTuple_New(layers.size());
     if (!tuple) return NULL;
 
-    for (size_t i = 0; i < self->data->layers.size(); ++i) {
+    for (size_t i = 0; i < layers.size(); ++i) {
         // #430: each layer's one wrapper (the user's own object if they built it).
-        PyObject* py_layer = PyGridLayerAPI::pyobject_for(self->data->layers[i], self->data);
+        PyObject* py_layer = PyGridLayerAPI::pyobject_for(layers[i], grid);
         if (!py_layer) {
             Py_DECREF(tuple);
             return NULL;

@@ -157,13 +157,16 @@ def test_invalid_size():
 
 
 def test_invalid_size_type():
-    """Non-tuple size raises TypeError"""
-    try:
-        mcrfpy.HeightMap([100, 50])  # list instead of tuple
-        print("FAIL: test_invalid_size_type - should have raised TypeError")
-        sys.exit(1)
-    except TypeError:
-        pass
+    """A size is a position-like pair (tuple, list, Vector: #558); anything else raises TypeError"""
+    h = mcrfpy.HeightMap([100, 50])  # a list is accepted now
+    assert tuple(h.size) == (100, 50)
+    for bad in (5, "ab", None):
+        try:
+            mcrfpy.HeightMap(bad)
+            print(f"FAIL: test_invalid_size_type - {bad!r} should have raised TypeError")
+            sys.exit(1)
+        except TypeError:
+            pass
     print("PASS: test_invalid_size_type")
 
 

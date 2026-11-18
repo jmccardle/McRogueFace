@@ -46,6 +46,20 @@ audit_pymethoddef.py) and flags the recipes that have already produced bugs:
                    mcrf::from_utf8 / mcrf::to_utf8 (src/Utf8.h). SFML widens a bare
                    std::string one byte per code point, so "╔" drew as "â•”" (#477).
                    String literals are exempt; src/platform/ implements the backends.
+  type-by-name     A type identified by its NAME (tp_name compared with strcmp / ==, directly or through
+                   a local) or by a MODULE ATTRIBUTE looked up at call time (PyObject_GetAttrString on the
+                   module, then used as the type of PyObject_TypeCheck / IsInstance) instead of by the
+                   static type object. An object that merely calls itself "mcrfpy.Frame" passed and was
+                   cast to the C struct; a real subclass was rejected; rebinding the module attribute
+                   swapped the check (#559). Use PyObject_TypeCheck(obj, &mcrfpydef::PyXType).
+  check-then-convert
+                   A relational check of engine state (an `if` comparing `self->...` against something,
+                   e.g. a bounds check), then a call that can run user code (argument conversion, __bool__,
+                   a warning hook), then a use of the SAME state with no new check in between. The user
+                   code can re-initialise the object, so the check described memory that is gone (#558).
+                   Convert every argument first, then validate and use. Deliberately narrow: only
+                   relational checks (not null checks, not call-result checks), only the listed
+                   converter calls, only state read through `self->`.
 
 Findings are matched against tools/lint_bindings_baseline.txt, keyed by
 (rule, file, function, call text) with counts and no line numbers, so unrelated
@@ -399,6 +413,145 @@ def lint_file(path: Path) -> list[Finding]:
     out.extend(check_adopt(src, tree, rel))
     out.extend(check_entity_link(src, tree, rel))
     out.extend(check_text_encoding(src, tree, rel))
+    out.extend(check_type_by_name(src, tree, rel))
+    out.extend(check_then_convert(src, tree, rel))
+    return out
+
+
+# #559: a type is identified by its type OBJECT. Comparing tp_name, or fetching a type from the module at
+# call time, is how an object that merely CALLS itself "mcrfpy.Frame" got cast to the C struct.
+STRING_COMPARES = {"strcmp", "strncmp", "strcasecmp", "std::strcmp", "std::strncmp"}
+MODULE_ATTR_ARG = re.compile(r"\b(mcrf_module|mcrfpy_module|module)\b")
+TYPE_CHECKS = {"PyObject_TypeCheck", "PyObject_IsInstance", "PyType_IsSubtype"}
+
+
+def check_type_by_name(src: bytes, tree, rel: str) -> list:
+    out = []
+    for fn in walk(tree.root_node):
+        if fn.type != "function_definition":
+            continue
+        body = fn.child_by_field_name("body")
+        if body is None:
+            continue
+        label = scope_label(src, fn)
+        nodes = list(walk(body))
+        # locals initialised from / assigned an expression that reads tp_name
+        tainted = set()
+        for n in nodes:
+            if n.type == "init_declarator":
+                d, v = n.child_by_field_name("declarator"), n.child_by_field_name("value")
+                if d is not None and v is not None and "tp_name" in text(src, v):
+                    tainted.add(text(src, d).strip().lstrip("*& "))
+            elif n.type == "assignment_expression":
+                lft, rgt = n.child_by_field_name("left"), n.child_by_field_name("right")
+                if lft is not None and rgt is not None and "tp_name" in text(src, rgt):
+                    tainted.add(text(src, lft).strip())
+
+        def names_type(node_text: str) -> bool:
+            if "tp_name" in node_text:
+                return True
+            return any(re.search(rf"\b{re.escape(t)}\b", node_text) for t in tainted)
+
+        for n in nodes:
+            if n.type == "call_expression":
+                name = callee_name(src, n)
+                args = n.child_by_field_name("arguments")
+                if name in STRING_COMPARES and args is not None and names_type(text(src, args)):
+                    out.append(Finding("type-by-name", rel, n.start_point[0] + 1, label,
+                                       f"{name}() on tp_name"))
+            elif n.type == "binary_expression":
+                op = n.child_by_field_name("operator")
+                lft, rgt = n.child_by_field_name("left"), n.child_by_field_name("right")
+                if op is None or text(src, op) not in ("==", "!=") or lft is None or rgt is None:
+                    continue
+                lt, rt = text(src, lft), text(src, rgt)
+                if (names_type(lt) and rt.lstrip().startswith('"')) or (names_type(rt) and lt.lstrip().startswith('"')):
+                    out.append(Finding("type-by-name", rel, n.start_point[0] + 1, label,
+                                       "tp_name compared with a string literal"))
+        # a type fetched from the module, then used as the type of a type check
+        fetched = {}
+        for n in nodes:
+            if n.type == "init_declarator":
+                v = n.child_by_field_name("value")
+                d = n.child_by_field_name("declarator")
+                if v is None or d is None:
+                    continue
+                for c in walk(v):
+                    if c.type == "call_expression" and callee_name(src, c) == "PyObject_GetAttrString":
+                        a = c.child_by_field_name("arguments")
+                        if a is not None and a.named_children and MODULE_ATTR_ARG.search(text(src, a.named_children[0])):
+                            fetched[text(src, d).strip().lstrip("*& ")] = c
+        for n in nodes:
+            if n.type != "call_expression" or callee_name(src, n) not in TYPE_CHECKS:
+                continue
+            a = n.child_by_field_name("arguments")
+            if a is None or len(a.named_children) < 2:
+                continue
+            second = text(src, a.named_children[1])
+            for var, call in fetched.items():
+                if re.search(rf"\b{re.escape(var)}\b", second):
+                    out.append(Finding("type-by-name", rel, n.start_point[0] + 1, label,
+                                       "type looked up in the module at call time"))
+    return out
+
+
+# #558: engine state checked, then user code, then the state used. The user code (an __index__, a
+# __bool__, a warning hook, a finalizer) can re-initialise the object: convert first, THEN check.
+CONVERTER_CALL = re.compile(
+    r"^(PyPosition_\w+|PyPositionHelper::\w+|mcrf::to_(float|cell|cell_pos|vector2f|int)|PyColor::to_color|"
+    r"ParseColorArg|ParseOptionalColorArg|ParseRange|parseValueRange|parseIntValue|parseOptionalPos|"
+    r"parseOptionalSize|parse_subscript_key|PyObject_IsTrue|WarnTileIndexAbove|PyFOV::from_arg|"
+    r"PyHeuristic::from_arg)$")
+RELATIONAL = re.compile(r"(<=|>=|<|>|!=|==)")
+SELF_STATE = re.compile(r"self->\w+")
+
+
+def check_then_convert(src: bytes, tree, rel: str) -> list:
+    out = []
+    for fn in walk(tree.root_node):
+        if fn.type != "function_definition":
+            continue
+        body = fn.child_by_field_name("body")
+        if body is None:
+            continue
+        nodes = list(walk(body))
+        conv = [(c.start_byte, c.end_byte, callee_name(src, c)) for c in nodes
+                if c.type == "call_expression" and CONVERTER_CALL.match(callee_name(src, c))]
+        if not conv:
+            continue
+        checks = []
+        for n in nodes:
+            if n.type != "if_statement":
+                continue
+            cond = n.child_by_field_name("condition")
+            if cond is None:
+                continue
+            ct = text(src, cond)
+            # a relational check on self-> state; not a null check, not a call-result check
+            if (SELF_STATE.search(ct) and RELATIONAL.search(ct.replace("->", "."))
+                    and not re.search(r"\b(nullptr|NULL)\b", ct)
+                    and not any(c.type == "call_expression" for c in walk(cond))):
+                checks.append((cond.end_byte, set(SELF_STATE.findall(ct)), n))
+        if not checks:
+            continue
+        label = scope_label(src, fn)
+        reported = set()
+        for cond_end, roots, ifn in checks:
+            later = [c for c in conv if c[0] > cond_end]
+            if not later:
+                continue
+            last_end = max(c[1] for c in later)
+            after = src[last_end:fn.end_byte].decode("utf8", "replace")
+            used = [r for r in roots if re.search(re.escape(r) + r"\b", after)]
+            rechecked = any(e2 > last_end and (r2 & roots) for e2, r2, _ in checks)
+            if used and not rechecked:
+                state = sorted(used)[0]
+                key = (state, later[0][2])
+                if key in reported:
+                    continue
+                reported.add(key)
+                out.append(Finding("check-then-convert", rel, ifn.start_point[0] + 1, label,
+                                   f"{state} checked before {later[0][2]}() and used after it"))
     return out
 
 
